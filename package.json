@@ -1,0 +1,13 @@
+{
+  "name": "japan-trip-budget-tracker",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared, live-updating expense tracker for our Japan trip (Netlify Functions + Netlify Blobs).",
+  "scripts": {
+    "dev": "netlify dev"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^11.1.6"
+  }
+}
