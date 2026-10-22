@@ -24,7 +24,7 @@ let passcode = store.get("trip.code") || "";
 let pollTimer = null;
 let inflight = 0;
 let gridSignature = "";
-let openCell = null; // { date, cat } shown in the breakdown dialog; cat null = whole day
+let openCell = null; // { date, cat } whose breakdown is dropped down in the table; cat null = whole day
 
 // ---------------------------------------------------------------- helpers
 
@@ -55,40 +55,33 @@ function fmtSgd(amountYen) {
   return `S$${sgdFmt.format(amountYen / yenPerSgd())}`;
 }
 
-// Live JPY/SGD rate, shared by everyone viewing (cached on this device for a few hours).
-const RATE_TTL_MS = 6 * 3600000;
+// Live market JPY/SGD rate from /api/rate (netlify/functions/rate.mjs), which everyone
+// on the trip shares. The last rate seen is remembered on this device for a quick start.
+const RATE_POLL_MS = 5 * 60 * 1000;
 let liveRate = null;
 try { liveRate = JSON.parse(store.get("trip.liveRate")); } catch { /* none cached */ }
 
 async function refreshLiveRate() {
-  if (liveRate && Date.now() - liveRate.fetched < RATE_TTL_MS) return;
-  const sources = [
-    async () => {
-      const r = await (await fetch("https://api.frankfurter.dev/v1/latest?base=SGD&symbols=JPY")).json();
-      return { rate: r.rates.JPY, date: r.date };
-    },
-    async () => {
-      const r = await (await fetch("https://open.er-api.com/v6/latest/SGD")).json();
-      return { rate: r.rates.JPY, date: new Date(r.time_last_update_unix * 1000).toISOString().slice(0, 10) };
-    },
-  ];
-  for (const source of sources) {
-    try {
-      const { rate, date } = await source();
-      if (!(rate > 0)) continue;
-      liveRate = { rate, date, fetched: Date.now() };
-      store.set("trip.liveRate", JSON.stringify(liveRate));
-      if (doc) render();
-      return;
-    } catch { /* try the next source */ }
-  }
+  try {
+    const res = await fetch("/api/rate", { cache: "no-store" });
+    const r = await res.json();
+    if (!res.ok || !(r.rate > 0)) return;
+    liveRate = r;
+    store.set("trip.liveRate", JSON.stringify(liveRate));
+    if (doc) render();
+  } catch { /* keep the last rate we had */ }
 }
 
 function rateLabel() {
   const r = yenPerSgd().toFixed(2);
-  return doc.trip.autoRate && liveRate
-    ? `S$1 = ¥${r} · live rate (${fmtDay(liveRate.date, { month: "short", day: "numeric" })})`
-    : `S$1 = ¥${r} · manual rate${doc.trip.autoRate ? " (live rate unavailable)" : ""}`;
+  if (!(doc.trip.autoRate && liveRate)) {
+    return `S$1 = ¥${r} · manual rate${doc.trip.autoRate ? " (live rate unavailable)" : ""}`;
+  }
+  const when = liveRate.asOf
+    ? fmtDay(liveRate.asOf, { month: "short", day: "numeric" })
+    : `updated ${timeAgo(liveRate.fetched)}`;
+  const kind = liveRate.asOf ? "daily reference rate" : "live market rate";
+  return `S$1 = ¥${r} · ${kind} (${liveRate.source ?? "online"}, ${when})`;
 }
 
 function timeAgo(t) {
@@ -243,7 +236,6 @@ function render(prevDoc = null) {
   renderBreakdown(stats);
   renderLog();
   if ($("#settingsDlg").open) renderCatList();
-  if ($("#itemsDlg").open) renderItems();
 }
 
 function renderCards({ total, loggedDays, byDay, days }) {
@@ -258,25 +250,30 @@ function renderCards({ total, loggedDays, byDay, days }) {
     ? `over ${loggedDays} day${loggedDays === 1 ? "" : "s"} with spending`
     : "No spending logged yet";
 
-  const { budget, end, start } = doc.trip;
+  // The budget is set in SGD; spending is in yen, so convert the budget at the current rate.
+  const { budgetSgd, end, start } = doc.trip;
   const meter = $("#budgetMeter");
-  if (budget > 0) {
+  if (budgetSgd > 0) {
+    const budget = budgetSgd * yenPerSgd();
     const left = budget - total;
     const pct = Math.min(100, (total / budget) * 100);
-    $("#sumBudget").textContent = left >= 0 ? `${yen.format(left)} left` : `${yen.format(-left)} over`;
+    const word = left >= 0 ? "left" : "over";
+    $("#sumBudget").textContent = `${fmtSgd(Math.abs(left))} ${word}`;
+    $("#sumBudgetYen").textContent = `${yen.format(Math.round(Math.abs(left)))} ${word}`;
     meter.hidden = false;
     meter.className = `meter ${pct >= 100 ? "over" : pct >= 85 ? "near" : ""}`;
     meter.firstElementChild.style.width = `${pct}%`;
     const today = localToday();
     const from = today > start ? today : start;
     const remainingDays = from <= end ? Math.round((toMs(end) - toMs(from)) / DAY_MS) + 1 : 0;
-    const ofBudget = `${Math.round(pct)}% of ${yen.format(budget)} (${fmtSgd(budget)})`;
+    const ofBudget = `${Math.round(pct)}% of ${fmtSgd(budget)} used`;
     const perDay = Math.floor(left / remainingDays);
     $("#sumBudgetNote").textContent = remainingDays && left > 0
-      ? `${fmtSgd(Math.abs(left))} ${left >= 0 ? "left" : "over"} · ${ofBudget} · ${yen.format(perDay)} (${fmtSgd(perDay)})/day for ${remainingDays} day${remainingDays === 1 ? "" : "s"} left`
-      : `${fmtSgd(Math.abs(left))} ${left >= 0 ? "left" : "over"} · ${ofBudget} used`;
+      ? `${ofBudget} · ${fmtSgd(perDay)} (${yen.format(perDay)})/day for ${remainingDays} day${remainingDays === 1 ? "" : "s"} left`
+      : ofBudget;
   } else {
     $("#sumBudget").textContent = "—";
+    $("#sumBudgetYen").textContent = "";
     meter.hidden = true;
     $("#sumBudgetNote").textContent = "Set a budget in Settings";
   }
@@ -351,6 +348,7 @@ function renderGrid({ days, sums, byDay, byCat, total, loggedDays }, prevDoc) {
   table.querySelector("[data-grand-avg]").textContent = yen.format(loggedDays ? Math.round(total / loggedDays) : 0);
   table.querySelector("[data-grand-sgd]").textContent = fmtSgd(total);
   table.querySelector("[data-grand-avg-sgd]").textContent = fmtSgd(loggedDays ? total / loggedDays : 0);
+  renderDetail();
 }
 
 function renderBreakdown({ byCat, total, loggedDays }) {
@@ -376,62 +374,118 @@ function renderLog() {
     : `<li class="empty">No changes yet. Start with ＋ Add expense.</li>`;
 }
 
-// ---------------------------------------------------------------- breakdown dialog
+// ---------------------------------------------------------------- breakdown dropdown
 
-function renderItems() {
+function itemRow(i, showCat) {
+  const cat = doc.categories.find((c) => c.id === i.cat);
+  return `<li>
+    <div class="item-main">
+      <span class="item-note">${showCat ? `${esc(cat.emoji)} ` : ""}${i.note ? esc(i.note) : '<span class="muted">No note</span>'}</span>
+      <span class="item-meta">Added by ${esc(i.by)} · ${timeAgo(i.t)}</span>
+    </div>
+    <div class="item-amt">${yen.format(i.a)}<span>${fmtSgd(i.a)}</span></div>
+    <button type="button" class="icon-btn" data-del="${esc(i.id)}" title="Delete this expense" aria-label="Delete ${yen.format(i.a)}${i.note ? ` ${esc(i.note)}` : ""}">🗑</button>
+  </li>`;
+}
+
+// Shows the open cell's expenses in a row that drops down under that day in the table.
+function renderDetail() {
+  const table = $("#grid");
+  table.querySelector("tr.detail-row")?.remove();
+  for (const b of table.querySelectorAll("button.cell.open")) {
+    b.classList.remove("open");
+    b.setAttribute("aria-expanded", "false");
+  }
+  if (!openCell) return;
   const { date, cat } = openCell;
   const category = cat && doc.categories.find((c) => c.id === cat);
-  if (cat && !category) return $("#itemsDlg").close(); // category was removed
+  const dayRow = table.querySelector(`tbody tr[data-date="${date}"]`);
+  if ((cat && !category) || !dayRow) { openCell = null; return; } // category or day went away
+
+  const btn = cat
+    ? dayRow.querySelector(`button.cell[data-cat="${CSS.escape(cat)}"]`)
+    : dayRow.querySelector("button.day-total");
+  btn.classList.add("open");
+  btn.setAttribute("aria-expanded", "true");
+
   const items = doc.items
     .filter((i) => i.date === date && (cat ? i.cat === cat : doc.categories.some((c) => c.id === i.cat)))
     .sort((a, b) => a.t - b.t);
   const total = items.reduce((sum, i) => sum + i.a, 0);
-  $("#itemsTitle").textContent = category ? `${category.emoji} ${category.name}` : "All categories";
-  $("#itemsDate").textContent = fmtDay(date, { weekday: "long", month: "short", day: "numeric", year: "numeric" });
-  $("#itemsTotal").innerHTML = `${yen.format(total)} <span class="sgd">${fmtSgd(total)}</span>`;
-  $("#itemsCount").textContent = `${items.length} expense${items.length === 1 ? "" : "s"}`;
-  const catOf = (id) => doc.categories.find((c) => c.id === id);
-  $("#itemsList").innerHTML = items.length
-    ? items.map((i) => `<li>
-        <div class="item-main">
-          <span class="item-note">${!category ? `${esc(catOf(i.cat).emoji)} ` : ""}${i.note ? esc(i.note) : '<span class="muted">No note</span>'}</span>
-          <span class="item-meta">${esc(i.by)} · ${timeAgo(i.t)}</span>
-        </div>
-        <div class="item-amt">${yen.format(i.a)}<span>${fmtSgd(i.a)}</span></div>
-        <button type="button" class="icon-btn" data-del="${esc(i.id)}" title="Delete this expense" aria-label="Delete ${yen.format(i.a)}${i.note ? ` ${esc(i.note)}` : ""}">🗑</button>
-      </li>`).join("")
-    : `<li class="empty muted">No expenses here yet.</li>`;
+  const count = (n) => `${n} expense${n === 1 ? "" : "s"}`;
+
+  let body;
+  if (!items.length) {
+    body = `<p class="muted">No expenses here yet.</p>`;
+  } else if (category) {
+    body = `<ul class="items-list">${items.map((i) => itemRow(i, false)).join("")}</ul>`;
+  } else {
+    // Whole day: one group per category, in column order, each with its subtotal.
+    body = doc.categories.map((c) => {
+      const group = items.filter((i) => i.cat === c.id);
+      if (!group.length) return "";
+      const sub = group.reduce((sum, i) => sum + i.a, 0);
+      return `<section class="items-group">
+        <h4><span>${esc(c.emoji)} ${esc(c.name)} <span class="muted">· ${count(group.length)}</span></span>
+          <span class="item-amt">${yen.format(sub)}<span>${fmtSgd(sub)}</span></span></h4>
+        <ul class="items-list">${group.map((i) => itemRow(i, false)).join("")}</ul>
+      </section>`;
+    }).join("");
+  }
+
+  const row = document.createElement("tr");
+  row.className = "detail-row";
+  row.innerHTML = `<td colspan="${doc.categories.length + 3}"><div class="detail" id="detail" role="region" aria-label="Breakdown">
+    <div class="detail-head">
+      <div>
+        <h3>${category ? `${esc(category.emoji)} ${esc(category.name)}` : "Everything this day"}</h3>
+        <p class="muted small">${fmtDay(date, { weekday: "long", month: "short", day: "numeric", year: "numeric" })} · ${count(items.length)}</p>
+      </div>
+      <div class="detail-sum">${yen.format(total)}<span>${fmtSgd(total)}</span></div>
+    </div>
+    ${body}
+    <div class="detail-actions">
+      <button type="button" class="btn ghost" data-detail-close>▲ Close</button>
+      <button type="button" class="btn" data-detail-add>＋ Add expense</button>
+    </div>
+  </div></td>`;
+  dayRow.after(row);
 }
 
-function openItems(date, cat) {
-  openCell = { date, cat };
-  renderItems();
-  if (!$("#itemsDlg").open) $("#itemsDlg").showModal();
+function toggleDetail(date, cat) {
+  const same = openCell && openCell.date === date && openCell.cat === cat;
+  openCell = same ? null : { date, cat };
+  renderDetail();
+  if (openCell) $("#detail").scrollIntoView({ block: "nearest", behavior: "smooth" });
 }
 
-$("#grid").addEventListener("click", (e) => {
+$("#grid").addEventListener("click", async (e) => {
+  const del = e.target.closest("button[data-del]");
+  if (del) {
+    const item = doc.items.find((i) => i.id === del.dataset.del);
+    if (!item) return;
+    if (!confirm(`Delete ${yen.format(item.a)}${item.note ? ` (${item.note})` : ""}? This removes it for everyone.`)) return;
+    await runOp({ op: "deleteItem", id: item.id }, `Deleted ${yen.format(item.a)}`);
+    return;
+  }
+  if (e.target.closest("[data-detail-close]")) {
+    openCell = null;
+    return renderDetail();
+  }
+  if (e.target.closest("[data-detail-add]")) return openAdd({ date: openCell.date, cat: openCell.cat });
+
   const btn = e.target.closest("button.cell");
   if (!btn) return;
   const { date, cat } = btn.dataset;
-  if (btn.classList.contains("day-total")) return openItems(date, null);
+  if (btn.classList.contains("day-total")) return toggleDetail(date, null);
   if (btn.classList.contains("empty")) return openAdd({ date, cat });
-  openItems(date, cat);
+  toggleDetail(date, cat);
 });
 
-$("#itemsList").addEventListener("click", async (e) => {
-  const btn = e.target.closest("button[data-del]");
-  if (!btn) return;
-  const item = doc.items.find((i) => i.id === btn.dataset.del);
-  if (!item) return;
-  if (!confirm(`Delete ${yen.format(item.a)}${item.note ? ` (${item.note})` : ""}? This removes it for everyone.`)) return;
-  await runOp({ op: "deleteItem", id: item.id }, `Deleted ${yen.format(item.a)}`);
-});
-
-$("#itemsAdd").addEventListener("click", () => {
-  $("#itemsDlg").close();
-  openAdd({ date: openCell.date, cat: openCell.cat });
-});
-$("#itemsClose").addEventListener("click", () => $("#itemsDlg").close());
+// Keep the dropdown as wide as the visible part of the table, even when the table scrolls sideways.
+const sizeDetail = () => $(".grid-wrap").style.setProperty("--wrap-w", `${$(".grid-wrap").clientWidth}px`);
+window.addEventListener("resize", sizeDetail);
+sizeDetail();
 
 // ---------------------------------------------------------------- settings
 
@@ -453,7 +507,7 @@ function renderCatList() {
 $("#settingsBtn").addEventListener("click", () => {
   if (!doc) return;
   const f = $("#tripForm");
-  for (const k of ["name", "start", "end", "budget", "rate"]) f.elements[k].value = doc.trip[k] || "";
+  for (const k of ["name", "start", "end", "budgetSgd", "rate"]) f.elements[k].value = doc.trip[k] || "";
   f.elements.autoRate.checked = !!doc.trip.autoRate;
   renderCatList();
   $("#settingsDlg").showModal();
@@ -628,4 +682,5 @@ setInterval(() => { if (doc) renderLog(); }, 30000);
 if (!me) askName();
 poll();
 refreshLiveRate();
-setInterval(refreshLiveRate, RATE_TTL_MS);
+setInterval(refreshLiveRate, RATE_POLL_MS);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshLiveRate(); });
