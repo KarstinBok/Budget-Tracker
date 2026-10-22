@@ -57,7 +57,7 @@
       <div class="panel-head">
         <div>
           <h2>Daily spending</h2>
-          <p class="muted small">Use <b>＋ Add expense</b>, or type a yen amount straight into any cell (<code>1200+850</code> adds items up). Changes save and sync automatically.</p>
+          <p class="muted small">Add spending with <b>＋ Add expense</b>. Click any amount to see what it's made up of, or a day's total for everything spent that day.</p>
         </div>
         <div class="head-actions">
           <button id="csvBtn" class="btn ghost" type="button">⬇️ Export CSV</button>
@@ -124,6 +124,24 @@
         <button class="btn" type="submit">Add</button>
       </div>
     </form>
+  </dialog>
+
+  <dialog id="itemsDlg" aria-labelledby="itemsTitle">
+    <div class="items-head">
+      <div>
+        <h2 id="itemsTitle"></h2>
+        <p class="muted" id="itemsDate"></p>
+      </div>
+      <div class="items-sum">
+        <p class="big" id="itemsTotal"></p>
+        <p class="muted small" id="itemsCount"></p>
+      </div>
+    </div>
+    <ul class="items-list" id="itemsList"></ul>
+    <div class="dlg-actions">
+      <button class="btn ghost" type="button" id="itemsClose">Close</button>
+      <button class="btn" type="button" id="itemsAdd">＋ Add expense</button>
+    </div>
   </dialog>
 
   <dialog id="settingsDlg">

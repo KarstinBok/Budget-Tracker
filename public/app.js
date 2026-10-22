@@ -1,5 +1,5 @@
 // Japan trip budget tracker – client.
-// Talks to /api/trip (netlify/functions/trip.mjs). Every edit is sent as a small
+// Talks to /api/trip (netlify/functions/trip.mjs). Every change is sent as a small
 // operation; every few seconds the page polls for a newer version of the shared
 // document so everyone sees each other's changes live.
 
@@ -7,6 +7,7 @@ const API = "/api/trip";
 const POLL_MS = 3000;
 const POLL_HIDDEN_MS = 20000;
 const DAY_MS = 86400000;
+const CLIENT_SCHEMA = 2; // matches SCHEMA in the function; a newer doc means this page is outdated
 
 const $ = (sel) => document.querySelector(sel);
 const yen = new Intl.NumberFormat("en-US", { style: "currency", currency: "JPY" });
@@ -23,7 +24,7 @@ let passcode = store.get("trip.code") || "";
 let pollTimer = null;
 let inflight = 0;
 let gridSignature = "";
-const pending = new Map(); // "date|cat" -> amount not yet confirmed by the server
+let openCell = null; // { date, cat } shown in the breakdown dialog; cat null = whole day
 
 // ---------------------------------------------------------------- helpers
 
@@ -101,14 +102,6 @@ function timeAgo(t) {
   return new Date(t).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
-// Accepts "3200", "3,200", "¥3200", "1200+850+300". Empty means 0. Returns NaN if unreadable.
-function parseAmount(text) {
-  const cleaned = String(text).replace(/[¥￥円,\s]/g, "");
-  if (cleaned === "") return 0;
-  if (!/^\d+(\.\d+)?(\+\d+(\.\d+)?)*$/.test(cleaned)) return NaN;
-  return Math.round(cleaned.split("+").reduce((sum, n) => sum + Number(n), 0));
-}
-
 function toast(msg) {
   const el = $("#toast");
   el.textContent = msg;
@@ -130,26 +123,32 @@ function tripDays() {
   const set = new Set();
   for (let t = toMs(start); t <= toMs(end); t += DAY_MS) set.add(toIso(t));
   // Keep any days that already have spending, even if trip dates were changed later.
-  for (const d of Object.keys(doc.cells)) set.add(d);
+  for (const i of doc.items) set.add(i.date);
   return [...set].sort();
 }
 
-function cellValue(date, cat) {
-  const key = `${date}|${cat}`;
-  if (pending.has(key)) return pending.get(key);
-  return doc.cells[date]?.[cat]?.a ?? 0;
+// sums[date][cat] = { sum, count } for a list of expense items.
+function cellSums(items) {
+  const sums = {};
+  for (const i of items) {
+    const c = ((sums[i.date] ??= {})[i.cat] ??= { sum: 0, count: 0 });
+    c.sum += i.a;
+    c.count++;
+  }
+  return sums;
 }
 
 function computeStats() {
   const days = tripDays();
   const cats = doc.categories;
+  const sums = cellSums(doc.items);
   const byDay = {};
   const byCat = Object.fromEntries(cats.map((c) => [c.id, 0]));
   let total = 0;
   for (const d of days) {
     let dayTotal = 0;
     for (const c of cats) {
-      const v = cellValue(d, c.id);
+      const v = sums[d]?.[c.id]?.sum ?? 0;
       dayTotal += v;
       byCat[c.id] += v;
     }
@@ -157,7 +156,7 @@ function computeStats() {
     total += dayTotal;
   }
   const loggedDays = days.filter((d) => byDay[d] > 0).length;
-  return { days, byDay, byCat, total, loggedDays };
+  return { days, sums, byDay, byCat, total, loggedDays };
 }
 
 // ---------------------------------------------------------------- network
@@ -204,27 +203,12 @@ async function poll() {
 }
 
 function applyDoc(next, fromRemote) {
+  if ((next.schema ?? 1) > CLIENT_SCHEMA) return location.reload(); // the app was updated
   if (doc && next.version < doc.version) return; // stale response
   const prev = doc;
   doc = next;
   render(fromRemote && prev ? prev : null);
   if (!inflight) setSync("live", "Live");
-}
-
-async function setCell(date, cat, amount) {
-  const key = `${date}|${cat}`;
-  pending.set(key, amount);
-  render();
-  try {
-    const data = await send({ op: "setCell", date, cat, amount });
-    if (pending.get(key) === amount) pending.delete(key);
-    applyDoc(data.doc, false);
-  } catch (err) {
-    if (pending.get(key) === amount) pending.delete(key);
-    render();
-    toast(`Couldn't save: ${err.message}`);
-    setSync("offline", "Not saved");
-  }
 }
 
 async function runOp(op, okMsg) {
@@ -246,14 +230,6 @@ const gridSig = () => JSON.stringify([tripDays(), doc.categories, doc.trip.start
 
 function render(prevDoc = null) {
   if (!doc) return;
-  // If the table layout is about to change (someone added a category or changed the
-  // dates) while you're typing in a cell, save that cell first and refocus it afterwards.
-  const active = document.activeElement;
-  let refocus = null;
-  if (active?.matches?.("input.cell") && gridSig() !== gridSignature) {
-    refocus = { ...active.dataset };
-    active.blur();
-  }
   const stats = computeStats();
   document.title = `${doc.trip.name} · Budget`;
   $("#tripName").textContent = doc.trip.name;
@@ -267,9 +243,7 @@ function render(prevDoc = null) {
   renderBreakdown(stats);
   renderLog();
   if ($("#settingsDlg").open) renderCatList();
-  if (refocus) {
-    $("#grid").querySelector(`input.cell[data-date="${refocus.date}"][data-cat="${CSS.escape(refocus.cat)}"]`)?.focus();
-  }
+  if ($("#itemsDlg").open) renderItems();
 }
 
 function renderCards({ total, loggedDays, byDay, days }) {
@@ -313,7 +287,7 @@ function renderCards({ total, loggedDays, byDay, days }) {
   $("#sumMaxDayNote").textContent = maxDay ? fmtDay(maxDay, { weekday: "long", month: "short", day: "numeric" }) : "";
 }
 
-function renderGrid({ days, byDay, byCat, total, loggedDays }, prevDoc) {
+function renderGrid({ days, sums, byDay, byCat, total, loggedDays }, prevDoc) {
   const cats = doc.categories;
   const table = $("#grid");
   const signature = gridSig();
@@ -329,8 +303,8 @@ function renderGrid({ days, byDay, byCat, total, loggedDays }, prevDoc) {
       const inside = d >= doc.trip.start && d <= doc.trip.end;
       return `<tr class="${d === today ? "today" : ""} ${inside ? "" : "outside"}" data-date="${d}">
         <th scope="row"><span class="day-label">${fmtDay(d)}</span><span class="day-sub">${inside ? `Day ${n}` : ""}${d === today ? " · today" : ""}</span></th>
-        ${cats.map((c) => `<td><input class="cell" data-date="${d}" data-cat="${esc(c.id)}" inputmode="decimal" autocomplete="off" placeholder="–" aria-label="${esc(c.name)} on ${fmtDay(d)}" /></td>`).join("")}
-        <td class="total" data-total="${d}"></td>
+        ${cats.map((c) => `<td><button type="button" class="cell" data-date="${d}" data-cat="${esc(c.id)}"></button></td>`).join("")}
+        <td class="total"><button type="button" class="cell day-total" data-date="${d}"></button></td>
         <td class="total sgd-col" data-total-sgd="${d}"></td>
       </tr>`;
     }).join("");
@@ -341,24 +315,28 @@ function renderGrid({ days, byDay, byCat, total, loggedDays }, prevDoc) {
     table.innerHTML = head + `<tbody>${body}</tbody>` + foot;
   }
 
-  for (const input of table.querySelectorAll("input.cell")) {
-    const { date, cat } = input.dataset;
-    const v = cellValue(date, cat);
-    if (document.activeElement !== input) input.value = v ? plain.format(v) : "";
-    const entry = doc.cells[date]?.[cat];
-    input.title = entry ? `${yen.format(entry.a)} · last set by ${entry.by} ${timeAgo(entry.t)}` : "";
-    if (prevDoc) {
-      const before = prevDoc.cells[date]?.[cat]?.a ?? 0;
-      if (before !== (entry?.a ?? 0)) {
-        input.classList.remove("flash");
-        void input.offsetWidth; // restart the animation
-        input.classList.add("flash");
-      }
+  const prevSums = prevDoc ? cellSums(prevDoc.items ?? []) : null;
+  for (const btn of table.querySelectorAll("button.cell:not(.day-total)")) {
+    const { date, cat } = btn.dataset;
+    const cell = sums[date]?.[cat];
+    const catName = doc.categories.find((c) => c.id === cat)?.name;
+    btn.textContent = cell ? plain.format(cell.sum) : "–";
+    btn.classList.toggle("empty", !cell);
+    btn.setAttribute("aria-label", cell
+      ? `${catName} on ${fmtDay(date)}: ${yen.format(cell.sum)}, ${cell.count} expense${cell.count === 1 ? "" : "s"}. Show breakdown`
+      : `${catName} on ${fmtDay(date)}: nothing yet. Add an expense`);
+    btn.title = cell ? `${cell.count} expense${cell.count === 1 ? "" : "s"} · ${fmtSgd(cell.sum)} · click for breakdown` : "Add an expense";
+    if (prevSums && (prevSums[date]?.[cat]?.sum ?? 0) !== (cell?.sum ?? 0)) {
+      btn.classList.remove("flash");
+      void btn.offsetWidth; // restart the animation
+      btn.classList.add("flash");
     }
   }
-  for (const td of table.querySelectorAll("[data-total]")) {
-    const v = byDay[td.dataset.total];
-    td.textContent = v ? plain.format(v) : "";
+  for (const btn of table.querySelectorAll("button.day-total")) {
+    const v = byDay[btn.dataset.date];
+    btn.textContent = v ? plain.format(v) : "";
+    btn.disabled = !v;
+    btn.title = v ? "Click for the day's breakdown" : "";
   }
   for (const td of table.querySelectorAll("[data-total-sgd]")) {
     const v = byDay[td.dataset.totalSgd];
@@ -395,63 +373,65 @@ function renderLog() {
   const items = doc.log.slice(0, 40);
   $("#log").innerHTML = items.length
     ? items.map((e) => `<li><b>${esc(e.by)}</b> ${esc(e.msg)}<time datetime="${new Date(e.t).toISOString()}">${timeAgo(e.t)}</time></li>`).join("")
-    : `<li class="empty">No changes yet. Start by entering an amount in the table above.</li>`;
+    : `<li class="empty">No changes yet. Start with ＋ Add expense.</li>`;
 }
 
-// ---------------------------------------------------------------- grid editing
+// ---------------------------------------------------------------- breakdown dialog
 
-function commitCell(input) {
-  const { date, cat } = input.dataset;
-  const current = cellValue(date, cat);
-  const amount = parseAmount(input.value);
-  if (Number.isNaN(amount)) {
-    input.classList.add("err");
-    toast("Couldn't read that amount – use numbers like 1200 or 800+450");
-    input.value = current ? plain.format(current) : "";
-    setTimeout(() => input.classList.remove("err"), 1500);
-    return;
-  }
-  input.value = amount ? plain.format(amount) : "";
-  if (amount !== current) setCell(date, cat, amount);
+function renderItems() {
+  const { date, cat } = openCell;
+  const category = cat && doc.categories.find((c) => c.id === cat);
+  if (cat && !category) return $("#itemsDlg").close(); // category was removed
+  const items = doc.items
+    .filter((i) => i.date === date && (cat ? i.cat === cat : doc.categories.some((c) => c.id === i.cat)))
+    .sort((a, b) => a.t - b.t);
+  const total = items.reduce((sum, i) => sum + i.a, 0);
+  $("#itemsTitle").textContent = category ? `${category.emoji} ${category.name}` : "All categories";
+  $("#itemsDate").textContent = fmtDay(date, { weekday: "long", month: "short", day: "numeric", year: "numeric" });
+  $("#itemsTotal").innerHTML = `${yen.format(total)} <span class="sgd">${fmtSgd(total)}</span>`;
+  $("#itemsCount").textContent = `${items.length} expense${items.length === 1 ? "" : "s"}`;
+  const catOf = (id) => doc.categories.find((c) => c.id === id);
+  $("#itemsList").innerHTML = items.length
+    ? items.map((i) => `<li>
+        <div class="item-main">
+          <span class="item-note">${!category ? `${esc(catOf(i.cat).emoji)} ` : ""}${i.note ? esc(i.note) : '<span class="muted">No note</span>'}</span>
+          <span class="item-meta">${esc(i.by)} · ${timeAgo(i.t)}</span>
+        </div>
+        <div class="item-amt">${yen.format(i.a)}<span>${fmtSgd(i.a)}</span></div>
+        <button type="button" class="icon-btn" data-del="${esc(i.id)}" title="Delete this expense" aria-label="Delete ${yen.format(i.a)}${i.note ? ` ${esc(i.note)}` : ""}">🗑</button>
+      </li>`).join("")
+    : `<li class="empty muted">No expenses here yet.</li>`;
 }
 
-function moveFocus(input, rowDelta, colDelta) {
-  const cells = [...$("#grid").querySelectorAll("input.cell")];
-  const cols = doc.categories.length;
-  const i = cells.indexOf(input);
-  const target = cells[i + rowDelta * cols + colDelta];
-  if (target) target.focus();
+function openItems(date, cat) {
+  openCell = { date, cat };
+  renderItems();
+  if (!$("#itemsDlg").open) $("#itemsDlg").showModal();
 }
 
-$("#grid").addEventListener("focusin", (e) => {
-  const input = e.target.closest("input.cell");
-  if (!input) return;
-  const v = cellValue(input.dataset.date, input.dataset.cat);
-  input.value = v ? String(v) : "";
-  input.dataset.orig = input.value;
-  requestAnimationFrame(() => input.select());
+$("#grid").addEventListener("click", (e) => {
+  const btn = e.target.closest("button.cell");
+  if (!btn) return;
+  const { date, cat } = btn.dataset;
+  if (btn.classList.contains("day-total")) return openItems(date, null);
+  if (btn.classList.contains("empty")) return openAdd({ date, cat });
+  openItems(date, cat);
 });
 
-$("#grid").addEventListener("focusout", (e) => {
-  const input = e.target.closest("input.cell");
-  if (input) commitCell(input);
+$("#itemsList").addEventListener("click", async (e) => {
+  const btn = e.target.closest("button[data-del]");
+  if (!btn) return;
+  const item = doc.items.find((i) => i.id === btn.dataset.del);
+  if (!item) return;
+  if (!confirm(`Delete ${yen.format(item.a)}${item.note ? ` (${item.note})` : ""}? This removes it for everyone.`)) return;
+  await runOp({ op: "deleteItem", id: item.id }, `Deleted ${yen.format(item.a)}`);
 });
 
-$("#grid").addEventListener("keydown", (e) => {
-  const input = e.target.closest("input.cell");
-  if (!input) return;
-  if (e.key === "Enter") {
-    e.preventDefault();
-    moveFocus(input, e.shiftKey ? -1 : 1, 0);
-    if (document.activeElement === input) input.blur();
-  } else if (e.key === "Escape") {
-    input.value = input.dataset.orig ?? "";
-    input.blur();
-  } else if ((e.key === "ArrowDown" || e.key === "ArrowUp") && !e.altKey) {
-    e.preventDefault();
-    moveFocus(input, e.key === "ArrowDown" ? 1 : -1, 0);
-  }
+$("#itemsAdd").addEventListener("click", () => {
+  $("#itemsDlg").close();
+  openAdd({ date: openCell.date, cat: openCell.cat });
 });
+$("#itemsClose").addEventListener("click", () => $("#itemsDlg").close());
 
 // ---------------------------------------------------------------- settings
 
@@ -513,8 +493,8 @@ $("#catList").addEventListener("click", async (e) => {
   const id = btn.closest("li").dataset.id;
   const cat = doc.categories.find((c) => c.id === id);
   if (btn.dataset.act === "del") {
-    const used = Object.values(doc.cells).filter((day) => day[id]).length;
-    const warn = used ? `\n\nThis also deletes its amounts on ${used} day${used === 1 ? "" : "s"} for everyone.` : "";
+    const used = doc.items.filter((i) => i.cat === id).length;
+    const warn = used ? `\n\nThis also deletes its ${used} expense${used === 1 ? "" : "s"} for everyone.` : "";
     if (!confirm(`Remove "${cat.name}"?${warn}`)) return;
     await runOp({ op: "removeCategory", id }, `Removed ${cat.name}`);
   } else {
@@ -547,7 +527,8 @@ function updateConvert() {
   }
 }
 
-function openAdd() {
+// prefill: optional { date, cat } (cat may be null) when opened from the table.
+function openAdd(prefill = {}) {
   if (!doc) return;
   const days = tripDays();
   const today = localToday();
@@ -557,8 +538,9 @@ function openAdd() {
     `<option value="${d}">${fmtDay(d, { weekday: "short", month: "short", day: "numeric", year: "numeric" })}${d === today ? " (today)" : ""}</option>`).join("");
   addForm.elements.cat.innerHTML = doc.categories.map((c) =>
     `<option value="${esc(c.id)}">${esc(c.emoji)} ${esc(c.name)}</option>`).join("");
-  addForm.elements.date.value = days.includes(today) ? today : days.includes(prevDate) ? prevDate : days[0];
-  if (doc.categories.some((c) => c.id === prevCat)) addForm.elements.cat.value = prevCat;
+  addForm.elements.date.value = prefill.date ?? (days.includes(today) ? today : days.includes(prevDate) ? prevDate : days[0]);
+  const cat = prefill.cat ?? prevCat;
+  if (doc.categories.some((c) => c.id === cat)) addForm.elements.cat.value = cat;
   addForm.elements.amount.value = "";
   addForm.elements.note.value = "";
   updateConvert();
@@ -566,7 +548,7 @@ function openAdd() {
   addForm.elements.amount.focus();
 }
 
-for (const btn of document.querySelectorAll("[data-add]")) btn.addEventListener("click", openAdd);
+for (const btn of document.querySelectorAll("[data-add]")) btn.addEventListener("click", () => openAdd());
 $("#addCancel").addEventListener("click", () => $("#addDlg").close());
 addForm.addEventListener("input", updateConvert);
 
@@ -583,7 +565,7 @@ addForm.addEventListener("submit", async (e) => {
   const submit = addForm.querySelector('button[type="submit"]');
   submit.disabled = true;
   const ok = await runOp(
-    { op: "addToCell", date, cat, amount, note },
+    { op: "addItem", date, cat, amount, note },
     `Added ${yen.format(amount)} (${fmtSgd(amount)}) to ${category.name} on ${fmtDay(date)}`,
   );
   submit.disabled = false;
@@ -621,12 +603,12 @@ $("#codeForm").addEventListener("submit", () => {
 
 $("#csvBtn").addEventListener("click", () => {
   if (!doc) return;
-  const { days, byDay, byCat, total } = computeStats();
   const q = (s) => `"${String(s).replace(/"/g, '""')}"`;
+  const catName = (id) => doc.categories.find((c) => c.id === id)?.name ?? id;
+  const items = [...doc.items].sort((a, b) => a.date.localeCompare(b.date) || a.t - b.t);
   const lines = [
-    ["Date", ...doc.categories.map((c) => c.name), "Total (JPY)", "Total (SGD)"].map(q).join(","),
-    ...days.map((d) => [d, ...doc.categories.map((c) => cellValue(d, c.id)), byDay[d], (byDay[d] / yenPerSgd()).toFixed(2)].join(",")),
-    ["Total", ...doc.categories.map((c) => byCat[c.id]), total, (total / yenPerSgd()).toFixed(2)].map((v, i) => (i === 0 ? q(v) : v)).join(","),
+    ["Date", "Category", "Note", "Amount (JPY)", "Amount (SGD)", "Added by"].map(q).join(","),
+    ...items.map((i) => [i.date, q(catName(i.cat)), q(i.note ?? ""), i.a, (i.a / yenPerSgd()).toFixed(2), q(i.by)].join(",")),
   ];
   const blob = new Blob([lines.join("\n")], { type: "text/csv" });
   const a = Object.assign(document.createElement("a"), {

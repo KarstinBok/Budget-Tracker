@@ -5,10 +5,11 @@
 //   POST /api/trip  { op, by, ... } -> applies one change and returns { changed:true, doc }
 //
 // The whole trip lives in a single JSON blob. Writes are applied server-side as small
-// operations (e.g. "set this one cell") on top of the latest stored copy, using the
-// blob's ETag for compare-and-swap, so two people editing different cells at the same
-// moment never overwrite each other.
+// operations (e.g. "add this expense") on top of the latest stored copy, using the
+// blob's ETag for compare-and-swap, so two people adding expenses at the same moment
+// never overwrite each other.
 
+import { randomUUID } from "node:crypto";
 import { getStore } from "@netlify/blobs";
 
 const KEY = "trip-v1";
@@ -16,6 +17,8 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_LOG = 150;
 const MAX_AMOUNT = 100_000_000;
 const DEFAULT_SGD_RATE = 115; // ¥ per S$1, used until a live rate is available
+const SCHEMA = 2; // bump when the doc shape changes so open pages know to reload
+const MAX_ITEMS = 5000;
 
 const yen = new Intl.NumberFormat("en-US", { style: "currency", currency: "JPY" });
 
@@ -24,6 +27,7 @@ function defaultDoc() {
   const end = new Date(start.getTime() + 9 * 86400000);
   return {
     version: 0,
+    schema: SCHEMA,
     updatedAt: Date.now(),
     trip: {
       name: "Japan Trip",
@@ -42,8 +46,8 @@ function defaultDoc() {
       { id: "shopping", name: "Shopping", emoji: "🛍️" },
       { id: "misc", name: "Misc", emoji: "🎌" },
     ],
-    // cells[date][categoryId] = { a: amountInYen, by, t }
-    cells: {},
+    // One entry per expense: { id, date, cat, a: amountInYen, note, by, t }
+    items: [],
     log: [],
   };
 }
@@ -56,6 +60,20 @@ function normalize(doc) {
     doc.trip.autoRate = true;
   }
   doc.trip.autoRate ??= true;
+  // Trips from before itemised expenses stored one running total per day and category;
+  // keep each of those as a single item.
+  if (doc.cells) {
+    doc.items = [];
+    for (const [date, day] of Object.entries(doc.cells)) {
+      for (const [cat, cell] of Object.entries(day)) {
+        // Deterministic id: reads migrate without saving, so the id must not change between them.
+        doc.items.push({ id: `old-${date}-${cat}`, date, cat, a: cell.a, note: "Earlier entries (combined)", by: cell.by, t: cell.t });
+      }
+    }
+    delete doc.cells;
+  }
+  doc.items ??= [];
+  doc.schema = SCHEMA;
   return doc;
 }
 
@@ -91,43 +109,32 @@ function findCategory(doc, id) {
 // Mutates doc and returns a human readable log line (or null for no-op).
 function applyOp(doc, body, by) {
   switch (body.op) {
-    case "setCell": {
-      const date = str(body.date, 10);
-      if (!DATE_RE.test(date)) fail("Invalid date");
-      const cat = findCategory(doc, body.cat);
-      const amount = body.amount === null || body.amount === "" ? 0 : Number(body.amount);
-      if (!Number.isFinite(amount) || amount < 0 || amount > MAX_AMOUNT) fail("Invalid amount");
-      const rounded = Math.round(amount);
-      const day = (doc.cells[date] ??= {});
-      const prev = day[cat.id]?.a ?? 0;
-      if (prev === rounded) return null;
-      if (rounded === 0) {
-        delete day[cat.id];
-        if (Object.keys(day).length === 0) delete doc.cells[date];
-      } else {
-        day[cat.id] = { a: rounded, by, t: Date.now() };
-      }
-      const what = `${cat.emoji} ${cat.name} on ${prettyDate(date)}`;
-      if (rounded === 0) return `cleared ${what} (was ${yen.format(prev)})`;
-      if (prev === 0) return `added ${yen.format(rounded)} to ${what}`;
-      return `changed ${what} from ${yen.format(prev)} to ${yen.format(rounded)}`;
-    }
-
+    // "addToCell" is what pages loaded before itemised expenses still send.
+    case "addItem":
     case "addToCell": {
       const date = str(body.date, 10);
       if (!DATE_RE.test(date)) fail("Invalid date");
       const cat = findCategory(doc, body.cat);
       const amount = Math.round(Number(body.amount));
       if (!Number.isFinite(amount) || amount <= 0 || amount > MAX_AMOUNT) fail("Invalid amount");
-      const day = (doc.cells[date] ??= {});
-      const prev = day[cat.id]?.a ?? 0;
-      if (prev + amount > MAX_AMOUNT) fail("Invalid amount");
-      day[cat.id] = { a: prev + amount, by, t: Date.now() };
+      if (doc.items.length >= MAX_ITEMS) fail("Too many expenses");
       const note = str(body.note, 60);
+      doc.items.push({ id: randomUUID(), date, cat: cat.id, a: amount, note, by, t: Date.now() });
       return `added ${yen.format(amount)} to ${cat.emoji} ${cat.name} on ${prettyDate(date)}` +
-        (note ? ` (${note})` : "") +
-        (prev ? ` · now ${yen.format(prev + amount)}` : "");
+        (note ? ` (${note})` : "");
     }
+
+    case "deleteItem": {
+      const item = doc.items.find((i) => i.id === body.id);
+      if (!item) return null; // already removed by someone else
+      doc.items = doc.items.filter((i) => i !== item);
+      const cat = doc.categories.find((c) => c.id === item.cat);
+      return `removed ${yen.format(item.a)}${item.note ? ` (${item.note})` : ""} from ` +
+        `${cat ? `${cat.emoji} ${cat.name}` : "a category"} on ${prettyDate(item.date)}`;
+    }
+
+    case "setCell":
+      fail("This page is out of date, please refresh it");
 
     case "updateTrip": {
       const t = body.trip ?? {};
@@ -175,10 +182,7 @@ function applyOp(doc, body, by) {
     case "removeCategory": {
       const cat = findCategory(doc, body.id);
       doc.categories = doc.categories.filter((c) => c.id !== cat.id);
-      for (const [date, day] of Object.entries(doc.cells)) {
-        delete day[cat.id];
-        if (Object.keys(day).length === 0) delete doc.cells[date];
-      }
+      doc.items = doc.items.filter((i) => i.cat !== cat.id);
       return `removed category ${cat.emoji} ${cat.name}`;
     }
 
