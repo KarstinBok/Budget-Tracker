@@ -78,8 +78,56 @@ function normalize(doc) {
     delete doc.cells;
   }
   doc.items ??= [];
+  splitCombinedItems(doc);
   doc.schema = SCHEMA;
   return doc;
+}
+
+const COMBINED_NOTE = "Earlier entries (combined)";
+const yenToNumber = (text) => Number(text.replace(/[^\d]/g, ""));
+
+// The migration above merged everyone's inputs for a day and category into one combined
+// item. The activity log still records each input (who, amount, note), so rebuild the
+// individual entries from it. Whatever the log can't account for (it only keeps the latest
+// entries) stays as one remaining item, so totals never change. Ids are derived from the
+// log so that repeated reads, which don't save, produce the same items.
+function splitCombinedItems(doc) {
+  const combined = doc.items.filter((i) => i.id === `old-${i.date}-${i.cat}` && i.note === COMBINED_NOTE);
+  if (!combined.length) return;
+  const realItems = doc.items.filter((i) => !combined.includes(i));
+  const oldestFirst = [...doc.log].reverse();
+
+  for (const item of combined) {
+    const cat = doc.categories.find((c) => c.id === item.cat);
+    if (!cat) continue;
+    const what = `${cat.emoji} ${cat.name} on ${prettyDate(item.date)}`;
+    let parts = [];
+    for (const entry of oldestFirst) {
+      const m = entry.msg;
+      let found;
+      if ((found = m.match(/^added (¥[\d,]+) to (.*)$/)) && found[2].startsWith(what)) {
+        const rest = found[2].slice(what.length).match(/^(?: \((.*)\))?(?: · now ¥[\d,]+)?$/);
+        if (!rest) continue;
+        const a = yenToNumber(found[1]);
+        // Expenses added since the migration are already their own items; skip those.
+        const isRealItem = realItems.some((i) => i.date === item.date && i.cat === item.cat &&
+          i.a === a && i.by === entry.by && Math.abs(i.t - entry.t) < 2000);
+        if (!isRealItem) parts.push({ a, note: rest[1] ?? "", by: entry.by, t: entry.t });
+      } else if ((found = m.match(/^changed (.*) from (¥[\d,]+) to (¥[\d,]+)$/)) && found[1] === what) {
+        // Someone typed a new total into the old editable table.
+        const delta = yenToNumber(found[3]) - yenToNumber(found[2]);
+        parts.push({ a: delta, note: delta > 0 ? "Total edited up" : "Total edited down", by: entry.by, t: entry.t });
+      } else if ((found = m.match(/^cleared (.*) \(was ¥[\d,]+\)$/)) && found[1] === what) {
+        parts = [];
+      }
+    }
+    const explained = parts.reduce((sum, p) => sum + p.a, 0);
+    const rest = item.a - explained;
+    if (!parts.length || rest < 0) continue; // nothing usable in the log, or it doesn't add up
+    if (rest > 0) parts.unshift({ a: rest, note: "Earlier entries (no details kept)", by: item.by, t: Math.min(item.t, ...parts.map((p) => p.t)) - 1 });
+    const replacements = parts.map((p, n) => ({ id: `${item.id}-${n}`, date: item.date, cat: item.cat, ...p }));
+    doc.items.splice(doc.items.indexOf(item), 1, ...replacements);
+  }
 }
 
 function isoDate(d) {

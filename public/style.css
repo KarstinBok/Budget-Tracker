@@ -269,6 +269,10 @@ button.cell.open::after { content: " ▾"; }
 .item-main { min-width: 0; }
 .item-note { display: block; overflow-wrap: anywhere; }
 .item-meta { display: block; font-size: 0.78rem; color: var(--muted); }
+.item-who { font-weight: 700; }
+.by-person { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; padding: 0; }
+.by-person li { background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 4px 10px; font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+.by-person span { color: var(--accent); font-weight: 600; }
 .items-group + .items-group { margin-top: 12px; }
 .items-group h4 { display: flex; justify-content: space-between; align-items: flex-end; gap: 10px; margin: 0 0 6px; font-size: 0.9rem; padding: 0 4px; }
 .items-group h4 .item-amt { font-size: 0.9rem; }
