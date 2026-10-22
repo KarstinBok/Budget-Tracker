@@ -473,8 +473,9 @@ $("#grid").addEventListener("click", async (e) => {
   if (del) {
     const item = doc.items.find((i) => i.id === del.dataset.del);
     if (!item) return;
-    if (!confirm(`Delete ${yen.format(item.a)}${item.note ? ` (${item.note})` : ""}? This removes it for everyone.`)) return;
-    await runOp({ op: "deleteItem", id: item.id }, `Deleted ${yen.format(item.a)}`);
+    del.disabled = true;
+    const ok = await runOp({ op: "deleteItem", id: item.id }, `Deleted ${yen.format(item.a)}${item.note ? ` (${item.note})` : ""}`);
+    if (!ok) del.disabled = false;
     return;
   }
   if (e.target.closest("[data-detail-close]")) {
