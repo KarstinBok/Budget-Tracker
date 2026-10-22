@@ -3,46 +3,31 @@
 // operation; every few seconds the page polls for a newer version of the shared
 // document so everyone sees each other's changes live.
 
-const API = "/api/trip";
-const POLL_MS = 3000;
-const POLL_HIDDEN_MS = 20000;
-const DAY_MS = 86400000;
-const CLIENT_SCHEMA = 2; // matches SCHEMA in the function; a newer doc means this page is outdated
+import {
+  $, esc, store, localToday, toMs, toIso, fmtDay, timeAgo, toast,
+  downloadFile, setupIdentity, createSync,
+} from "./common.js";
 
-const $ = (sel) => document.querySelector(sel);
+const DAY_MS = 86400000;
+
 const yen = new Intl.NumberFormat("en-US", { style: "currency", currency: "JPY" });
 const plain = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
 
-const store = {
-  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
-  set(k, v) { try { localStorage.setItem(k, v); } catch { /* private mode */ } },
-};
-
 let doc = null;
-let me = store.get("trip.name") || "";
-let passcode = store.get("trip.code") || "";
-let pollTimer = null;
-let inflight = 0;
 let gridSignature = "";
 let openCell = null; // { date, cat } whose breakdown is dropped down in the table; cat null = whole day
 
+const sync = createSync({
+  path: "/api/trip",
+  schema: 2, // matches SCHEMA in netlify/functions/trip.mjs
+  onDoc(next, prevDoc) {
+    doc = next;
+    render(prevDoc);
+  },
+});
+const runOp = (op, okMsg) => sync.runOp(op, okMsg);
+
 // ---------------------------------------------------------------- helpers
-
-const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => (
-  { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
-));
-
-function localToday() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-const toMs = (iso) => Date.parse(iso + "T00:00:00Z");
-const toIso = (ms) => new Date(ms).toISOString().slice(0, 10);
-
-function fmtDay(iso, opts = { weekday: "short", month: "short", day: "numeric" }) {
-  return new Date(toMs(iso)).toLocaleDateString("en-US", { ...opts, timeZone: "UTC" });
-}
 
 const sgdFmt = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -82,31 +67,6 @@ function rateLabel() {
     : `updated ${timeAgo(liveRate.fetched)}`;
   const kind = liveRate.asOf ? "daily reference rate" : "live market rate";
   return `S$1 = ¥${r} · ${kind} (${liveRate.source ?? "online"}, ${when})`;
-}
-
-function timeAgo(t) {
-  const s = Math.round((Date.now() - t) / 1000);
-  if (s < 10) return "just now";
-  if (s < 60) return `${s}s ago`;
-  const m = Math.round(s / 60);
-  if (m < 60) return `${m} min ago`;
-  const h = Math.round(m / 60);
-  if (h < 24) return `${h} h ago`;
-  return new Date(t).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
-}
-
-function toast(msg) {
-  const el = $("#toast");
-  el.textContent = msg;
-  el.classList.add("show");
-  clearTimeout(toast.t);
-  toast.t = setTimeout(() => el.classList.remove("show"), 3200);
-}
-
-function setSync(state, label) {
-  const el = $("#sync");
-  el.className = `sync ${state}`;
-  el.querySelector("span").textContent = label;
 }
 
 // ---------------------------------------------------------------- data access
@@ -152,71 +112,6 @@ function computeStats() {
   return { days, sums, byDay, byCat, total, loggedDays };
 }
 
-// ---------------------------------------------------------------- network
-
-async function api(method, body) {
-  const url = method === "GET" && doc ? `${API}?v=${doc.version}` : API;
-  const res = await fetch(url, {
-    method,
-    headers: { "content-type": "application/json", ...(passcode ? { "x-trip-code": passcode } : {}) },
-    body: body ? JSON.stringify({ ...body, by: me }) : undefined,
-    cache: "no-store",
-  });
-  const data = await res.json().catch(() => ({}));
-  if (res.status === 401) {
-    askPasscode();
-    throw new Error("Passcode required");
-  }
-  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
-  return data;
-}
-
-async function send(op) {
-  inflight++;
-  setSync("saving", "Saving…");
-  try {
-    const data = await api("POST", op);
-    return data;
-  } finally {
-    inflight--;
-  }
-}
-
-async function poll() {
-  clearTimeout(pollTimer);
-  try {
-    const data = await api("GET");
-    if (data.changed) applyDoc(data.doc, true);
-    if (!inflight) setSync("live", "Live");
-  } catch (err) {
-    setSync("offline", navigator.onLine ? "Reconnecting…" : "Offline");
-    if (err.message !== "Passcode required") console.warn(err);
-  }
-  pollTimer = setTimeout(poll, document.hidden ? POLL_HIDDEN_MS : POLL_MS);
-}
-
-function applyDoc(next, fromRemote) {
-  if ((next.schema ?? 1) > CLIENT_SCHEMA) return location.reload(); // the app was updated
-  if (doc && next.version < doc.version) return; // stale response
-  const prev = doc;
-  doc = next;
-  render(fromRemote && prev ? prev : null);
-  if (!inflight) setSync("live", "Live");
-}
-
-async function runOp(op, okMsg) {
-  try {
-    const data = await send(op);
-    applyDoc(data.doc, false);
-    if (okMsg) toast(okMsg);
-    return true;
-  } catch (err) {
-    toast(err.message);
-    setSync("offline", "Not saved");
-    return false;
-  }
-}
-
 // ---------------------------------------------------------------- rendering
 
 const gridSig = () => JSON.stringify([tripDays(), doc.categories, doc.trip.start, doc.trip.end]);
@@ -229,7 +124,6 @@ function render(prevDoc = null) {
   const nights = Math.round((toMs(doc.trip.end) - toMs(doc.trip.start)) / DAY_MS) + 1;
   $("#tripDates").textContent =
     `${fmtDay(doc.trip.start, { month: "short", day: "numeric" })} – ${fmtDay(doc.trip.end, { month: "short", day: "numeric", year: "numeric" })} · ${nights} days · ${rateLabel()}`;
-  $("#whoName").textContent = me || "Set name";
 
   renderCards(stats);
   renderGrid(stats, prevDoc);
@@ -636,33 +530,6 @@ addForm.addEventListener("submit", async (e) => {
   if (ok) $("#addDlg").close();
 });
 
-// ---------------------------------------------------------------- name / passcode
-
-function askName() {
-  $("#nameInput").value = me;
-  $("#nameDlg").showModal();
-}
-
-$("#nameForm").addEventListener("submit", () => {
-  me = $("#nameInput").value.trim().slice(0, 30);
-  store.set("trip.name", me);
-  $("#whoName").textContent = me || "Set name";
-});
-
-$("#whoBtn").addEventListener("click", askName);
-
-function askPasscode() {
-  if ($("#codeDlg").open) return;
-  $("#codeInput").value = "";
-  $("#codeDlg").showModal();
-}
-
-$("#codeForm").addEventListener("submit", () => {
-  passcode = $("#codeInput").value;
-  store.set("trip.code", passcode);
-  poll();
-});
-
 // ---------------------------------------------------------------- export
 
 $("#csvBtn").addEventListener("click", () => {
@@ -674,23 +541,15 @@ $("#csvBtn").addEventListener("click", () => {
     ["Date", "Category", "Note", "Amount (JPY)", "Amount (SGD)", "Added by"].map(q).join(","),
     ...items.map((i) => [i.date, q(catName(i.cat)), q(i.note ?? ""), i.a, (i.a / yenPerSgd()).toFixed(2), q(i.by)].join(",")),
   ];
-  const blob = new Blob([lines.join("\n")], { type: "text/csv" });
-  const a = Object.assign(document.createElement("a"), {
-    href: URL.createObjectURL(blob),
-    download: `${doc.trip.name.replace(/[^\w-]+/g, "_")}_expenses.csv`,
-  });
-  a.click();
-  URL.revokeObjectURL(a.href);
+  downloadFile(`${doc.trip.name.replace(/[^\w-]+/g, "_")}_expenses.csv`, lines.join("\n"), "text/csv");
 });
 
 // ---------------------------------------------------------------- boot
 
-document.addEventListener("visibilitychange", () => { if (!document.hidden) poll(); });
-window.addEventListener("online", poll);
 setInterval(() => { if (doc) renderLog(); }, 30000);
 
-if (!me) askName();
-poll();
+setupIdentity();
+sync.start();
 refreshLiveRate();
 setInterval(refreshLiveRate, RATE_POLL_MS);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshLiveRate(); });

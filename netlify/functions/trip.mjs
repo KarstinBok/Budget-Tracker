@@ -1,20 +1,12 @@
-// Shared trip document API.
-//
-//   GET  /api/trip?v=<version>  -> { changed:false, version } when the client is up to date,
-//                                  otherwise { changed:true, doc }
-//   POST /api/trip  { op, by, ... } -> applies one change and returns { changed:true, doc }
-//
-// The whole trip lives in a single JSON blob. Writes are applied server-side as small
-// operations (e.g. "add this expense") on top of the latest stored copy, using the
-// blob's ETag for compare-and-swap, so two people adding expenses at the same moment
-// never overwrite each other.
+// Shared trip document API: GET/POST /api/trip (see netlify/lib/shared-doc.mjs).
+// The whole trip lives in a single JSON blob: settings, categories, expense items and an
+// activity log.
 
 import { randomUUID } from "node:crypto";
-import { getStore } from "@netlify/blobs";
+import { createDocHandler, fail, str } from "../lib/shared-doc.mjs";
 
 const KEY = "trip-v1";
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const MAX_LOG = 150;
 const MAX_AMOUNT = 100_000_000;
 const DEFAULT_SGD_RATE = 115; // ¥ per S$1, used until a live rate is available
 const SCHEMA = 2; // bump when the doc shape changes so open pages know to reload
@@ -143,16 +135,6 @@ function prettyDate(iso) {
   });
 }
 
-function str(value, max) {
-  return String(value ?? "").trim().slice(0, max);
-}
-
-function fail(message) {
-  const err = new Error(message);
-  err.status = 400;
-  throw err;
-}
-
 function findCategory(doc, id) {
   const cat = doc.categories.find((c) => c.id === id);
   if (!cat) fail("Unknown category");
@@ -252,75 +234,12 @@ function applyOp(doc, body, by) {
   }
 }
 
-function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { "content-type": "application/json", "cache-control": "no-store" },
-  });
-}
-
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-export default async (req) => {
-  const passcode = process.env.TRIP_PASSCODE;
-  if (passcode && req.headers.get("x-trip-code") !== passcode) {
-    return json({ error: "passcode" }, 401);
-  }
-
-  const store = getStore({ name: "japan-trip", consistency: "strong" });
-
-  if (req.method === "GET") {
-    const stored = await store.get(KEY, { type: "json" });
-    const doc = stored ? normalize(stored) : defaultDoc();
-    const since = new URL(req.url).searchParams.get("v");
-    if (since !== null && Number(since) === doc.version) {
-      return json({ changed: false, version: doc.version });
-    }
-    return json({ changed: true, doc });
-  }
-
-  if (req.method === "POST") {
-    let body;
-    try {
-      body = await req.json();
-    } catch {
-      return json({ error: "Invalid JSON" }, 400);
-    }
-    const by = str(body.by, 30) || "Someone";
-
-    for (let attempt = 0; attempt < 10; attempt++) {
-      const current = await store.getWithMetadata(KEY, { type: "json" });
-      const doc = current ? normalize(current.data) : defaultDoc();
-
-      let message;
-      try {
-        message = applyOp(doc, body, by);
-      } catch (err) {
-        if (err.status) return json({ error: err.message }, err.status);
-        throw err;
-      }
-
-      doc.version += 1;
-      doc.updatedAt = Date.now();
-      if (message) {
-        doc.log.unshift({ t: doc.updatedAt, by, msg: message });
-        doc.log.length = Math.min(doc.log.length, MAX_LOG);
-      }
-
-      const result = await store.setJSON(
-        KEY,
-        doc,
-        current ? { onlyIfMatch: current.etag } : { onlyIfNew: true },
-      );
-      if (result.modified) return json({ changed: true, doc });
-
-      // Someone else wrote in between; back off briefly and re-apply on the newer copy.
-      await sleep(30 + Math.random() * 120 * (attempt + 1));
-    }
-    return json({ error: "The tracker is busy, please try again." }, 409);
-  }
-
-  return json({ error: "Method not allowed" }, 405);
-};
+export default createDocHandler({
+  key: KEY,
+  defaultDoc,
+  normalize,
+  applyOp,
+  busyMessage: "The tracker is busy, please try again.",
+});
 
 export const config = { path: "/api/trip" };

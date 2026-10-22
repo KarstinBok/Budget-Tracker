@@ -10,13 +10,26 @@ A shared, live-updating expense tracker for the trip, hosted on Netlify.
 - **Settings:** trip name, dates, total budget, and live or manual exchange rate. You can add, rename, reorder or remove categories.
 - **Export CSV** to download every expense (date, category, note, ¥, S$, who added it).
 
+## Trip journal (`/journal.html`)
+
+A second page, linked from the top of the budget page (📒 Journal), for writing up what happened on the trip and what you'd do differently next time.
+
+- **Entries:** each has a date, a topic (Transport, Food & Drinks, Money, Planning & bookings, …), a title and a detailed write-up of any length. Long write-ups collapse behind "Show full write-up". Unsaved new entries are kept on your device, so a long draft isn't lost if you close the dialog.
+- **Lessons learned:** attach any number of lessons to an entry, each marked ⚠️ *Avoid*, 💡 *Tip* or ✅ *Do again*. **Lessons to remember** at the top collects every lesson from every entry, filterable by kind and linked back to its entry.
+- **Search and filter** entries by text or topic. Entries are grouped by trip day.
+- **Shared and live:** everyone sees new and edited entries within a few seconds. If two people edit the same entry, the second save is refused with a message, and their text stays in the dialog so nothing is lost. Deleting an entry takes two clicks.
+- **Keep it for next time:** **Export Markdown** downloads the lessons and the whole journal as one file, and **Print** prints every write-up in full.
+
 ## How it works
 
 | Piece | Where |
 | --- | --- |
-| Static front-end (no build step) | `public/` |
+| Static front-end (no build step): budget page and journal | `public/` |
 | API: `GET/POST /api/trip` | `netlify/functions/trip.mjs` |
 | API: `GET /api/rate` (live ¥ per S$1) | `netlify/functions/rate.mjs` |
+| API: `GET/POST /api/journal` | `netlify/functions/journal.mjs` |
+| Shared sync logic for both APIs (ETag compare-and-swap) | `netlify/lib/shared-doc.mjs` |
+| Helpers shared by both pages | `public/common.js` |
 | Storage | [Netlify Blobs](https://docs.netlify.com/blobs/overview/), store `japan-trip` |
 
 The whole trip is stored as one JSON document, with each expense as its own item. Each change is sent as a small operation, such as "add ¥1,200 to Food on Nov 3". The server applies it to the latest stored copy using an ETag compare-and-swap and retries if another write got there first. That way, two people adding expenses at the same moment don't overwrite each other. Browsers poll for a newer version every 3 seconds (every 20 seconds when the tab is hidden).

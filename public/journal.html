@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Trip Journal</title>
+  <meta name="description" content="What happened on our Japan trip and the lessons we learned, to look back on before the next one." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23fff'/><circle cx='50' cy='50' r='26' fill='%23bc002d'/></svg>" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="journal-page">
+  <header class="topbar">
+    <div class="brand">
+      <span class="sun" aria-hidden="true"></span>
+      <div>
+        <h1>Trip journal</h1>
+        <p id="tripDates" class="muted">Lessons learned, for next time</p>
+      </div>
+    </div>
+    <div class="top-actions">
+      <span id="sync" class="sync" title="Sync status"><i></i><span>Connecting…</span></span>
+      <button id="whoBtn" class="chip" type="button" title="Change your name">👤 <span id="whoName">You</span></button>
+      <a class="btn ghost" href="/">💴 Budget</a>
+      <button class="btn add-btn" type="button" data-new>＋ New entry</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>Lessons to remember</h2>
+          <p class="muted small">Every lesson from every entry, so you can check them before planning the next trip.</p>
+        </div>
+        <div class="head-actions">
+          <button id="mdBtn" class="btn ghost" type="button">⬇️ Export Markdown</button>
+          <button id="printBtn" class="btn ghost" type="button">🖨️ Print</button>
+        </div>
+      </div>
+      <div class="seg lesson-filter" role="radiogroup" aria-label="Show lessons">
+        <label><input type="radio" name="lf" value="all" checked /><span>All <b data-count="all"></b></span></label>
+        <label><input type="radio" name="lf" value="avoid" /><span>⚠️ Avoid <b data-count="avoid"></b></span></label>
+        <label><input type="radio" name="lf" value="tip" /><span>💡 Tips <b data-count="tip"></b></span></label>
+        <label><input type="radio" name="lf" value="keep" /><span>✅ Do again <b data-count="keep"></b></span></label>
+      </div>
+      <ul class="lessons" id="lessons"></ul>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>Journal</h2>
+          <p class="muted small">What happened, day by day, in as much detail as you like.</p>
+        </div>
+        <div class="head-actions">
+          <input id="search" class="search" type="search" placeholder="Search entries and lessons" aria-label="Search entries and lessons" />
+          <select id="tagFilter" class="search" aria-label="Filter by topic"></select>
+        </div>
+      </div>
+      <div id="entries" class="entries"></div>
+    </section>
+  </main>
+
+  <button class="fab" type="button" data-new aria-label="New entry">＋</button>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <dialog id="entryDlg" class="entry-dlg">
+    <form id="entryForm">
+      <h2 id="entryDlgTitle">New entry</h2>
+      <div class="row">
+        <label>Date <input name="date" type="date" required /></label>
+        <label>Topic <select name="tag" required></select></label>
+      </div>
+      <label>Title <input name="title" maxlength="120" required placeholder="e.g. Missed the last train from Hakone" /></label>
+      <label>What happened
+        <textarea name="text" rows="10" maxlength="20000" placeholder="Write it all down: what you planned, what actually happened, what it cost, how you fixed it…"></textarea>
+      </label>
+      <fieldset class="lesson-edit">
+        <legend>Lessons learned</legend>
+        <ul id="lessonRows"></ul>
+        <button type="button" class="btn ghost" id="addLesson">＋ Add lesson</button>
+      </fieldset>
+      <p class="muted small" id="draftNote" hidden>Your unsaved draft was restored.</p>
+      <div class="dlg-actions">
+        <button class="btn ghost" type="button" id="entryCancel">Cancel</button>
+        <button class="btn" type="submit">Save entry</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="nameDlg">
+    <form method="dialog" id="nameForm">
+      <h2>Who's writing?</h2>
+      <p class="muted">Your name is shown on the entries you write.</p>
+      <input id="nameInput" maxlength="30" placeholder="Your name" required autocomplete="nickname" />
+      <div class="dlg-actions"><button class="btn" value="ok">Continue</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="codeDlg">
+    <form method="dialog" id="codeForm">
+      <h2>Trip passcode</h2>
+      <p class="muted">This journal is protected. Ask the trip organiser for the passcode.</p>
+      <input id="codeInput" type="password" required autocomplete="current-password" />
+      <div class="dlg-actions"><button class="btn" value="ok">Unlock</button></div>
+    </form>
+  </dialog>
+
+  <script src="journal.js" type="module"></script>
+</body>
+</html>
