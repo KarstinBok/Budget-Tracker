@@ -21,6 +21,7 @@
       <span id="sync" class="sync" title="Sync status"><i></i><span>Connecting…</span></span>
       <button id="whoBtn" class="chip" type="button" title="Change your name">👤 <span id="whoName">You</span></button>
       <button id="settingsBtn" class="btn ghost" type="button">⚙️ Settings</button>
+      <button class="btn add-btn" type="button" data-add>＋ Add expense</button>
     </div>
   </header>
 
@@ -29,11 +30,13 @@
       <article class="card">
         <h2>Total spent</h2>
         <p class="big" id="sumTotal">¥0</p>
-        <p class="muted" id="sumTotalHome"></p>
+        <p class="big sgd" id="sumTotalSgd">S$0.00</p>
+        <p class="muted" id="sumRate"></p>
       </article>
       <article class="card">
         <h2>Average per day</h2>
         <p class="big" id="sumAvg">¥0</p>
+        <p class="big sgd" id="sumAvgSgd">S$0.00</p>
         <p class="muted" id="sumAvgNote"></p>
       </article>
       <article class="card">
@@ -45,6 +48,7 @@
       <article class="card">
         <h2>Biggest day</h2>
         <p class="big" id="sumMaxDay">—</p>
+        <p class="big sgd" id="sumMaxDaySgd"></p>
         <p class="muted" id="sumMaxDayNote"></p>
       </article>
     </section>
@@ -53,9 +57,12 @@
       <div class="panel-head">
         <div>
           <h2>Daily spending</h2>
-          <p class="muted small">Type an amount in yen into any cell. Use <code>+</code> to add items, e.g. <code>1200+850</code>. Changes save and sync automatically.</p>
+          <p class="muted small">Use <b>＋ Add expense</b>, or type a yen amount straight into any cell (<code>1200+850</code> adds items up). Changes save and sync automatically.</p>
         </div>
-        <button id="csvBtn" class="btn ghost" type="button">⬇️ Export CSV</button>
+        <div class="head-actions">
+          <button id="csvBtn" class="btn ghost" type="button">⬇️ Export CSV</button>
+          <button class="btn" type="button" data-add>＋ Add expense</button>
+        </div>
       </div>
       <div class="grid-wrap">
         <table class="grid" id="grid"></table>
@@ -73,6 +80,8 @@
       </section>
     </div>
   </main>
+
+  <button class="fab" type="button" data-add aria-label="Add expense">＋</button>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
@@ -94,6 +103,29 @@
     </form>
   </dialog>
 
+  <dialog id="addDlg">
+    <form id="addForm">
+      <h2>Add expense</h2>
+      <label>Date <select name="date" required></select></label>
+      <label>Category <select name="cat" required></select></label>
+      <label>Price
+        <div class="price-row">
+          <input name="amount" inputmode="decimal" autocomplete="off" placeholder="0" required />
+          <div class="seg" role="radiogroup" aria-label="Currency">
+            <label><input type="radio" name="cur" value="JPY" checked /><span>¥ JPY</span></label>
+            <label><input type="radio" name="cur" value="SGD" /><span>S$ SGD</span></label>
+          </div>
+        </div>
+      </label>
+      <p class="convert" id="addConvert">= S$0.00</p>
+      <label>Note (optional) <input name="note" maxlength="60" placeholder="e.g. Ichiran ramen" /></label>
+      <div class="dlg-actions">
+        <button class="btn ghost" type="button" id="addCancel">Cancel</button>
+        <button class="btn" type="submit">Add</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog id="settingsDlg">
     <form id="tripForm">
       <h2>Trip settings</h2>
@@ -103,10 +135,9 @@
         <label>End date <input name="end" type="date" required /></label>
       </div>
       <label>Total budget (¥, optional) <input name="budget" type="number" min="0" step="1000" inputmode="numeric" /></label>
-      <div class="row">
-        <label>Home currency <input name="currency" maxlength="5" placeholder="USD" required /></label>
-        <label>¥ per 1 unit <input name="rate" type="number" min="0.0001" step="any" required /></label>
-      </div>
+      <label class="check"><input name="autoRate" type="checkbox" /> Use live JPY → SGD exchange rate</label>
+      <label>Manual rate: ¥ per S$1 (used when live rate is off or unavailable)
+        <input name="rate" type="number" min="0.0001" step="any" required /></label>
       <div class="dlg-actions">
         <button class="btn" type="submit">Save trip</button>
       </div>
