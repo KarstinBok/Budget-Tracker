@@ -55,40 +55,33 @@ function fmtSgd(amountYen) {
   return `S$${sgdFmt.format(amountYen / yenPerSgd())}`;
 }
 
-// Live JPY/SGD rate, shared by everyone viewing (cached on this device for a few hours).
-const RATE_TTL_MS = 6 * 3600000;
+// Live market JPY/SGD rate from /api/rate (netlify/functions/rate.mjs), which everyone
+// on the trip shares. The last rate seen is remembered on this device for a quick start.
+const RATE_POLL_MS = 5 * 60 * 1000;
 let liveRate = null;
 try { liveRate = JSON.parse(store.get("trip.liveRate")); } catch { /* none cached */ }
 
 async function refreshLiveRate() {
-  if (liveRate && Date.now() - liveRate.fetched < RATE_TTL_MS) return;
-  const sources = [
-    async () => {
-      const r = await (await fetch("https://api.frankfurter.dev/v1/latest?base=SGD&symbols=JPY")).json();
-      return { rate: r.rates.JPY, date: r.date };
-    },
-    async () => {
-      const r = await (await fetch("https://open.er-api.com/v6/latest/SGD")).json();
-      return { rate: r.rates.JPY, date: new Date(r.time_last_update_unix * 1000).toISOString().slice(0, 10) };
-    },
-  ];
-  for (const source of sources) {
-    try {
-      const { rate, date } = await source();
-      if (!(rate > 0)) continue;
-      liveRate = { rate, date, fetched: Date.now() };
-      store.set("trip.liveRate", JSON.stringify(liveRate));
-      if (doc) render();
-      return;
-    } catch { /* try the next source */ }
-  }
+  try {
+    const res = await fetch("/api/rate", { cache: "no-store" });
+    const r = await res.json();
+    if (!res.ok || !(r.rate > 0)) return;
+    liveRate = r;
+    store.set("trip.liveRate", JSON.stringify(liveRate));
+    if (doc) render();
+  } catch { /* keep the last rate we had */ }
 }
 
 function rateLabel() {
   const r = yenPerSgd().toFixed(2);
-  return doc.trip.autoRate && liveRate
-    ? `S$1 = ¥${r} · live rate (${fmtDay(liveRate.date, { month: "short", day: "numeric" })})`
-    : `S$1 = ¥${r} · manual rate${doc.trip.autoRate ? " (live rate unavailable)" : ""}`;
+  if (!(doc.trip.autoRate && liveRate)) {
+    return `S$1 = ¥${r} · manual rate${doc.trip.autoRate ? " (live rate unavailable)" : ""}`;
+  }
+  const when = liveRate.asOf
+    ? fmtDay(liveRate.asOf, { month: "short", day: "numeric" })
+    : `updated ${timeAgo(liveRate.fetched)}`;
+  const kind = liveRate.asOf ? "daily reference rate" : "live market rate";
+  return `S$1 = ¥${r} · ${kind} (${liveRate.source ?? "online"}, ${when})`;
 }
 
 function timeAgo(t) {
@@ -689,4 +682,5 @@ setInterval(() => { if (doc) renderLog(); }, 30000);
 if (!me) askName();
 poll();
 refreshLiveRate();
-setInterval(refreshLiveRate, RATE_TTL_MS);
+setInterval(refreshLiveRate, RATE_POLL_MS);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshLiveRate(); });

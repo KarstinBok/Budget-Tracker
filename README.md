@@ -3,7 +3,7 @@
 A shared, live-updating expense tracker for the trip, hosted on Netlify.
 
 - **Add expense button:** pick the date, category and price (in ¥ or S$) and it's added to that day's total. The SGD (or yen) equivalent is shown as you type. On phones it's the round ＋ button in the corner.
-- **SGD everywhere:** totals, daily averages, budget and each day's total are shown in both ¥ and S$. It uses the live JPY→SGD rate (from frankfurter.dev, falling back to open.er-api.com) or a manual rate you set in Settings.
+- **SGD everywhere:** totals, daily averages, budget and each day's total are shown in both ¥ and S$. It follows the live market JPY→SGD rate, which `/api/rate` fetches from Coinbase's exchange-rate feed and refreshes every 5 minutes, so everyone sees the same rate. If Coinbase is unreachable it falls back to the daily ECB reference rate (frankfurter.dev), then open.er-api.com. You can also set a manual rate in Settings. All amounts, past ones included, are converted at the current rate.
 - **Daily table:** one row per trip day and one column per category (Food, Transport, Lodging, …). It's read-only: click any amount to see the individual expenses behind it (note, who added it, ¥ and S$), and delete one if it was a mistake. Click a day's total to see everything spent that day. Clicking an empty cell opens Add expense for that day and category.
 - **Summary:** total spent (in ¥ and S$), average per day, budget left (set in S$) with a suggested daily allowance, your biggest day, and totals, averages and shares per category.
 - **Live updates:** every change is saved to the server right away. Everyone who has the page open sees it within about 3 seconds, and the changed cell flashes. The **Recent changes** feed shows who changed what.
@@ -16,6 +16,7 @@ A shared, live-updating expense tracker for the trip, hosted on Netlify.
 | --- | --- |
 | Static front-end (no build step) | `public/` |
 | API: `GET/POST /api/trip` | `netlify/functions/trip.mjs` |
+| API: `GET /api/rate` (live ¥ per S$1) | `netlify/functions/rate.mjs` |
 | Storage | [Netlify Blobs](https://docs.netlify.com/blobs/overview/), store `japan-trip` |
 
 The whole trip is stored as one JSON document, with each expense as its own item. Each change is sent as a small operation, such as "add ¥1,200 to Food on Nov 3". The server applies it to the latest stored copy using an ETag compare-and-swap and retries if another write got there first. That way, two people adding expenses at the same moment don't overwrite each other. Browsers poll for a newer version every 3 seconds (every 20 seconds when the tab is hidden).
