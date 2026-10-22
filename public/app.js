@@ -380,8 +380,8 @@ function itemRow(i, showCat) {
   const cat = doc.categories.find((c) => c.id === i.cat);
   return `<li>
     <div class="item-main">
-      <span class="item-note">${showCat ? `${esc(cat.emoji)} ` : ""}${i.note ? esc(i.note) : '<span class="muted">No note</span>'}</span>
-      <span class="item-meta">Added by ${esc(i.by)} · ${timeAgo(i.t)}</span>
+      <span class="item-note"><b class="item-who">${esc(i.by)}</b>${showCat ? ` ${esc(cat.emoji)}` : ""}${i.note ? ` · ${esc(i.note)}` : ""}</span>
+      <span class="item-meta">${timeAgo(i.t)}</span>
     </div>
     <div class="item-amt">${yen.format(i.a)}<span>${fmtSgd(i.a)}</span></div>
     <button type="button" class="icon-btn" data-del="${esc(i.id)}" title="Delete this expense" aria-label="Delete ${yen.format(i.a)}${i.note ? ` ${esc(i.note)}` : ""}">🗑</button>
@@ -414,6 +414,14 @@ function renderDetail() {
   const total = items.reduce((sum, i) => sum + i.a, 0);
   const count = (n) => `${n} expense${n === 1 ? "" : "s"}`;
 
+  // How much each person put in, when more than one person contributed.
+  const perPerson = new Map();
+  for (const i of items) perPerson.set(i.by, (perPerson.get(i.by) ?? 0) + i.a);
+  const byPerson = perPerson.size > 1
+    ? `<ul class="by-person" aria-label="By person">${[...perPerson].map(([who, amt]) =>
+        `<li><b>${esc(who)}</b> ${yen.format(amt)} <span>${fmtSgd(amt)}</span></li>`).join("")}</ul>`
+    : "";
+
   let body;
   if (!items.length) {
     body = `<p class="muted">No expenses here yet.</p>`;
@@ -443,6 +451,7 @@ function renderDetail() {
       </div>
       <div class="detail-sum">${yen.format(total)}<span>${fmtSgd(total)}</span></div>
     </div>
+    ${byPerson}
     ${body}
     <div class="detail-actions">
       <button type="button" class="btn ghost" data-detail-close>▲ Close</button>
