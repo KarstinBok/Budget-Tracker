@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Japan Trip Budget</title>
+  <meta name="description" content="Shared, live-updating expense tracker for our Japan trip." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23fff'/><circle cx='50' cy='50' r='26' fill='%23bc002d'/></svg>" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="sun" aria-hidden="true"></span>
+      <div>
+        <h1 id="tripName">Japan Trip</h1>
+        <p id="tripDates" class="muted"></p>
+      </div>
+    </div>
+    <div class="top-actions">
+      <span id="sync" class="sync" title="Sync status"><i></i><span>Connecting…</span></span>
+      <button id="whoBtn" class="chip" type="button" title="Change your name">👤 <span id="whoName">You</span></button>
+      <button id="settingsBtn" class="btn ghost" type="button">⚙️ Settings</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="cards" aria-label="Summary">
+      <article class="card">
+        <h2>Total spent</h2>
+        <p class="big" id="sumTotal">¥0</p>
+        <p class="muted" id="sumTotalHome"></p>
+      </article>
+      <article class="card">
+        <h2>Average per day</h2>
+        <p class="big" id="sumAvg">¥0</p>
+        <p class="muted" id="sumAvgNote"></p>
+      </article>
+      <article class="card">
+        <h2>Budget</h2>
+        <p class="big" id="sumBudget">—</p>
+        <div class="meter" id="budgetMeter" hidden><span></span></div>
+        <p class="muted" id="sumBudgetNote">Set a budget in Settings</p>
+      </article>
+      <article class="card">
+        <h2>Biggest day</h2>
+        <p class="big" id="sumMaxDay">—</p>
+        <p class="muted" id="sumMaxDayNote"></p>
+      </article>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>Daily spending</h2>
+          <p class="muted small">Type an amount in yen into any cell. Use <code>+</code> to add items, e.g. <code>1200+850</code>. Changes save and sync automatically.</p>
+        </div>
+        <button id="csvBtn" class="btn ghost" type="button">⬇️ Export CSV</button>
+      </div>
+      <div class="grid-wrap">
+        <table class="grid" id="grid"></table>
+      </div>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <h2>By category</h2>
+        <table class="breakdown" id="breakdown"></table>
+      </section>
+      <section class="panel">
+        <h2>Recent changes</h2>
+        <ol class="log" id="log"></ol>
+      </section>
+    </div>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <dialog id="nameDlg">
+    <form method="dialog" id="nameForm">
+      <h2>Who's tracking?</h2>
+      <p class="muted">Your name is shown next to the changes you make so everyone knows who added what.</p>
+      <input id="nameInput" maxlength="30" placeholder="Your name" required autocomplete="nickname" />
+      <div class="dlg-actions"><button class="btn" value="ok">Continue</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="codeDlg">
+    <form method="dialog" id="codeForm">
+      <h2>Trip passcode</h2>
+      <p class="muted">This tracker is protected. Ask the trip organiser for the passcode.</p>
+      <input id="codeInput" type="password" required autocomplete="current-password" />
+      <div class="dlg-actions"><button class="btn" value="ok">Unlock</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="settingsDlg">
+    <form id="tripForm">
+      <h2>Trip settings</h2>
+      <label>Trip name <input name="name" maxlength="60" required /></label>
+      <div class="row">
+        <label>Start date <input name="start" type="date" required /></label>
+        <label>End date <input name="end" type="date" required /></label>
+      </div>
+      <label>Total budget (¥, optional) <input name="budget" type="number" min="0" step="1000" inputmode="numeric" /></label>
+      <div class="row">
+        <label>Home currency <input name="currency" maxlength="5" placeholder="USD" required /></label>
+        <label>¥ per 1 unit <input name="rate" type="number" min="0.0001" step="any" required /></label>
+      </div>
+      <div class="dlg-actions">
+        <button class="btn" type="submit">Save trip</button>
+      </div>
+    </form>
+
+    <hr />
+
+    <h3>Categories</h3>
+    <ul class="cat-list" id="catList"></ul>
+    <form id="catForm" class="row cat-add">
+      <input name="emoji" maxlength="8" placeholder="🍡" class="emoji-in" aria-label="Emoji" />
+      <input name="name" maxlength="40" placeholder="New category" required aria-label="Category name" />
+      <button class="btn" type="submit">Add</button>
+    </form>
+
+    <div class="dlg-actions">
+      <button class="btn ghost" type="button" id="closeSettings">Close</button>
+    </div>
+  </dialog>
+
+  <script src="app.js" type="module"></script>
+</body>
+</html>
