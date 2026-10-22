@@ -15,6 +15,7 @@ const KEY = "trip-v1";
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_LOG = 150;
 const MAX_AMOUNT = 100_000_000;
+const DEFAULT_SGD_RATE = 115; // ¥ per S$1, used until a live rate is available
 
 const yen = new Intl.NumberFormat("en-US", { style: "currency", currency: "JPY" });
 
@@ -29,8 +30,9 @@ function defaultDoc() {
       start: isoDate(start),
       end: isoDate(end),
       budget: 0,
-      currency: "USD",
-      rate: 150,
+      currency: "SGD",
+      rate: DEFAULT_SGD_RATE,
+      autoRate: true,
     },
     categories: [
       { id: "food", name: "Food & Drinks", emoji: "🍜" },
@@ -44,6 +46,17 @@ function defaultDoc() {
     cells: {},
     log: [],
   };
+}
+
+// Trips created before SGD support stored a different home currency; switch them to SGD.
+function normalize(doc) {
+  if (doc.trip.currency !== "SGD") {
+    doc.trip.currency = "SGD";
+    doc.trip.rate = DEFAULT_SGD_RATE;
+    doc.trip.autoRate = true;
+  }
+  doc.trip.autoRate ??= true;
+  return doc;
 }
 
 function isoDate(d) {
@@ -100,6 +113,22 @@ function applyOp(doc, body, by) {
       return `changed ${what} from ${yen.format(prev)} to ${yen.format(rounded)}`;
     }
 
+    case "addToCell": {
+      const date = str(body.date, 10);
+      if (!DATE_RE.test(date)) fail("Invalid date");
+      const cat = findCategory(doc, body.cat);
+      const amount = Math.round(Number(body.amount));
+      if (!Number.isFinite(amount) || amount <= 0 || amount > MAX_AMOUNT) fail("Invalid amount");
+      const day = (doc.cells[date] ??= {});
+      const prev = day[cat.id]?.a ?? 0;
+      if (prev + amount > MAX_AMOUNT) fail("Invalid amount");
+      day[cat.id] = { a: prev + amount, by, t: Date.now() };
+      const note = str(body.note, 60);
+      return `added ${yen.format(amount)} to ${cat.emoji} ${cat.name} on ${prettyDate(date)}` +
+        (note ? ` (${note})` : "") +
+        (prev ? ` · now ${yen.format(prev + amount)}` : "");
+    }
+
     case "updateTrip": {
       const t = body.trip ?? {};
       const next = {
@@ -107,8 +136,9 @@ function applyOp(doc, body, by) {
         start: str(t.start, 10),
         end: str(t.end, 10),
         budget: Math.max(0, Math.round(Number(t.budget) || 0)),
-        currency: str(t.currency, 5).toUpperCase() || "USD",
+        currency: "SGD",
         rate: Number(t.rate),
+        autoRate: t.autoRate === true || t.autoRate === "on",
       };
       if (!DATE_RE.test(next.start) || !DATE_RE.test(next.end)) fail("Invalid dates");
       if (next.end < next.start) fail("End date is before start date");
@@ -183,7 +213,8 @@ export default async (req) => {
   const store = getStore({ name: "japan-trip", consistency: "strong" });
 
   if (req.method === "GET") {
-    const doc = (await store.get(KEY, { type: "json" })) ?? defaultDoc();
+    const stored = await store.get(KEY, { type: "json" });
+    const doc = stored ? normalize(stored) : defaultDoc();
     const since = new URL(req.url).searchParams.get("v");
     if (since !== null && Number(since) === doc.version) {
       return json({ changed: false, version: doc.version });
@@ -202,7 +233,7 @@ export default async (req) => {
 
     for (let attempt = 0; attempt < 10; attempt++) {
       const current = await store.getWithMetadata(KEY, { type: "json" });
-      const doc = current?.data ?? defaultDoc();
+      const doc = current ? normalize(current.data) : defaultDoc();
 
       let message;
       try {

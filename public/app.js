@@ -43,14 +43,51 @@ function fmtDay(iso, opts = { weekday: "short", month: "short", day: "numeric" }
   return new Date(toMs(iso)).toLocaleDateString("en-US", { ...opts, timeZone: "UTC" });
 }
 
-function fmtHome(amountYen) {
-  const { currency, rate } = doc.trip;
-  const v = amountYen / rate;
-  try {
-    return new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: v >= 100 ? 0 : 2 }).format(v);
-  } catch {
-    return `${v.toFixed(2)} ${currency}`;
+const sgdFmt = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+// ¥ per S$1: the live rate when enabled and available, otherwise the trip's manual rate.
+function yenPerSgd() {
+  return doc.trip.autoRate && liveRate ? liveRate.rate : doc.trip.rate;
+}
+
+function fmtSgd(amountYen) {
+  return `S$${sgdFmt.format(amountYen / yenPerSgd())}`;
+}
+
+// Live JPY/SGD rate, shared by everyone viewing (cached on this device for a few hours).
+const RATE_TTL_MS = 6 * 3600000;
+let liveRate = null;
+try { liveRate = JSON.parse(store.get("trip.liveRate")); } catch { /* none cached */ }
+
+async function refreshLiveRate() {
+  if (liveRate && Date.now() - liveRate.fetched < RATE_TTL_MS) return;
+  const sources = [
+    async () => {
+      const r = await (await fetch("https://api.frankfurter.dev/v1/latest?base=SGD&symbols=JPY")).json();
+      return { rate: r.rates.JPY, date: r.date };
+    },
+    async () => {
+      const r = await (await fetch("https://open.er-api.com/v6/latest/SGD")).json();
+      return { rate: r.rates.JPY, date: new Date(r.time_last_update_unix * 1000).toISOString().slice(0, 10) };
+    },
+  ];
+  for (const source of sources) {
+    try {
+      const { rate, date } = await source();
+      if (!(rate > 0)) continue;
+      liveRate = { rate, date, fetched: Date.now() };
+      store.set("trip.liveRate", JSON.stringify(liveRate));
+      if (doc) render();
+      return;
+    } catch { /* try the next source */ }
   }
+}
+
+function rateLabel() {
+  const r = yenPerSgd().toFixed(2);
+  return doc.trip.autoRate && liveRate
+    ? `S$1 = ¥${r} · live rate (${fmtDay(liveRate.date, { month: "short", day: "numeric" })})`
+    : `S$1 = ¥${r} · manual rate${doc.trip.autoRate ? " (live rate unavailable)" : ""}`;
 }
 
 function timeAgo(t) {
@@ -222,7 +259,7 @@ function render(prevDoc = null) {
   $("#tripName").textContent = doc.trip.name;
   const nights = Math.round((toMs(doc.trip.end) - toMs(doc.trip.start)) / DAY_MS) + 1;
   $("#tripDates").textContent =
-    `${fmtDay(doc.trip.start, { month: "short", day: "numeric" })} – ${fmtDay(doc.trip.end, { month: "short", day: "numeric", year: "numeric" })} · ${nights} days · ¥${plain.format(doc.trip.rate)} = 1 ${doc.trip.currency}`;
+    `${fmtDay(doc.trip.start, { month: "short", day: "numeric" })} – ${fmtDay(doc.trip.end, { month: "short", day: "numeric", year: "numeric" })} · ${nights} days · ${rateLabel()}`;
   $("#whoName").textContent = me || "Set name";
 
   renderCards(stats);
@@ -237,12 +274,14 @@ function render(prevDoc = null) {
 
 function renderCards({ total, loggedDays, byDay, days }) {
   $("#sumTotal").textContent = yen.format(total);
-  $("#sumTotalHome").textContent = `≈ ${fmtHome(total)}`;
+  $("#sumTotalSgd").textContent = fmtSgd(total);
+  $("#sumRate").textContent = rateLabel();
 
   const avg = loggedDays ? total / loggedDays : 0;
   $("#sumAvg").textContent = yen.format(Math.round(avg));
+  $("#sumAvgSgd").textContent = fmtSgd(avg);
   $("#sumAvgNote").textContent = loggedDays
-    ? `≈ ${fmtHome(avg)} · over ${loggedDays} day${loggedDays === 1 ? "" : "s"} with spending`
+    ? `over ${loggedDays} day${loggedDays === 1 ? "" : "s"} with spending`
     : "No spending logged yet";
 
   const { budget, end, start } = doc.trip;
@@ -257,9 +296,11 @@ function renderCards({ total, loggedDays, byDay, days }) {
     const today = localToday();
     const from = today > start ? today : start;
     const remainingDays = from <= end ? Math.round((toMs(end) - toMs(from)) / DAY_MS) + 1 : 0;
+    const ofBudget = `${Math.round(pct)}% of ${yen.format(budget)} (${fmtSgd(budget)})`;
+    const perDay = Math.floor(left / remainingDays);
     $("#sumBudgetNote").textContent = remainingDays && left > 0
-      ? `${Math.round(pct)}% of ${yen.format(budget)} · ${yen.format(Math.floor(left / remainingDays))}/day for ${remainingDays} day${remainingDays === 1 ? "" : "s"} left`
-      : `${Math.round(pct)}% of ${yen.format(budget)} used`;
+      ? `${fmtSgd(Math.abs(left))} ${left >= 0 ? "left" : "over"} · ${ofBudget} · ${yen.format(perDay)} (${fmtSgd(perDay)})/day for ${remainingDays} day${remainingDays === 1 ? "" : "s"} left`
+      : `${fmtSgd(Math.abs(left))} ${left >= 0 ? "left" : "over"} · ${ofBudget} used`;
   } else {
     $("#sumBudget").textContent = "—";
     meter.hidden = true;
@@ -268,6 +309,7 @@ function renderCards({ total, loggedDays, byDay, days }) {
 
   const maxDay = days.reduce((best, d) => (byDay[d] > (byDay[best] ?? 0) ? d : best), null);
   $("#sumMaxDay").textContent = maxDay ? yen.format(byDay[maxDay]) : "—";
+  $("#sumMaxDaySgd").textContent = maxDay ? fmtSgd(byDay[maxDay]) : "";
   $("#sumMaxDayNote").textContent = maxDay ? fmtDay(maxDay, { weekday: "long", month: "short", day: "numeric" }) : "";
 }
 
@@ -281,7 +323,7 @@ function renderGrid({ days, byDay, byCat, total, loggedDays }, prevDoc) {
     gridSignature = signature;
     const startMs = toMs(doc.trip.start);
     const head = `<thead><tr><th scope="col">Day</th>${cats.map((c) =>
-      `<th scope="col"><span class="emoji">${esc(c.emoji)}</span>${esc(c.name)}</th>`).join("")}<th scope="col">Total</th></tr></thead>`;
+      `<th scope="col"><span class="emoji">${esc(c.emoji)}</span>${esc(c.name)}</th>`).join("")}<th scope="col">Total ¥</th><th scope="col">Total S$</th></tr></thead>`;
     const body = days.map((d) => {
       const n = Math.round((toMs(d) - startMs) / DAY_MS) + 1;
       const inside = d >= doc.trip.start && d <= doc.trip.end;
@@ -289,11 +331,12 @@ function renderGrid({ days, byDay, byCat, total, loggedDays }, prevDoc) {
         <th scope="row"><span class="day-label">${fmtDay(d)}</span><span class="day-sub">${inside ? `Day ${n}` : ""}${d === today ? " · today" : ""}</span></th>
         ${cats.map((c) => `<td><input class="cell" data-date="${d}" data-cat="${esc(c.id)}" inputmode="decimal" autocomplete="off" placeholder="–" aria-label="${esc(c.name)} on ${fmtDay(d)}" /></td>`).join("")}
         <td class="total" data-total="${d}"></td>
+        <td class="total sgd-col" data-total-sgd="${d}"></td>
       </tr>`;
     }).join("");
     const foot = `<tfoot>
-      <tr><th scope="row">Total</th>${cats.map((c) => `<td data-cat-total="${esc(c.id)}"></td>`).join("")}<td data-grand></td></tr>
-      <tr class="avg"><th scope="row">Avg / day</th>${cats.map((c) => `<td data-cat-avg="${esc(c.id)}"></td>`).join("")}<td data-grand-avg></td></tr>
+      <tr><th scope="row">Total</th>${cats.map((c) => `<td data-cat-total="${esc(c.id)}"></td>`).join("")}<td data-grand></td><td class="sgd-col" data-grand-sgd></td></tr>
+      <tr class="avg"><th scope="row">Avg / day</th>${cats.map((c) => `<td data-cat-avg="${esc(c.id)}"></td>`).join("")}<td data-grand-avg></td><td class="sgd-col" data-grand-avg-sgd></td></tr>
     </tfoot>`;
     table.innerHTML = head + `<tbody>${body}</tbody>` + foot;
   }
@@ -317,6 +360,10 @@ function renderGrid({ days, byDay, byCat, total, loggedDays }, prevDoc) {
     const v = byDay[td.dataset.total];
     td.textContent = v ? plain.format(v) : "";
   }
+  for (const td of table.querySelectorAll("[data-total-sgd]")) {
+    const v = byDay[td.dataset.totalSgd];
+    td.textContent = v ? fmtSgd(v) : "";
+  }
   for (const c of cats) {
     table.querySelector(`[data-cat-total="${CSS.escape(c.id)}"]`).textContent = yen.format(byCat[c.id]);
     table.querySelector(`[data-cat-avg="${CSS.escape(c.id)}"]`).textContent =
@@ -324,6 +371,8 @@ function renderGrid({ days, byDay, byCat, total, loggedDays }, prevDoc) {
   }
   table.querySelector("[data-grand]").textContent = yen.format(total);
   table.querySelector("[data-grand-avg]").textContent = yen.format(loggedDays ? Math.round(total / loggedDays) : 0);
+  table.querySelector("[data-grand-sgd]").textContent = fmtSgd(total);
+  table.querySelector("[data-grand-avg-sgd]").textContent = fmtSgd(loggedDays ? total / loggedDays : 0);
 }
 
 function renderBreakdown({ byCat, total, loggedDays }) {
@@ -335,7 +384,7 @@ function renderBreakdown({ byCat, total, loggedDays }) {
       const v = byCat[c.id];
       return `<tr>
         <td>${esc(c.emoji)} ${esc(c.name)}<div class="bar"><span style="width:${(v / max) * 100}%"></span></div></td>
-        <td class="num">${yen.format(v)}<div class="muted small">≈ ${fmtHome(v)}</div></td>
+        <td class="num">${yen.format(v)}<div class="muted small">${fmtSgd(v)}</div></td>
         <td class="num">${yen.format(loggedDays ? Math.round(v / loggedDays) : 0)}</td>
         <td class="num">${total ? Math.round((v / total) * 100) : 0}%</td>
       </tr>`;
@@ -424,7 +473,8 @@ function renderCatList() {
 $("#settingsBtn").addEventListener("click", () => {
   if (!doc) return;
   const f = $("#tripForm");
-  for (const k of ["name", "start", "end", "budget", "currency", "rate"]) f.elements[k].value = doc.trip[k] || "";
+  for (const k of ["name", "start", "end", "budget", "rate"]) f.elements[k].value = doc.trip[k] || "";
+  f.elements.autoRate.checked = !!doc.trip.autoRate;
   renderCatList();
   $("#settingsDlg").showModal();
 });
@@ -433,7 +483,7 @@ $("#closeSettings").addEventListener("click", () => $("#settingsDlg").close());
 
 $("#tripForm").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const trip = Object.fromEntries(new FormData(e.target));
+  const trip = { ...Object.fromEntries(new FormData(e.target)), autoRate: e.target.elements.autoRate.checked };
   if (await runOp({ op: "updateTrip", trip }, "Trip settings saved")) $("#settingsDlg").close();
 });
 
@@ -473,6 +523,73 @@ $("#catList").addEventListener("click", async (e) => {
   renderCatList();
 });
 
+// ---------------------------------------------------------------- add expense
+
+const addForm = $("#addForm");
+
+// Returns the entered price converted to whole yen, or NaN if it can't be read.
+function addAmountYen() {
+  const text = addForm.elements.amount.value.replace(/[¥￥円$,\s]|S\$/g, "");
+  if (!/^\d+(\.\d+)?$/.test(text)) return NaN;
+  const n = Number(text);
+  return Math.round(addForm.elements.cur.value === "SGD" ? n * yenPerSgd() : n);
+}
+
+function updateConvert() {
+  const yenValue = addAmountYen();
+  const out = $("#addConvert");
+  if (Number.isNaN(yenValue)) {
+    out.textContent = addForm.elements.cur.value === "SGD" ? "= ¥0" : "= S$0.00";
+  } else {
+    out.textContent = addForm.elements.cur.value === "SGD"
+      ? `= ${yen.format(yenValue)}  ·  ${rateLabel()}`
+      : `= ${fmtSgd(yenValue)}  ·  ${rateLabel()}`;
+  }
+}
+
+function openAdd() {
+  if (!doc) return;
+  const days = tripDays();
+  const today = localToday();
+  const prevDate = addForm.elements.date.value;
+  const prevCat = addForm.elements.cat.value;
+  addForm.elements.date.innerHTML = days.map((d) =>
+    `<option value="${d}">${fmtDay(d, { weekday: "short", month: "short", day: "numeric", year: "numeric" })}${d === today ? " (today)" : ""}</option>`).join("");
+  addForm.elements.cat.innerHTML = doc.categories.map((c) =>
+    `<option value="${esc(c.id)}">${esc(c.emoji)} ${esc(c.name)}</option>`).join("");
+  addForm.elements.date.value = days.includes(today) ? today : days.includes(prevDate) ? prevDate : days[0];
+  if (doc.categories.some((c) => c.id === prevCat)) addForm.elements.cat.value = prevCat;
+  addForm.elements.amount.value = "";
+  addForm.elements.note.value = "";
+  updateConvert();
+  $("#addDlg").showModal();
+  addForm.elements.amount.focus();
+}
+
+for (const btn of document.querySelectorAll("[data-add]")) btn.addEventListener("click", openAdd);
+$("#addCancel").addEventListener("click", () => $("#addDlg").close());
+addForm.addEventListener("input", updateConvert);
+
+addForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const amount = addAmountYen();
+  if (!(amount > 0)) {
+    toast("Enter a price, e.g. 1200 (or 10.50 in SGD)");
+    addForm.elements.amount.focus();
+    return;
+  }
+  const { date, cat, note } = Object.fromEntries(new FormData(addForm));
+  const category = doc.categories.find((c) => c.id === cat);
+  const submit = addForm.querySelector('button[type="submit"]');
+  submit.disabled = true;
+  const ok = await runOp(
+    { op: "addToCell", date, cat, amount, note },
+    `Added ${yen.format(amount)} (${fmtSgd(amount)}) to ${category.name} on ${fmtDay(date)}`,
+  );
+  submit.disabled = false;
+  if (ok) $("#addDlg").close();
+});
+
 // ---------------------------------------------------------------- name / passcode
 
 function askName() {
@@ -507,9 +624,9 @@ $("#csvBtn").addEventListener("click", () => {
   const { days, byDay, byCat, total } = computeStats();
   const q = (s) => `"${String(s).replace(/"/g, '""')}"`;
   const lines = [
-    ["Date", ...doc.categories.map((c) => c.name), "Total"].map(q).join(","),
-    ...days.map((d) => [d, ...doc.categories.map((c) => cellValue(d, c.id)), byDay[d]].join(",")),
-    ["Total", ...doc.categories.map((c) => byCat[c.id]), total].map((v, i) => (i === 0 ? q(v) : v)).join(","),
+    ["Date", ...doc.categories.map((c) => c.name), "Total (JPY)", "Total (SGD)"].map(q).join(","),
+    ...days.map((d) => [d, ...doc.categories.map((c) => cellValue(d, c.id)), byDay[d], (byDay[d] / yenPerSgd()).toFixed(2)].join(",")),
+    ["Total", ...doc.categories.map((c) => byCat[c.id]), total, (total / yenPerSgd()).toFixed(2)].map((v, i) => (i === 0 ? q(v) : v)).join(","),
   ];
   const blob = new Blob([lines.join("\n")], { type: "text/csv" });
   const a = Object.assign(document.createElement("a"), {
@@ -528,3 +645,5 @@ setInterval(() => { if (doc) renderLog(); }, 30000);
 
 if (!me) askName();
 poll();
+refreshLiveRate();
+setInterval(refreshLiveRate, RATE_TTL_MS);

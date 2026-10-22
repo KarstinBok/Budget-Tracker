@@ -116,6 +116,7 @@ main { max-width: 1200px; margin: 0 auto; padding: 16px; display: grid; gap: 16p
 .card { padding: 14px 16px; }
 .card h2 { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
 .big { font-size: 1.6rem; font-weight: 700; margin: 6px 0 0; font-variant-numeric: tabular-nums; }
+.big.sgd { font-size: 1.15rem; color: var(--accent); margin-top: 2px; }
 .meter { height: 6px; border-radius: 3px; background: var(--surface-2); margin-top: 8px; overflow: hidden; }
 .meter span { display: block; height: 100%; background: var(--good); width: 0; transition: width 0.3s; }
 .meter.over span { background: var(--accent); }
@@ -236,7 +237,42 @@ dialog input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
+.head-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.grid .sgd-col { color: var(--accent); font-weight: 600; padding: 6px 10px; white-space: nowrap; text-align: right; }
+
+dialog select {
+  font: inherit; color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  width: 100%;
+}
+dialog label.check { display: flex; align-items: center; gap: 8px; color: var(--text); font-size: 0.9rem; }
+dialog label.check input { width: auto; }
+.price-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.price-row input[name="amount"] { font-size: 1.2rem; font-variant-numeric: tabular-nums; }
+.seg { display: flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.seg label { display: block; color: var(--text); font-size: 0.85rem; }
+.seg input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.seg span { display: block; padding: 9px 10px; cursor: pointer; white-space: nowrap; }
+.seg input:checked + span { background: var(--accent); color: #fff; }
+.seg input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: -2px; }
+.convert { margin: -4px 0 0; font-size: 1.05rem; font-weight: 600; color: var(--accent); font-variant-numeric: tabular-nums; }
+
+.fab {
+  display: none;
+  position: fixed; right: 16px; bottom: 16px; z-index: 6;
+  width: 56px; height: 56px; border-radius: 50%;
+  border: 0; background: var(--accent); color: #fff;
+  font-size: 1.8rem; line-height: 1; cursor: pointer;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.25);
+}
+
 @media (max-width: 560px) {
+  .fab { display: block; }
+  .topbar .add-btn { display: none; }
+  main { padding-bottom: 88px; }
   .topbar { position: static; }
   .big { font-size: 1.35rem; }
   .cards { grid-template-columns: 1fr 1fr; }
