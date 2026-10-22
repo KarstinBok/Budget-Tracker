@@ -42,6 +42,7 @@
       <article class="card">
         <h2>Budget</h2>
         <p class="big" id="sumBudget">—</p>
+        <p class="big sgd" id="sumBudgetYen"></p>
         <div class="meter" id="budgetMeter" hidden><span></span></div>
         <p class="muted" id="sumBudgetNote">Set a budget in Settings</p>
       </article>
@@ -57,7 +58,7 @@
       <div class="panel-head">
         <div>
           <h2>Daily spending</h2>
-          <p class="muted small">Add spending with <b>＋ Add expense</b>. Click any amount to see what it's made up of, or a day's total for everything spent that day.</p>
+          <p class="muted small">Add spending with <b>＋ Add expense</b>. Click any amount to drop down every expense behind it, or a day's total to see everything spent that day.</p>
         </div>
         <div class="head-actions">
           <button id="csvBtn" class="btn ghost" type="button">⬇️ Export CSV</button>
@@ -126,24 +127,6 @@
     </form>
   </dialog>
 
-  <dialog id="itemsDlg" aria-labelledby="itemsTitle">
-    <div class="items-head">
-      <div>
-        <h2 id="itemsTitle"></h2>
-        <p class="muted" id="itemsDate"></p>
-      </div>
-      <div class="items-sum">
-        <p class="big" id="itemsTotal"></p>
-        <p class="muted small" id="itemsCount"></p>
-      </div>
-    </div>
-    <ul class="items-list" id="itemsList"></ul>
-    <div class="dlg-actions">
-      <button class="btn ghost" type="button" id="itemsClose">Close</button>
-      <button class="btn" type="button" id="itemsAdd">＋ Add expense</button>
-    </div>
-  </dialog>
-
   <dialog id="settingsDlg">
     <form id="tripForm">
       <h2>Trip settings</h2>
@@ -152,7 +135,7 @@
         <label>Start date <input name="start" type="date" required /></label>
         <label>End date <input name="end" type="date" required /></label>
       </div>
-      <label>Total budget (¥, optional) <input name="budget" type="number" min="0" step="1000" inputmode="numeric" /></label>
+      <label>Total budget (S$, optional) <input name="budgetSgd" type="number" min="0" step="any" inputmode="decimal" placeholder="e.g. 2000" /></label>
       <label class="check"><input name="autoRate" type="checkbox" /> Use live JPY → SGD exchange rate</label>
       <label>Manual rate: ¥ per S$1 (used when live rate is off or unavailable)
         <input name="rate" type="number" min="0.0001" step="any" required /></label>

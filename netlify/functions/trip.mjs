@@ -33,7 +33,7 @@ function defaultDoc() {
       name: "Japan Trip",
       start: isoDate(start),
       end: isoDate(end),
-      budget: 0,
+      budgetSgd: 0,
       currency: "SGD",
       rate: DEFAULT_SGD_RATE,
       autoRate: true,
@@ -60,6 +60,11 @@ function normalize(doc) {
     doc.trip.autoRate = true;
   }
   doc.trip.autoRate ??= true;
+  // The budget used to be stored in yen; it's now set in SGD.
+  if (doc.trip.budgetSgd === undefined) {
+    doc.trip.budgetSgd = doc.trip.budget ? Math.round(doc.trip.budget / doc.trip.rate) : 0;
+    delete doc.trip.budget;
+  }
   // Trips from before itemised expenses stored one running total per day and category;
   // keep each of those as a single item.
   if (doc.cells) {
@@ -142,7 +147,7 @@ function applyOp(doc, body, by) {
         name: str(t.name, 60) || "Japan Trip",
         start: str(t.start, 10),
         end: str(t.end, 10),
-        budget: Math.max(0, Math.round(Number(t.budget) || 0)),
+        budgetSgd: Math.max(0, Math.round((Number(t.budgetSgd) || 0) * 100) / 100),
         currency: "SGD",
         rate: Number(t.rate),
         autoRate: t.autoRate === true || t.autoRate === "on",
