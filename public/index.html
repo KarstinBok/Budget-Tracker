@@ -20,6 +20,7 @@
     <div class="top-actions">
       <span id="sync" class="sync" title="Sync status"><i></i><span>Connecting…</span></span>
       <button id="whoBtn" class="chip" type="button" title="Change your name">👤 <span id="whoName">You</span></button>
+      <a class="btn ghost" href="/journal.html">📒 Journal</a>
       <button id="settingsBtn" class="btn ghost" type="button">⚙️ Settings</button>
       <button class="btn add-btn" type="button" data-add>＋ Add expense</button>
     </div>
@@ -52,6 +53,22 @@
         <p class="big sgd" id="sumMaxDaySgd"></p>
         <p class="muted" id="sumMaxDayNote"></p>
       </article>
+    </section>
+
+    <div id="limitBanner" class="limit-banner" role="alert" hidden></div>
+
+    <section class="panel" id="paymentsPanel" hidden>
+      <h2>Payments</h2>
+      <div class="two-col payments">
+        <div>
+          <h3>Card limits</h3>
+          <ul class="card-meters" id="cardMeters"></ul>
+        </div>
+        <div>
+          <h3>Paid by</h3>
+          <table class="breakdown" id="payers"></table>
+        </div>
+      </div>
     </section>
 
     <section class="panel">
@@ -106,7 +123,7 @@
 
   <dialog id="addDlg">
     <form id="addForm">
-      <h2>Add expense</h2>
+      <h2 id="addTitle">Add expense</h2>
       <label>Date <select name="date" required></select></label>
       <label>Category <select name="cat" required></select></label>
       <label>Price
@@ -120,9 +137,25 @@
       </label>
       <p class="convert" id="addConvert">= S$0.00</p>
       <label>Note (optional) <input name="note" maxlength="60" placeholder="e.g. Ichiran ramen" /></label>
+      <fieldset class="pay-edit">
+        <legend>Paid with</legend>
+        <div class="seg" role="radiogroup" aria-label="Paid with">
+          <label><input type="radio" name="pay" value="cash" checked /><span>💵 Cash</span></label>
+          <label><input type="radio" name="pay" value="card" /><span>💳 Card</span></label>
+        </div>
+        <label data-pay="cash">Whose cash <input name="payer" list="people" maxlength="30" autocomplete="off" /></label>
+        <label data-pay="card">Which card <select name="card"></select></label>
+        <div data-pay="newcard" class="new-card">
+          <label>Card name <input name="cardName" maxlength="40" placeholder="e.g. DBS Visa" /></label>
+          <label>Whose card <input name="cardOwner" list="people" maxlength="30" autocomplete="off" /></label>
+          <label>Limit (S$) <input name="cardLimit" type="number" min="1" step="any" inputmode="decimal" value="1000" /></label>
+        </div>
+        <p class="limit-status" id="limitStatus" hidden></p>
+      </fieldset>
+      <datalist id="people"></datalist>
       <div class="dlg-actions">
         <button class="btn ghost" type="button" id="addCancel">Cancel</button>
-        <button class="btn" type="submit">Add</button>
+        <button class="btn" type="submit" id="addSubmit">Add</button>
       </div>
     </form>
   </dialog>
@@ -153,6 +186,32 @@
       <input name="name" maxlength="40" placeholder="New category" required aria-label="Category name" />
       <button class="btn" type="submit">Add</button>
     </form>
+
+    <hr />
+
+    <h3>Cards</h3>
+    <p class="muted small">Each card's limit is in S$. You're warned when spending on a card reaches 80% of its limit.</p>
+    <ul class="card-list" id="cardList"></ul>
+    <form id="cardForm" class="card-add">
+      <input name="name" maxlength="40" placeholder="Card, e.g. DBS Visa" required aria-label="Card name" />
+      <input name="owner" maxlength="30" placeholder="Whose card" list="people" required aria-label="Whose card" />
+      <input name="limitSgd" type="number" min="1" step="any" value="1000" required aria-label="Limit in S$" />
+      <button class="btn" type="submit">Add</button>
+    </form>
+
+    <hr />
+
+    <h3>Backups</h3>
+    <p class="muted small">Every change to the expenses and the journal is saved as a backup on Netlify, plus one each day. Restore one if something goes missing.</p>
+    <div class="backup-actions">
+      <button class="btn ghost" type="button" id="backupNow">💾 Back up now</button>
+      <button class="btn ghost" type="button" id="downloadAll">⬇️ Download all data</button>
+    </div>
+    <div class="seg backup-doc" role="radiogroup" aria-label="Which backups">
+      <label><input type="radio" name="bdoc" value="trip" checked /><span>Expenses</span></label>
+      <label><input type="radio" name="bdoc" value="journal" /><span>Journal</span></label>
+    </div>
+    <ul class="backup-list" id="backupList"></ul>
 
     <div class="dlg-actions">
       <button class="btn ghost" type="button" id="closeSettings">Close</button>
