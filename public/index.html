@@ -125,7 +125,10 @@
     <form id="addForm">
       <h2 id="addTitle">Add expense</h2>
       <label>Date <select name="date" required></select></label>
-      <label>Category <select name="cat" required></select></label>
+      <fieldset class="cat-pick">
+        <legend>Category</legend>
+        <div class="cat-choices" id="catChoices" role="radiogroup" aria-label="Category"></div>
+      </fieldset>
       <label>Price
         <div class="price-row">
           <input name="amount" inputmode="decimal" autocomplete="off" placeholder="0" required />

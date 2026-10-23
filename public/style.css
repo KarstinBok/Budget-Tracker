@@ -312,6 +312,23 @@ dialog label.check input { width: auto; }
 
 a.btn { display: inline-block; text-decoration: none; }
 
+/* ---------- category buttons in the expense dialog ---------- */
+.cat-pick { border: 0; padding: 0; margin: 0; }
+.cat-pick legend { font-size: 0.85rem; color: var(--muted); padding: 0; margin-bottom: 6px; }
+.cat-choices { display: flex; flex-wrap: wrap; gap: 6px; }
+.cat-choice { display: block; }
+dialog label.cat-choice { display: block; color: var(--text); font-size: 0.9rem; }
+.cat-choice input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.cat-choice > span {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 12px; border: 1px solid var(--border); border-radius: 999px;
+  background: var(--bg); cursor: pointer; white-space: nowrap;
+}
+.cat-choice > span:hover { border-color: var(--accent); }
+.cat-choice .emoji { font-size: 1.05rem; }
+.cat-choice input:checked + span { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.cat-choice input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 /* ---------- payments and card limits ---------- */
 .limit-banner { background: var(--accent-soft); border: 1px solid var(--accent); color: var(--text); border-radius: 12px; padding: 10px 14px; font-weight: 600; }
 .limit-banner p { margin: 2px 0; }
