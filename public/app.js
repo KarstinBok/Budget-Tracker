@@ -5,7 +5,7 @@
 
 import {
   $, esc, store, localToday, toMs, toIso, fmtDay, timeAgo, toast,
-  downloadFile, setupIdentity, createSync,
+  downloadFile, setupIdentity, createSync, fetchJson, postJson, myName,
 } from "./common.js";
 
 const DAY_MS = 86400000;
@@ -19,7 +19,7 @@ let openCell = null; // { date, cat } whose breakdown is dropped down in the tab
 
 const sync = createSync({
   path: "/api/trip",
-  schema: 2, // matches SCHEMA in netlify/functions/trip.mjs
+  schema: 3, // matches SCHEMA in netlify/functions/trip.mjs
   onDoc(next, prevDoc) {
     doc = next;
     render(prevDoc);
@@ -38,6 +38,43 @@ function yenPerSgd() {
 
 function fmtSgd(amountYen) {
   return `S$${sgdFmt.format(amountYen / yenPerSgd())}`;
+}
+
+// ---------------------------------------------------------------- payments and cards
+
+const LIMIT_WARN = 0.8; // warn once a card has used this share of its limit
+const fmtS = (sgd) => `S$${sgdFmt.format(sgd)}`;
+const cardById = (id) => doc.cards?.find((c) => c.id === id);
+const cardLabel = (c) => `${c.owner}'s ${c.name}`;
+
+// S$ spent on a card so far, at the current rate (optionally leaving one expense out).
+function cardSpentSgd(cardId, exceptItemId = null) {
+  return doc.items.filter((i) => i.card === cardId && i.id !== exceptItemId).reduce((sum, i) => sum + i.a, 0) / yenPerSgd();
+}
+
+function cardLevel(usedSgd, limitSgd) {
+  return usedSgd >= limitSgd ? "over" : usedSgd >= limitSgd * LIMIT_WARN ? "near" : "";
+}
+
+function cardWarning(card, usedSgd) {
+  const pct = Math.round((usedSgd / card.limitSgd) * 100);
+  return usedSgd >= card.limitSgd
+    ? `⛔ ${cardLabel(card)} is over its ${fmtS(card.limitSgd)} limit by ${fmtS(usedSgd - card.limitSgd)}.`
+    : `⚠️ ${cardLabel(card)} has used ${pct}% of its ${fmtS(card.limitSgd)} limit (${fmtS(card.limitSgd - usedSgd)} left).`;
+}
+
+function payLabel(i) {
+  if (i.pay === "cash") return `💵 ${esc(i.payer)}'s cash`;
+  const card = i.pay === "card" && cardById(i.card);
+  return card ? `💳 ${esc(cardLabel(card))}` : "";
+}
+
+// Everyone who has added, paid for or owns a card on this trip, for name suggestions.
+function people() {
+  const names = new Set([myName(), ...doc.items.flatMap((i) => [i.by, i.payer]), ...(doc.cards ?? []).map((c) => c.owner)]);
+  names.delete(undefined);
+  names.delete("");
+  return [...names].sort((a, b) => a.localeCompare(b));
 }
 
 // Live market JPY/SGD rate from /api/rate (netlify/functions/rate.mjs), which everyone
@@ -126,10 +163,52 @@ function render(prevDoc = null) {
     `${fmtDay(doc.trip.start, { month: "short", day: "numeric" })} – ${fmtDay(doc.trip.end, { month: "short", day: "numeric", year: "numeric" })} · ${nights} days · ${rateLabel()}`;
 
   renderCards(stats);
+  renderPayments();
   renderGrid(stats, prevDoc);
   renderBreakdown(stats);
   renderLog();
-  if ($("#settingsDlg").open) renderCatList();
+  if ($("#settingsDlg").open) {
+    renderCatList();
+    renderCardList();
+  }
+}
+
+function renderPayments() {
+  const cards = doc.cards ?? [];
+  $("#paymentsPanel").hidden = !cards.length && !doc.items.some((i) => i.pay);
+
+  const warnings = [];
+  $("#cardMeters").innerHTML = cards.length ? cards.map((c) => {
+    const used = cardSpentSgd(c.id);
+    const level = cardLevel(used, c.limitSgd);
+    if (level) warnings.push(cardWarning(c, used));
+    const pct = (used / c.limitSgd) * 100;
+    return `<li class="${level}">
+      <div class="cm-head"><b>${esc(cardLabel(c))}</b><span>${fmtS(used)} of ${fmtS(c.limitSgd)}</span></div>
+      <div class="meter ${level}"><span style="width:${Math.min(100, pct)}%"></span></div>
+      <p class="muted small">${used >= c.limitSgd ? `Over the limit by ${fmtS(used - c.limitSgd)}` : `${fmtS(c.limitSgd - used)} left · ${Math.round(pct)}% used`}</p>
+    </li>`;
+  }).join("") : `<li class="muted small">No cards yet. Add one when you record a card payment, or in ⚙️ Settings.</li>`;
+
+  const banner = $("#limitBanner");
+  banner.hidden = !warnings.length;
+  banner.innerHTML = warnings.map((w) => `<p>${esc(w)}</p>`).join("");
+
+  // Cash and card spending per person, in S$.
+  const rows = new Map();
+  for (const i of doc.items) {
+    if (!i.pay) continue;
+    const r = rows.get(i.payer) ?? { cash: 0, card: 0 };
+    r[i.pay] += i.a;
+    rows.set(i.payer, r);
+  }
+  const unrecorded = doc.items.filter((i) => !i.pay).reduce((sum, i) => sum + i.a, 0);
+  $("#payers").innerHTML = `
+    <thead><tr><th>Person</th><th class="num">💵 Cash</th><th class="num">💳 Card</th><th class="num">Total</th></tr></thead>
+    <tbody>${[...rows].sort((a, b) => a[0].localeCompare(b[0])).map(([who, r]) => `<tr>
+      <td>${esc(who)}</td><td class="num">${fmtSgd(r.cash)}</td><td class="num">${fmtSgd(r.card)}</td><td class="num"><b>${fmtSgd(r.cash + r.card)}</b></td>
+    </tr>`).join("")}
+    ${unrecorded ? `<tr><td class="muted">Not recorded</td><td></td><td></td><td class="num muted">${fmtSgd(unrecorded)}</td></tr>` : ""}</tbody>`;
 }
 
 function renderCards({ total, loggedDays, byDay, days }) {
@@ -275,9 +354,10 @@ function itemRow(i, showCat) {
   return `<li>
     <div class="item-main">
       <span class="item-note"><b class="item-who">${esc(i.by)}</b>${showCat ? ` ${esc(cat.emoji)}` : ""}${i.note ? ` · ${esc(i.note)}` : ""}</span>
-      <span class="item-meta">${timeAgo(i.t)}</span>
+      <span class="item-meta">${[timeAgo(i.t), payLabel(i), i.editedAt ? `edited by ${esc(i.editedBy)}` : ""].filter(Boolean).join(" · ")}</span>
     </div>
     <div class="item-amt">${yen.format(i.a)}<span>${fmtSgd(i.a)}</span></div>
+    <button type="button" class="icon-btn" data-edit-item="${esc(i.id)}" title="Edit this expense" aria-label="Edit ${yen.format(i.a)}${i.note ? ` ${esc(i.note)}` : ""}">✏️</button>
     <button type="button" class="icon-btn" data-del="${esc(i.id)}" title="Delete this expense" aria-label="Delete ${yen.format(i.a)}${i.note ? ` ${esc(i.note)}` : ""}">🗑</button>
   </li>`;
 }
@@ -363,6 +443,8 @@ function toggleDetail(date, cat) {
 }
 
 $("#grid").addEventListener("click", async (e) => {
+  const edit = e.target.closest("button[data-edit-item]");
+  if (edit) return openAdd({}, doc.items.find((i) => i.id === edit.dataset.editItem));
   const del = e.target.closest("button[data-del]");
   if (del) {
     const item = doc.items.find((i) => i.id === del.dataset.del);
@@ -414,6 +496,9 @@ $("#settingsBtn").addEventListener("click", () => {
   for (const k of ["name", "start", "end", "budgetSgd", "rate"]) f.elements[k].value = doc.trip[k] || "";
   f.elements.autoRate.checked = !!doc.trip.autoRate;
   renderCatList();
+  renderCardList();
+  $("#people").innerHTML = people().map((p) => `<option value="${esc(p)}"></option>`).join("");
+  renderBackups();
   $("#settingsDlg").showModal();
 });
 
@@ -485,30 +570,102 @@ function updateConvert() {
   }
 }
 
+let editingItem = null; // expense being edited, or null when adding
+let overLimitOk = false; // second click on Save confirms going over a card's limit
+const NEW_CARD = "__new";
+
+function payMethod() {
+  return addForm.elements.pay.value;
+}
+
+// Shows the fields for the chosen payment method and how the card's limit stands.
+function updatePayUI() {
+  const f = addForm.elements;
+  const method = payMethod();
+  const newCard = method === "card" && f.card.value === NEW_CARD;
+  for (const el of addForm.querySelectorAll("[data-pay]")) {
+    el.hidden = el.dataset.pay === "newcard" ? !newCard : el.dataset.pay !== method;
+  }
+  const status = $("#limitStatus");
+  const submit = $("#addSubmit");
+  const label = editingItem ? "Save changes" : "Add";
+  const amount = addAmountYen();
+  const card = method === "card" && !newCard && cardById(f.card.value);
+  const limit = card ? card.limitSgd : newCard ? Number(f.cardLimit.value) : 0;
+  if (method !== "card" || !(limit > 0)) {
+    status.hidden = true;
+    submit.textContent = label;
+    return null;
+  }
+  const used = card ? cardSpentSgd(card.id, editingItem?.id) : 0;
+  const after = used + (amount > 0 ? amount / yenPerSgd() : 0);
+  const level = cardLevel(after, limit);
+  const name = card ? cardLabel(card) : "New card";
+  status.hidden = false;
+  status.className = `limit-status ${level}`;
+  status.textContent = `${name}: ${fmtS(used)} of ${fmtS(limit)} used → ${fmtS(after)} after this (${Math.round((after / limit) * 100)}%)` +
+    (level === "over" ? ". This goes over the limit." : level === "near" ? ". Getting close to the limit." : "");
+  submit.textContent = level === "over" && overLimitOk ? "Over limit: save anyway?" : label;
+  return { level, after, limit, card };
+}
+
 // prefill: optional { date, cat } (cat may be null) when opened from the table.
-function openAdd(prefill = {}) {
+// item: an existing expense to edit instead of adding a new one.
+function openAdd(prefill = {}, item = null) {
   if (!doc) return;
+  editingItem = item;
+  overLimitOk = false;
+  const f = addForm.elements;
   const days = tripDays();
   const today = localToday();
-  const prevDate = addForm.elements.date.value;
-  const prevCat = addForm.elements.cat.value;
-  addForm.elements.date.innerHTML = days.map((d) =>
+  const prevDate = f.date.value;
+  const prevCat = f.cat.value;
+  f.date.innerHTML = days.map((d) =>
     `<option value="${d}">${fmtDay(d, { weekday: "short", month: "short", day: "numeric", year: "numeric" })}${d === today ? " (today)" : ""}</option>`).join("");
-  addForm.elements.cat.innerHTML = doc.categories.map((c) =>
+  f.cat.innerHTML = doc.categories.map((c) =>
     `<option value="${esc(c.id)}">${esc(c.emoji)} ${esc(c.name)}</option>`).join("");
-  addForm.elements.date.value = prefill.date ?? (days.includes(today) ? today : days.includes(prevDate) ? prevDate : days[0]);
-  const cat = prefill.cat ?? prevCat;
-  if (doc.categories.some((c) => c.id === cat)) addForm.elements.cat.value = cat;
-  addForm.elements.amount.value = "";
-  addForm.elements.note.value = "";
+  f.card.innerHTML = (doc.cards ?? []).map((c) => `<option value="${esc(c.id)}">${esc(cardLabel(c))}</option>`).join("") +
+    `<option value="${NEW_CARD}">＋ Add a new card…</option>`;
+  $("#people").innerHTML = people().map((p) => `<option value="${esc(p)}"></option>`).join("");
+
+  // Payment: the expense's own, else whatever this device used last, else your cash.
+  let last = null;
+  try { last = JSON.parse(store.get("trip.lastPay")); } catch { /* none */ }
+  const pay = item ? { pay: item.pay ?? "cash", payer: item.payer, card: item.card } : last ?? { pay: "cash" };
+  addForm.querySelector(`input[name="pay"][value="${pay.pay === "card" ? "card" : "cash"}"]`).checked = true;
+  f.payer.value = (pay.pay === "cash" && pay.payer) || myName();
+  f.card.value = cardById(pay.card) ? pay.card : (doc.cards?.[0]?.id ?? NEW_CARD);
+  f.cardName.value = "";
+  f.cardOwner.value = myName();
+  f.cardLimit.value = "1000";
+
+  if (item) {
+    f.date.value = item.date;
+    f.cat.value = item.cat;
+    addForm.querySelector('input[name="cur"][value="JPY"]').checked = true;
+    f.amount.value = String(item.a);
+    f.note.value = item.note ?? "";
+  } else {
+    f.date.value = prefill.date ?? (days.includes(today) ? today : days.includes(prevDate) ? prevDate : days[0]);
+    const cat = prefill.cat ?? prevCat;
+    if (doc.categories.some((c) => c.id === cat)) f.cat.value = cat;
+    f.amount.value = "";
+    f.note.value = "";
+  }
+  $("#addTitle").textContent = item ? "Edit expense" : "Add expense";
   updateConvert();
+  updatePayUI();
   $("#addDlg").showModal();
-  addForm.elements.amount.focus();
+  f.amount.focus();
 }
 
 for (const btn of document.querySelectorAll("[data-add]")) btn.addEventListener("click", () => openAdd());
 $("#addCancel").addEventListener("click", () => $("#addDlg").close());
-addForm.addEventListener("input", updateConvert);
+addForm.addEventListener("input", () => {
+  overLimitOk = false;
+  updateConvert();
+  updatePayUI();
+});
 
 addForm.addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -518,16 +675,172 @@ addForm.addEventListener("submit", async (e) => {
     addForm.elements.amount.focus();
     return;
   }
+  const f = addForm.elements;
   const { date, cat, note } = Object.fromEntries(new FormData(addForm));
   const category = doc.categories.find((c) => c.id === cat);
-  const submit = addForm.querySelector('button[type="submit"]');
+
+  const payment = { pay: payMethod() };
+  if (payment.pay === "cash") {
+    payment.payer = f.payer.value.trim() || myName();
+  } else if (f.card.value === NEW_CARD) {
+    if (!f.cardName.value.trim() || !f.cardOwner.value.trim()) {
+      toast("Give the new card a name and say whose it is");
+      return (f.cardName.value.trim() ? f.cardOwner : f.cardName).focus();
+    }
+    payment.newCard = { name: f.cardName.value, owner: f.cardOwner.value, limitSgd: f.cardLimit.value };
+  } else {
+    payment.card = f.card.value;
+  }
+
+  // Going over a card's limit needs a second click on Save.
+  const limit = updatePayUI();
+  if (limit?.level === "over" && !overLimitOk) {
+    overLimitOk = true;
+    updatePayUI();
+    toast(`This takes the card over its ${fmtS(limit.limit)} limit. Click again to save anyway.`);
+    return;
+  }
+
+  const submit = $("#addSubmit");
   submit.disabled = true;
-  const ok = await runOp(
-    { op: "addItem", date, cat, amount, note },
-    `Added ${yen.format(amount)} (${fmtSgd(amount)}) to ${category.name} on ${fmtDay(date)}`,
-  );
+  const op = editingItem
+    ? { op: "updateItem", id: editingItem.id, date, cat, amount, note, ...payment }
+    : { op: "addItem", date, cat, amount, note, ...payment };
+  const ok = await runOp(op, editingItem
+    ? `Saved ${yen.format(amount)} (${fmtSgd(amount)})`
+    : `Added ${yen.format(amount)} (${fmtSgd(amount)}) to ${category.name} on ${fmtDay(date)}`);
   submit.disabled = false;
-  if (ok) $("#addDlg").close();
+  if (!ok) return;
+
+  // Remember how this device usually pays, and warn if the card is near its limit.
+  const card = payment.newCard
+    ? doc.cards.findLast((c) => c.name === payment.newCard.name.trim() && c.owner === payment.newCard.owner.trim())
+    : cardById(payment.card);
+  store.set("trip.lastPay", JSON.stringify({ pay: payment.pay, payer: payment.payer, card: card?.id }));
+  if (card) {
+    const used = cardSpentSgd(card.id);
+    if (cardLevel(used, card.limitSgd)) toast(cardWarning(card, used));
+  }
+  $("#addDlg").close();
+});
+
+// ---------------------------------------------------------------- cards and backups (settings)
+
+function renderCardList() {
+  const list = $("#cardList");
+  if (list.contains(document.activeElement)) return;
+  const cards = doc.cards ?? [];
+  list.innerHTML = cards.length ? cards.map((c) => {
+    const used = doc.items.filter((i) => i.card === c.id).length;
+    return `<li data-id="${esc(c.id)}">
+      <input name="name" value="${esc(c.name)}" maxlength="40" aria-label="Card name" />
+      <input name="owner" value="${esc(c.owner)}" maxlength="30" list="people" aria-label="Whose card" />
+      <input name="limitSgd" type="number" min="1" step="any" value="${c.limitSgd}" aria-label="Limit in S$" />
+      <button type="button" class="icon-btn" data-remove-card ${used ? `disabled title="Used by ${used} expense${used === 1 ? "" : "s"}"` : 'title="Remove card"'}>🗑</button>
+    </li>`;
+  }).join("") : `<li class="muted small">No cards yet.</li>`;
+}
+
+$("#cardList").addEventListener("change", (e) => {
+  const li = e.target.closest("li[data-id]");
+  if (!li) return;
+  const card = Object.fromEntries([...li.querySelectorAll("input")].map((i) => [i.name, i.value]));
+  runOp({ op: "editCard", id: li.dataset.id, card }, "Card updated");
+});
+
+$("#cardList").addEventListener("click", async (e) => {
+  const btn = e.target.closest("[data-remove-card]");
+  if (btn) await runOp({ op: "removeCard", id: btn.closest("li").dataset.id }, "Card removed");
+});
+
+$("#cardForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const card = Object.fromEntries(new FormData(e.target));
+  if (await runOp({ op: "addCard", card }, `Added ${card.owner}'s ${card.name}`)) {
+    e.target.reset();
+    renderCardList();
+  }
+});
+
+let backupDoc = "trip";
+
+async function renderBackups() {
+  const list = $("#backupList");
+  list.innerHTML = `<li class="muted small">Loading backups…</li>`;
+  try {
+    const { backups, total } = await fetchJson(`/api/backups?doc=${backupDoc}`);
+    const noun = backupDoc === "trip" ? "expense" : "journal entr";
+    list.innerHTML = backups.length ? backups.map((b) => `<li data-key="${esc(b.key)}">
+        <span><b>${new Date(b.t).toLocaleString("en-SG", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}</b>
+          <span class="muted small">· ${b.count} ${noun}${b.count === 1 ? (backupDoc === "trip" ? "" : "y") : (backupDoc === "trip" ? "s" : "ies")} · version ${b.version}</span></span>
+        <span class="acts">
+          <button type="button" class="icon-btn" data-download-backup title="Download this backup">⬇️</button>
+          <button type="button" class="btn ghost" data-restore>Restore</button>
+        </span>
+      </li>`).join("") + (total > backups.length ? `<li class="muted small">…and ${total - backups.length} older backups</li>` : "")
+      : `<li class="muted small">No backups yet. They start with the next change, or use 💾 Back up now.</li>`;
+  } catch (err) {
+    list.innerHTML = `<li class="muted small">Couldn't load backups: ${esc(err.message)}</li>`;
+  }
+}
+
+$(".backup-doc").addEventListener("change", (e) => {
+  backupDoc = e.target.value;
+  renderBackups();
+});
+
+$("#backupNow").addEventListener("click", async () => {
+  try {
+    const { saved } = await postJson("/api/backups", { op: "snapshot" });
+    toast(`Backed up ${saved} document${saved === 1 ? "" : "s"}`);
+    renderBackups();
+  } catch (err) {
+    toast(`Backup failed: ${err.message}`);
+  }
+});
+
+$("#downloadAll").addEventListener("click", async () => {
+  try {
+    const [{ doc: trip }, { doc: journal }] = await Promise.all([fetchJson("/api/trip"), fetchJson("/api/journal")]);
+    const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
+    downloadFile(`${doc.trip.name.replace(/[^\w-]+/g, "_")}_all-data_${stamp}.json`,
+      JSON.stringify({ exportedAt: new Date().toISOString(), trip, journal }, null, 2), "application/json");
+  } catch (err) {
+    toast(`Download failed: ${err.message}`);
+  }
+});
+
+$("#backupList").addEventListener("click", async (e) => {
+  const li = e.target.closest("li[data-key]");
+  if (!li) return;
+  const key = li.dataset.key;
+  if (e.target.closest("[data-download-backup]")) {
+    try {
+      downloadFile(`${key.replace(/[^\w-]+/g, "_")}.json`, JSON.stringify(await fetchJson(`/api/backups?key=${encodeURIComponent(key)}`), null, 2), "application/json");
+    } catch (err) {
+      toast(`Download failed: ${err.message}`);
+    }
+    return;
+  }
+  const btn = e.target.closest("[data-restore]");
+  if (!btn) return;
+  // Restoring replaces everyone's current data, so it takes a second click.
+  if (!btn.classList.contains("armed")) {
+    btn.classList.add("armed");
+    btn.textContent = "Replace current data?";
+    setTimeout(() => { btn.classList.remove("armed"); btn.textContent = "Restore"; }, 4000);
+    return;
+  }
+  btn.disabled = true;
+  try {
+    await postJson("/api/backups", { op: "restore", key });
+    toast(backupDoc === "trip" ? "Expenses restored from the backup" : "Journal restored from the backup");
+    sync.poll();
+    renderBackups();
+  } catch (err) {
+    toast(`Restore failed: ${err.message}`);
+    btn.disabled = false;
+  }
 });
 
 // ---------------------------------------------------------------- export
@@ -538,8 +851,9 @@ $("#csvBtn").addEventListener("click", () => {
   const catName = (id) => doc.categories.find((c) => c.id === id)?.name ?? id;
   const items = [...doc.items].sort((a, b) => a.date.localeCompare(b.date) || a.t - b.t);
   const lines = [
-    ["Date", "Category", "Note", "Amount (JPY)", "Amount (SGD)", "Added by"].map(q).join(","),
-    ...items.map((i) => [i.date, q(catName(i.cat)), q(i.note ?? ""), i.a, (i.a / yenPerSgd()).toFixed(2), q(i.by)].join(",")),
+    ["Date", "Category", "Note", "Amount (JPY)", "Amount (SGD)", "Added by", "Paid with", "Whose", "Card"].map(q).join(","),
+    ...items.map((i) => [i.date, q(catName(i.cat)), q(i.note ?? ""), i.a, (i.a / yenPerSgd()).toFixed(2), q(i.by),
+      q(i.pay ?? ""), q(i.payer ?? ""), q(cardById(i.card)?.name ?? "")].join(",")),
   ];
   downloadFile(`${doc.trip.name.replace(/[^\w-]+/g, "_")}_expenses.csv`, lines.join("\n"), "text/csv");
 });

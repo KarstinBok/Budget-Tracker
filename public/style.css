@@ -264,7 +264,7 @@ button.cell.open::after { content: " ▾"; }
 .detail-sum { font-size: 1.2rem; }
 .detail-sum span, .item-amt span { display: block; font-size: 0.8rem; font-weight: 600; color: var(--accent); }
 .items-list { list-style: none; margin: 0; padding: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
-.items-list li { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; padding: 10px 12px; border-top: 1px solid var(--border); }
+.items-list li { display: grid; grid-template-columns: 1fr auto auto auto;  gap: 10px; align-items: center; padding: 10px 12px; border-top: 1px solid var(--border); }
 .items-list li:first-child { border-top: 0; }
 .item-main { min-width: 0; }
 .item-note { display: block; overflow-wrap: anywhere; }
@@ -311,6 +311,36 @@ dialog label.check input { width: auto; }
 }
 
 a.btn { display: inline-block; text-decoration: none; }
+
+/* ---------- payments and card limits ---------- */
+.limit-banner { background: var(--accent-soft); border: 1px solid var(--accent); color: var(--text); border-radius: 12px; padding: 10px 14px; font-weight: 600; }
+.limit-banner p { margin: 2px 0; }
+.payments h3 { margin-bottom: 8px; }
+.card-meters { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.card-meters .cm-head { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
+.card-meters .meter { margin-top: 6px; }
+.card-meters li.near .cm-head span { color: var(--warn); font-weight: 700; }
+.card-meters li.over .cm-head span { color: var(--accent); font-weight: 700; }
+.pay-edit { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px 12px; margin: 0; display: grid; gap: 10px; }
+.pay-edit legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
+.pay-edit .seg { justify-self: start; }
+.new-card { display: grid; grid-template-columns: 1fr 1fr 110px; gap: 8px; }
+.limit-status { margin: 0; font-size: 0.88rem; font-weight: 600; padding: 8px 10px; border-radius: 8px; background: var(--surface-2); font-variant-numeric: tabular-nums; }
+.limit-status.near { background: color-mix(in srgb, var(--warn) 18%, var(--surface)); color: var(--text); }
+.limit-status.over { background: var(--accent-soft); color: var(--accent); }
+[hidden] { display: none !important; }
+
+/* ---------- settings: cards and backups ---------- */
+.card-list, .backup-list { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 6px; }
+.card-list li { display: grid; grid-template-columns: 1fr 1fr 90px auto; gap: 6px; align-items: center; }
+.card-add { display: grid; grid-template-columns: 1fr 1fr 90px auto; gap: 6px; }
+.backup-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.backup-doc { display: inline-flex; margin-bottom: 8px; }
+.backup-list { max-height: 260px; overflow-y: auto; }
+.backup-list li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.backup-list .acts { display: flex; gap: 4px; flex: none; }
+.backup-list .btn { padding: 4px 10px; font-size: 0.85rem; }
+.btn.armed { background: var(--accent); border-color: var(--accent); color: #fff; }
 
 /* ---------- journal ---------- */
 .search {
@@ -386,6 +416,8 @@ dialog textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; 
 
 @media (max-width: 560px) {
   input.search { width: 100%; }
+  .new-card, .card-add { grid-template-columns: 1fr 1fr; }
+  .card-list li { grid-template-columns: 1fr 1fr; }
   .lesson-edit li { grid-template-columns: 1fr auto; }
   .lesson-edit li select { grid-column: 1 / -1; }
   .fab { display: block; }

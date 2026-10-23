@@ -107,6 +107,18 @@ export async function fetchJson(path) {
   return res.json();
 }
 
+// One-off POST (e.g. to the backups API), signed with your name like every other change.
+export async function postJson(path, body) {
+  const res = await fetch(path, {
+    method: "POST",
+    headers: { "content-type": "application/json", ...(passcode ? { "x-trip-code": passcode } : {}) },
+    body: JSON.stringify({ ...body, by: me }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+  return data;
+}
+
 // ---------------------------------------------------------------- live-synced document
 
 // path: the API (e.g. "/api/trip"); schema: the doc shape this page understands, so an

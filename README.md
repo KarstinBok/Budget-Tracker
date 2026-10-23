@@ -4,11 +4,23 @@ A shared, live-updating expense tracker for the trip, hosted on Netlify.
 
 - **Add expense button:** pick the date, category and price (in ¥ or S$) and it's added to that day's total. The SGD (or yen) equivalent is shown as you type. On phones it's the round ＋ button in the corner.
 - **SGD everywhere:** totals, daily averages, budget and each day's total are shown in both ¥ and S$. It follows the live market JPY→SGD rate, which `/api/rate` fetches from Coinbase's exchange-rate feed and refreshes every 5 minutes, so everyone sees the same rate. If Coinbase is unreachable it falls back to the daily ECB reference rate (frankfurter.dev), then open.er-api.com. You can also set a manual rate in Settings. All amounts, past ones included, are converted at the current rate.
+- **Paid with:** each expense records 💵 cash (and whose cash) or 💳 card (which card). Cards are added once, inline or in Settings, with their owner and a limit (S$1,000 by default). The **Payments** panel shows each card's spending against its limit and how much each person paid by cash and card.
+- **Card limit warnings:** while entering an expense, the dialog shows how much of the card's limit it will use. At 80% you get a warning, after saving and in a banner at the top of the page. Going over the limit needs a second click on Save.
+- **Edit expenses:** ✏️ in the breakdown changes an expense's date, category, price, note or payment.
 - **Daily table:** one row per trip day and one column per category (Food, Transport, Lodging, …). It's read-only: click any amount to see the individual expenses behind it (note, who added it, ¥ and S$), and delete one if it was a mistake. Click a day's total to see everything spent that day. Clicking an empty cell opens Add expense for that day and category.
 - **Summary:** total spent (in ¥ and S$), average per day, budget left (set in S$) with a suggested daily allowance, your biggest day, and totals, averages and shares per category.
 - **Live updates:** every change is saved to the server right away. Everyone who has the page open sees it within about 3 seconds, and the changed cell flashes. The **Recent changes** feed shows who changed what.
 - **Settings:** trip name, dates, total budget, and live or manual exchange rate. You can add, rename, reorder or remove categories.
-- **Export CSV** to download every expense (date, category, note, ¥, S$, who added it).
+- **Export CSV** to download every expense (date, category, note, ¥, S$, who added it, how it was paid).
+
+## Backups
+
+Every change to the expenses and the journal is also saved as a timestamped backup in a separate Netlify Blobs store (`japan-trip-backups`). A scheduled function (`backup-daily`) adds one more each day. The newest 300 backups of each are kept, plus the last one of every earlier day.
+
+In **⚙️ Settings → Backups** you can:
+- **Back up now** to save a copy immediately.
+- **Download all data** to save the current expenses and journal as a JSON file on your device.
+- See recent backups of the expenses or the journal, **download** any one, or **restore** it. Restoring replaces the current data for everyone, so it takes a second click. The current state is itself backed up first, so a restore can be undone by restoring the newer backup.
 
 ## Trip journal (`/journal.html`)
 
@@ -28,6 +40,9 @@ A second page, linked from the top of the budget page (📒 Journal), for writin
 | API: `GET/POST /api/trip` | `netlify/functions/trip.mjs` |
 | API: `GET /api/rate` (live ¥ per S$1) | `netlify/functions/rate.mjs` |
 | API: `GET/POST /api/journal` | `netlify/functions/journal.mjs` |
+| API: `GET/POST /api/backups` (list, download, restore, back up now) | `netlify/functions/backups.mjs` |
+| Daily scheduled backup | `netlify/functions/backup-daily.mjs` |
+| Backup storage and pruning | `netlify/lib/backups.mjs` |
 | Shared sync logic for both APIs (ETag compare-and-swap) | `netlify/lib/shared-doc.mjs` |
 | Helpers shared by both pages | `public/common.js` |
 | Storage | [Netlify Blobs](https://docs.netlify.com/blobs/overview/), store `japan-trip` |

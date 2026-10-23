@@ -1,6 +1,6 @@
 // Shared trip document API: GET/POST /api/trip (see netlify/lib/shared-doc.mjs).
-// The whole trip lives in a single JSON blob: settings, categories, expense items and an
-// activity log.
+// The whole trip lives in a single JSON blob: settings, categories, payment cards,
+// expense items and an activity log.
 
 import { randomUUID } from "node:crypto";
 import { createDocHandler, fail, str } from "../lib/shared-doc.mjs";
@@ -9,8 +9,10 @@ const KEY = "trip-v1";
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_AMOUNT = 100_000_000;
 const DEFAULT_SGD_RATE = 115; // ¥ per S$1, used until a live rate is available
-const SCHEMA = 2; // bump when the doc shape changes so open pages know to reload
+const SCHEMA = 3; // bump when the doc shape changes so open pages know to reload
 const MAX_ITEMS = 5000;
+const MAX_CARDS = 30;
+const DEFAULT_CARD_LIMIT_SGD = 1000;
 
 const yen = new Intl.NumberFormat("en-US", { style: "currency", currency: "JPY" });
 
@@ -38,7 +40,10 @@ function defaultDoc() {
       { id: "shopping", name: "Shopping", emoji: "🛍️" },
       { id: "misc", name: "Misc", emoji: "🎌" },
     ],
-    // One entry per expense: { id, date, cat, a: amountInYen, note, by, t }
+    // Cards people pay with: { id, name, owner, limitSgd }
+    cards: [],
+    // One entry per expense: { id, date, cat, a: amountInYen, note, by, t,
+    //   pay: "cash" | "card", payer (whose cash, or the card's owner), card (card id) }
     items: [],
     log: [],
   };
@@ -70,6 +75,7 @@ function normalize(doc) {
     delete doc.cells;
   }
   doc.items ??= [];
+  doc.cards ??= [];
   splitCombinedItems(doc);
   doc.schema = SCHEMA;
   return doc;
@@ -142,21 +148,95 @@ function findCategory(doc, id) {
 }
 
 // Mutates doc and returns a human readable log line (or null for no-op).
+function cleanCard(input = {}) {
+  const name = str(input.name, 40);
+  if (!name) fail("Give the card a name, e.g. DBS Visa");
+  const owner = str(input.owner, 30);
+  if (!owner) fail("Say whose card it is");
+  const limitSgd = input.limitSgd === undefined || input.limitSgd === "" ? DEFAULT_CARD_LIMIT_SGD : Number(input.limitSgd);
+  if (!Number.isFinite(limitSgd) || limitSgd <= 0 || limitSgd > 1_000_000) fail("Invalid card limit");
+  return { name, owner, limitSgd: Math.round(limitSgd * 100) / 100 };
+}
+
+function addCard(doc, input) {
+  if (doc.cards.length >= MAX_CARDS) fail("Too many cards");
+  const card = { id: randomUUID(), ...cleanCard(input) };
+  doc.cards.push(card);
+  return card;
+}
+
+const cardLabel = (card) => `${card.owner}'s ${card.name}`;
+
+// Reads how an expense was paid: { pay, payer, card }, or {} if not given. A card the
+// person is adding on the spot comes in as body.newCard.
+function readPayment(doc, body, by) {
+  if (!body.pay) return {};
+  if (body.pay === "cash") return { pay: "cash", payer: str(body.payer, 30) || by };
+  if (body.pay !== "card") fail("Pick cash or card");
+  const card = body.newCard ? addCard(doc, body.newCard) : doc.cards.find((c) => c.id === body.card);
+  if (!card) fail("Pick which card was used");
+  return { pay: "card", payer: card.owner, card: card.id };
+}
+
+function paymentText(doc, item) {
+  if (item.pay === "cash") return ` · 💵 ${item.payer}'s cash`;
+  const card = item.pay === "card" && doc.cards.find((c) => c.id === item.card);
+  return card ? ` · 💳 ${cardLabel(card)}` : "";
+}
+
+function readExpense(doc, body) {
+  const date = str(body.date, 10);
+  if (!DATE_RE.test(date)) fail("Invalid date");
+  const cat = findCategory(doc, body.cat);
+  const amount = Math.round(Number(body.amount));
+  if (!Number.isFinite(amount) || amount <= 0 || amount > MAX_AMOUNT) fail("Invalid amount");
+  return { date, cat, amount, note: str(body.note, 60) };
+}
+
 function applyOp(doc, body, by) {
   switch (body.op) {
     // "addToCell" is what pages loaded before itemised expenses still send.
     case "addItem":
     case "addToCell": {
-      const date = str(body.date, 10);
-      if (!DATE_RE.test(date)) fail("Invalid date");
-      const cat = findCategory(doc, body.cat);
-      const amount = Math.round(Number(body.amount));
-      if (!Number.isFinite(amount) || amount <= 0 || amount > MAX_AMOUNT) fail("Invalid amount");
+      const { date, cat, amount, note } = readExpense(doc, body);
       if (doc.items.length >= MAX_ITEMS) fail("Too many expenses");
-      const note = str(body.note, 60);
-      doc.items.push({ id: randomUUID(), date, cat: cat.id, a: amount, note, by, t: Date.now() });
+      const item = { id: randomUUID(), date, cat: cat.id, a: amount, note, by, t: Date.now(), ...readPayment(doc, body, by) };
+      doc.items.push(item);
       return `added ${yen.format(amount)} to ${cat.emoji} ${cat.name} on ${prettyDate(date)}` +
-        (note ? ` (${note})` : "");
+        (note ? ` (${note})` : "") + paymentText(doc, item);
+    }
+
+    case "updateItem": {
+      const item = doc.items.find((i) => i.id === body.id);
+      if (!item) fail("This expense was deleted by someone else", 409);
+      const { date, cat, amount, note } = readExpense(doc, body);
+      const before = `${yen.format(item.a)}${item.note ? ` (${item.note})` : ""}`;
+      for (const k of ["pay", "payer", "card"]) delete item[k];
+      Object.assign(item, { date, cat: cat.id, a: amount, note, editedBy: by, editedAt: Date.now() }, readPayment(doc, body, by));
+      return `edited ${before} → ${yen.format(amount)}${note ? ` (${note})` : ""} in ${cat.emoji} ${cat.name} on ${prettyDate(date)}` +
+        paymentText(doc, item);
+    }
+
+    case "addCard": {
+      const card = addCard(doc, body.card);
+      return `added the card ${cardLabel(card)} (limit S$${card.limitSgd})`;
+    }
+
+    case "editCard": {
+      const card = doc.cards.find((c) => c.id === body.id);
+      if (!card) fail("That card was removed by someone else", 409);
+      Object.assign(card, cleanCard(body.card));
+      for (const i of doc.items) if (i.card === card.id) i.payer = card.owner;
+      return `updated the card ${cardLabel(card)} (limit S$${card.limitSgd})`;
+    }
+
+    case "removeCard": {
+      const card = doc.cards.find((c) => c.id === body.id);
+      if (!card) return null;
+      const used = doc.items.filter((i) => i.card === card.id).length;
+      if (used) fail(`${cardLabel(card)} is used by ${used} expense${used === 1 ? "" : "s"}, so it can't be removed`);
+      doc.cards = doc.cards.filter((c) => c !== card);
+      return `removed the card ${cardLabel(card)}`;
     }
 
     case "deleteItem": {

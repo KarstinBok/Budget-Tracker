@@ -9,6 +9,7 @@
 // never overwrite each other.
 
 import { getStore } from "@netlify/blobs";
+import { saveBackup } from "./backups.mjs";
 
 const MAX_LOG = 150;
 
@@ -30,19 +31,25 @@ export function json(data, status = 200) {
   });
 }
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+export const liveStore = () => getStore({ name: "japan-trip", consistency: "strong" });
+
+// A 401 response when TRIP_PASSCODE is set and the request doesn't carry it, else null.
+export function passcodeError(req) {
+  const passcode = process.env.TRIP_PASSCODE;
+  return passcode && req.headers.get("x-trip-code") !== passcode ? json({ error: "passcode" }, 401) : null;
+}
 
 // key: blob key; defaultDoc(): a fresh doc; normalize(doc): upgrade old docs in place;
 // applyOp(doc, body, by): mutate doc and return a log line (or null). A doc with a
-// `log` array gets each log line added to it.
+// `log` array gets each log line added to it. Every saved change is also backed up.
 export function createDocHandler({ key, defaultDoc, normalize = (doc) => doc, applyOp, busyMessage }) {
   return async (req) => {
-    const passcode = process.env.TRIP_PASSCODE;
-    if (passcode && req.headers.get("x-trip-code") !== passcode) {
-      return json({ error: "passcode" }, 401);
-    }
+    const denied = passcodeError(req);
+    if (denied) return denied;
 
-    const store = getStore({ name: "japan-trip", consistency: "strong" });
+    const store = liveStore();
 
     if (req.method === "GET") {
       const stored = await store.get(key, { type: "json" });
@@ -87,7 +94,10 @@ export function createDocHandler({ key, defaultDoc, normalize = (doc) => doc, ap
           doc,
           current ? { onlyIfMatch: current.etag } : { onlyIfNew: true },
         );
-        if (result.modified) return json({ changed: true, doc });
+        if (result.modified) {
+          await saveBackup(key, doc);
+          return json({ changed: true, doc });
+        }
 
         // Someone else wrote in between; back off briefly and re-apply on the newer copy.
         await sleep(30 + Math.random() * 120 * (attempt + 1));
