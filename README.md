@@ -46,6 +46,7 @@ A second page, linked from the top of the budget page (📒 Journal), for writin
 - **Entries:** each has a date, a topic (Transport, Food & Drinks, Money, Planning & bookings, …), a title and a detailed write-up of any length. Long write-ups collapse behind "Show full write-up". Unsaved new entries are kept on your device, so a long draft isn't lost if you close the dialog.
 - **Lessons learned:** attach any number of lessons to an entry, each marked ⚠️ *Avoid*, 💡 *Tip* or ✅ *Do again*. **Lessons to remember** at the top collects every lesson from every entry, filterable by kind and linked back to its entry.
 - **Upload a transcript:** in the entry dialog, **📄 Upload transcript** takes a voice-note transcript (e.g. a Fireflies export as .txt, .docx, .pdf or .srt). Claude writes the title, topic and a summary, and sorts the lessons into Avoid, Tip and Do again, ready to check and save. **✨ Sort what I wrote** does the same for text already pasted into "What happened", keeping that text as it is. This needs an `ANTHROPIC_API_KEY` environment variable on Netlify (optionally `CLAUDE_MODEL` to pick the model, default `claude-sonnet-5-5`).
+- **Straight from Fireflies:** after each voice note you record in Fireflies, the journal adds it as an entry by itself, with the summary and sorted lessons, marked *From a Fireflies recording* and linked back to it. Only recordings made during the trip dates (⚙️ Settings on the budget page) **and** judged by Claude to be about the trip are added. Anything else, such as work calls or private conversations, is skipped, and nothing from it is stored apart from its id. **📼 Check Fireflies** picks up any trip recordings the automatic import missed.
 - **Search and filter** entries by text or topic. Entries are grouped by trip day.
 - **Shared and live:** everyone sees new and edited entries within a few seconds. If two people edit the same entry, the second save is refused with a message, and their text stays in the dialog so nothing is lost. Deleting an entry takes two clicks.
 - **Keep it for next time:** **Export Markdown** downloads the lessons and the whole journal as one file, and **Print** prints every write-up in full.
@@ -59,6 +60,8 @@ A second page, linked from the top of the budget page (📒 Journal), for writin
 | API: `GET /api/rate` (live ¥ per S$1) | `netlify/functions/rate.mjs` |
 | API: `GET/POST /api/journal` | `netlify/functions/journal.mjs` |
 | API: `POST /api/categorize` (transcript → entry draft, via Claude) | `netlify/functions/categorize.mjs` |
+| Fireflies webhook (`POST /api/fireflies-webhook`), "Check Fireflies" (`POST /api/fireflies-sync`) and the background import | `netlify/functions/fireflies-*.mjs`, `netlify/lib/fireflies.mjs` |
+| Claude prompt for turning a transcript into an entry | `netlify/lib/claude.mjs` |
 | API: `GET/POST /api/backups` (list, download, restore, back up now) | `netlify/functions/backups.mjs` |
 | Daily scheduled backup | `netlify/functions/backup-daily.mjs` |
 | Backup storage and pruning | `netlify/lib/backups.mjs` |
@@ -75,6 +78,23 @@ The whole trip is stored as one JSON document, with each expense as its own item
 2. Deploy. Netlify Blobs works automatically, with no database to set up.
 3. Share the site URL with the group. Everyone enters their name the first time they open it.
 4. Open **⚙️ Settings** to set the real trip dates and budget.
+
+### Optional: transcripts and Fireflies
+
+Add these under **Site configuration → Environment variables**, then redeploy:
+
+| Variable | What it's for |
+| --- | --- |
+| `ANTHROPIC_API_KEY` | Claude, which writes the summaries and sorts the lessons (console.anthropic.com) |
+| `FIREFLIES_API_KEY` | Reading your recordings (Fireflies → Settings → Developer settings → API key) |
+| `FIREFLIES_WEBHOOK_SECRET` | Any long random text; the same value goes in the Fireflies webhook below |
+
+Then in Fireflies, open **app.fireflies.ai/integrations/api/webhook** and set:
+- **Webhook URL:** `https://japan-trip-budget.netlify.app/api/fireflies-webhook`
+- **Signing secret:** the same value as `FIREFLIES_WEBHOOK_SECRET`
+- **Event subscriptions:** `meeting.transcribed`
+
+Save and use **Send Test Event**. Then tap **📼 Check Fireflies** on the journal once to bring in recordings made before the webhook was set up.
 
 ### Optional: protect it with a passcode
 

@@ -108,7 +108,9 @@ function renderEntries() {
       <header class="entry-head">
         <div>
           <h4>${esc(e.title)}</h4>
-          <p class="muted small"><span class="tag">${esc(e.tag)}</span> Written by ${esc(e.by)} ${timeAgo(e.t)}${edited}</p>
+          <p class="muted small"><span class="tag">${esc(e.tag)}</span> ${e.source?.kind === "fireflies"
+            ? `From a <a href="${esc(e.source.url)}" target="_blank" rel="noopener">Fireflies recording</a> ${timeAgo(e.t)}`
+            : `Written by ${esc(e.by)} ${timeAgo(e.t)}`}${edited}</p>
         </div>
         <div class="entry-actions">
           <button type="button" class="icon-btn" data-edit="${esc(e.id)}" title="Edit">✏️ Edit</button>
@@ -353,6 +355,20 @@ $("#entries").addEventListener("click", async (e) => {
   }
   const entry = doc.entries.find((x) => x.id === del.dataset.delete);
   if (entry) await sync.runOp({ op: "deleteEntry", id: entry.id }, `Deleted "${entry.title}"`);
+});
+
+// Adds any trip recordings from Fireflies the webhook missed; they appear through live sync.
+$("#ffBtn").addEventListener("click", async (e) => {
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  try {
+    await postJson("/api/fireflies-sync", {});
+    toast("Checking Fireflies. New trip recordings appear here in a minute or two.");
+  } catch (err) {
+    toast(err.message);
+  } finally {
+    setTimeout(() => { btn.disabled = false; }, 5000);
+  }
 });
 
 $("#search").addEventListener("input", renderEntries);
