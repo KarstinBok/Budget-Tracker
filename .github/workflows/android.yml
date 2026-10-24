@@ -1,0 +1,55 @@
+# Builds the Android app (android/) and, on main, publishes the APK as a GitHub release.
+# The latest APK is always at:
+#   https://github.com/KarstinBok/Budget-Tracker/releases/latest/download/japan-trip-budget.apk
+name: Android app
+
+on:
+  push:
+    branches: [main]
+    paths: ["android/**", ".github/workflows/android.yml"]
+  pull_request:
+    paths: ["android/**", ".github/workflows/android.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+
+      - name: Build the APK
+        working-directory: android
+        run: gradle assembleRelease -PversionCode=${{ github.run_number }} --no-daemon
+
+      - name: Name the APK
+        run: cp android/app/build/outputs/apk/release/app-release.apk japan-trip-budget.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: japan-trip-budget-apk
+          path: japan-trip-budget.apk
+
+      - name: Publish a release
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-v1.0.${{ github.run_number }}
+          name: Android app 1.0.${{ github.run_number }}
+          make_latest: true
+          files: japan-trip-budget.apk
+          body: |
+            Android app for the Japan trip budget tracker. It opens https://japan-trip-budget.netlify.app full screen, so it always has the latest data.
+
+            **Install:** download `japan-trip-budget.apk` below on your Android phone (Android 8 or newer) and open it. If asked, allow your browser to install apps. Newer builds install over older ones.

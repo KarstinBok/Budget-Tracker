@@ -55,7 +55,12 @@ export function setSync(state, label) {
   el.querySelector("span").textContent = label;
 }
 
+// True inside the Android app (android/), which provides window.AndroidBridge.
+export const inAndroidApp = () => typeof window.AndroidBridge !== "undefined";
+
 export function downloadFile(name, text, type) {
+  // The app's WebView can't save blob downloads, so it saves the file itself.
+  if (inAndroidApp()) return window.AndroidBridge.saveFile(name, text, type);
   const a = Object.assign(document.createElement("a"), {
     href: URL.createObjectURL(new Blob([text], { type })),
     download: name,

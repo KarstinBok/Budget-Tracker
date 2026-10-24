@@ -1,0 +1,47 @@
+plugins {
+    id "com.android.application"
+}
+
+// CI passes -PversionCode=<build number> so every build can install over the last one.
+def buildNumber = (project.findProperty("versionCode") ?: "1") as int
+
+android {
+    namespace "app.netlify.japantripbudget"
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "app.netlify.japantripbudget"
+        minSdk 26
+        targetSdk 34
+        versionCode buildNumber
+        versionName "1.0.${buildNumber}"
+    }
+
+    // A fixed key, kept in the repo on purpose: it isn't secret, it only makes sure every
+    // build is signed the same way so new versions install over old ones. For a Play Store
+    // release, use a private key stored as a GitHub secret instead.
+    signingConfigs {
+        release {
+            storeFile file("trip-app.keystore")
+            storePassword "trip-budget-app"
+            keyAlias "trip"
+            keyPassword "trip-budget-app"
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+
+    buildFeatures {
+        buildConfig true // BuildConfig.VERSION_NAME is added to the user agent
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

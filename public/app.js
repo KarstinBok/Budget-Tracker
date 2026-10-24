@@ -5,7 +5,7 @@
 
 import {
   $, esc, store, localToday, toMs, toIso, fmtDay, timeAgo, toast,
-  downloadFile, setupIdentity, createSync, fetchJson, postJson, myName,
+  downloadFile, setupIdentity, createSync, fetchJson, postJson, myName, inAndroidApp,
 } from "./common.js";
 
 const DAY_MS = 86400000;
@@ -870,6 +870,7 @@ $("#csvBtn").addEventListener("click", () => {
 
 setInterval(() => { if (doc) renderLog(); }, 30000);
 
+$("#appSection").hidden = inAndroidApp(); // no need to offer the app inside the app
 setupIdentity();
 sync.start();
 refreshLiveRate();

@@ -4,7 +4,7 @@
 
 import {
   $, esc, store, localToday, dayNumber, fmtDay, timeAgo, toast,
-  downloadFile, setupIdentity, createSync, fetchJson,
+  downloadFile, setupIdentity, createSync, fetchJson, inAndroidApp,
 } from "./common.js";
 
 const TAGS = [
@@ -291,7 +291,8 @@ $("#printBtn").addEventListener("click", () => {
   // Show every write-up in full on paper.
   for (const e of doc?.entries ?? []) expanded.add(e.id);
   renderEntries();
-  print();
+  if (inAndroidApp()) window.AndroidBridge.print(`${trip?.name ?? "Trip"} journal`);
+  else print();
 });
 
 // ---------------------------------------------------------------- boot
