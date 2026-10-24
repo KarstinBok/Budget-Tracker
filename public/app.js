@@ -5,7 +5,7 @@
 
 import {
   $, esc, store, localToday, toMs, toIso, fmtDay, timeAgo, toast,
-  downloadFile, setupIdentity, createSync, fetchJson, postJson, myName,
+  downloadFile, setupIdentity, createSync, fetchJson, postJson, myName, inAndroidApp,
 } from "./common.js";
 
 const DAY_MS = 86400000;
@@ -570,6 +570,13 @@ function updateConvert() {
   }
 }
 
+// The category buttons are radio inputs; these read and set the chosen one.
+const selectedCat = () => addForm.querySelector('input[name="cat"]:checked')?.value;
+function selectCat(id) {
+  const input = [...addForm.querySelectorAll('input[name="cat"]')].find((i) => i.value === id);
+  if (input) input.checked = true;
+}
+
 let editingItem = null; // expense being edited, or null when adding
 let overLimitOk = false; // second click on Save confirms going over a card's limit
 const NEW_CARD = "__new";
@@ -619,11 +626,12 @@ function openAdd(prefill = {}, item = null) {
   const days = tripDays();
   const today = localToday();
   const prevDate = f.date.value;
-  const prevCat = f.cat.value;
+  const prevCat = selectedCat();
   f.date.innerHTML = days.map((d) =>
     `<option value="${d}">${fmtDay(d, { weekday: "short", month: "short", day: "numeric", year: "numeric" })}${d === today ? " (today)" : ""}</option>`).join("");
-  f.cat.innerHTML = doc.categories.map((c) =>
-    `<option value="${esc(c.id)}">${esc(c.emoji)} ${esc(c.name)}</option>`).join("");
+  $("#catChoices").innerHTML = doc.categories.map((c, n) =>
+    `<label class="cat-choice"><input type="radio" name="cat" value="${esc(c.id)}"${n === 0 ? " checked" : ""} required />` +
+    `<span><span class="emoji">${esc(c.emoji)}</span>${esc(c.name)}</span></label>`).join("");
   f.card.innerHTML = (doc.cards ?? []).map((c) => `<option value="${esc(c.id)}">${esc(cardLabel(c))}</option>`).join("") +
     `<option value="${NEW_CARD}">＋ Add a new card…</option>`;
   $("#people").innerHTML = people().map((p) => `<option value="${esc(p)}"></option>`).join("");
@@ -641,14 +649,14 @@ function openAdd(prefill = {}, item = null) {
 
   if (item) {
     f.date.value = item.date;
-    f.cat.value = item.cat;
+    selectCat(item.cat);
     addForm.querySelector('input[name="cur"][value="JPY"]').checked = true;
     f.amount.value = String(item.a);
     f.note.value = item.note ?? "";
   } else {
     f.date.value = prefill.date ?? (days.includes(today) ? today : days.includes(prevDate) ? prevDate : days[0]);
     const cat = prefill.cat ?? prevCat;
-    if (doc.categories.some((c) => c.id === cat)) f.cat.value = cat;
+    selectCat(cat);
     f.amount.value = "";
     f.note.value = "";
   }
@@ -862,6 +870,7 @@ $("#csvBtn").addEventListener("click", () => {
 
 setInterval(() => { if (doc) renderLog(); }, 30000);
 
+$("#appSection").hidden = inAndroidApp(); // no need to offer the app inside the app
 setupIdentity();
 sync.start();
 refreshLiveRate();

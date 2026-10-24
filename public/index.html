@@ -125,7 +125,10 @@
     <form id="addForm">
       <h2 id="addTitle">Add expense</h2>
       <label>Date <select name="date" required></select></label>
-      <label>Category <select name="cat" required></select></label>
+      <fieldset class="cat-pick">
+        <legend>Category</legend>
+        <div class="cat-choices" id="catChoices" role="radiogroup" aria-label="Category"></div>
+      </fieldset>
       <label>Price
         <div class="price-row">
           <input name="amount" inputmode="decimal" autocomplete="off" placeholder="0" required />
@@ -198,6 +201,13 @@
       <input name="limitSgd" type="number" min="1" step="any" value="1000" required aria-label="Limit in S$" />
       <button class="btn" type="submit">Add</button>
     </form>
+
+    <div id="appSection">
+      <hr />
+      <h3>Android app</h3>
+      <p class="muted small">Install the tracker as an app on Android phones (Android 8 or newer). It shows this same live site, so everyone stays in sync.</p>
+      <a class="btn ghost" href="https://github.com/KarstinBok/Budget-Tracker/releases/latest/download/japan-trip-budget.apk">📱 Download the Android app (APK)</a>
+    </div>
 
     <hr />
 

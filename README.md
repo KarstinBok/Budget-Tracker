@@ -13,6 +13,16 @@ A shared, live-updating expense tracker for the trip, hosted on Netlify.
 - **Settings:** trip name, dates, total budget, and live or manual exchange rate. You can add, rename, reorder or remove categories.
 - **Export CSV** to download every expense (date, category, note, ¥, S$, who added it, how it was paid).
 
+## Android app
+
+**Download:** https://github.com/KarstinBok/Budget-Tracker/releases/latest/download/japan-trip-budget.apk (also linked in ⚙️ Settings).
+
+Open the link on an Android phone (Android 8 or newer) and open the downloaded file. If Android asks, allow your browser to install apps. Newer versions install over older ones without losing anything.
+
+The app (`android/`) is a small native wrapper with no extra libraries. It shows the live site full screen, so it always has the latest data and features and syncs with everyone else. Inside the app, exports (CSV, Markdown, backups) are saved to the phone's **Downloads** folder, and the journal's **Print** opens Android's print dialog, which can also save a PDF. Links to other sites open in the phone's browser.
+
+GitHub Actions (`.github/workflows/android.yml`) builds the APK for every pull request that touches `android/`. On `main` it publishes the APK as a new release. The APK is signed with a fixed key kept in the repo (`android/app/trip-app.keystore`). It isn't secret: it only keeps the signature the same, so each new version can install over the last. For a Play Store release you'd sign with a private key stored as a GitHub secret instead.
+
 ## Backups
 
 Every change to the expenses and the journal is also saved as a timestamped backup in a separate Netlify Blobs store (`japan-trip-backups`). A scheduled function (`backup-daily`) adds one more each day. The newest 300 backups of each are kept, plus the last one of every earlier day.
