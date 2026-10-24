@@ -71,6 +71,15 @@
   <dialog id="entryDlg" class="entry-dlg">
     <form id="entryForm">
       <h2 id="entryDlgTitle">New entry</h2>
+      <div class="import-box">
+        <div class="import-actions">
+          <button type="button" class="btn ghost" id="importBtn">📄 Upload transcript</button>
+          <button type="button" class="btn ghost" id="sortBtn" title="Sort what's in “What happened” into lessons">✨ Sort what I wrote</button>
+        </div>
+        <input type="file" id="importFile" hidden
+          accept=".txt,.md,.srt,.vtt,.json,.docx,.pdf,text/plain,application/pdf,application/json,application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
+        <p class="muted small" id="importNote">Upload a Fireflies transcript (.txt, .docx, .pdf or .srt) and Claude fills in the title, topic, a summary and the lessons, sorted into Avoid, Tip and Do again. Check them, then save.</p>
+      </div>
       <div class="row">
         <label>Date <input name="date" type="date" required /></label>
         <label>Topic <select name="tag" required></select></label>

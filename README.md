@@ -45,6 +45,7 @@ A second page, linked from the top of the budget page (📒 Journal), for writin
 
 - **Entries:** each has a date, a topic (Transport, Food & Drinks, Money, Planning & bookings, …), a title and a detailed write-up of any length. Long write-ups collapse behind "Show full write-up". Unsaved new entries are kept on your device, so a long draft isn't lost if you close the dialog.
 - **Lessons learned:** attach any number of lessons to an entry, each marked ⚠️ *Avoid*, 💡 *Tip* or ✅ *Do again*. **Lessons to remember** at the top collects every lesson from every entry, filterable by kind and linked back to its entry.
+- **Upload a transcript:** in the entry dialog, **📄 Upload transcript** takes a voice-note transcript (e.g. a Fireflies export as .txt, .docx, .pdf or .srt). Claude writes the title, topic and a summary, and sorts the lessons into Avoid, Tip and Do again, ready to check and save. **✨ Sort what I wrote** does the same for text already pasted into "What happened", keeping that text as it is. This needs an `ANTHROPIC_API_KEY` environment variable on Netlify (optionally `CLAUDE_MODEL` to pick the model, default `claude-sonnet-5-5`).
 - **Search and filter** entries by text or topic. Entries are grouped by trip day.
 - **Shared and live:** everyone sees new and edited entries within a few seconds. If two people edit the same entry, the second save is refused with a message, and their text stays in the dialog so nothing is lost. Deleting an entry takes two clicks.
 - **Keep it for next time:** **Export Markdown** downloads the lessons and the whole journal as one file, and **Print** prints every write-up in full.
@@ -57,6 +58,7 @@ A second page, linked from the top of the budget page (📒 Journal), for writin
 | API: `GET/POST /api/trip` | `netlify/functions/trip.mjs` |
 | API: `GET /api/rate` (live ¥ per S$1) | `netlify/functions/rate.mjs` |
 | API: `GET/POST /api/journal` | `netlify/functions/journal.mjs` |
+| API: `POST /api/categorize` (transcript → entry draft, via Claude) | `netlify/functions/categorize.mjs` |
 | API: `GET/POST /api/backups` (list, download, restore, back up now) | `netlify/functions/backups.mjs` |
 | Daily scheduled backup | `netlify/functions/backup-daily.mjs` |
 | Backup storage and pruning | `netlify/lib/backups.mjs` |
