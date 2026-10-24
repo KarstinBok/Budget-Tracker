@@ -1,6 +1,7 @@
-# Builds the Android app (android/) and, on main, publishes the APK as a GitHub release.
-# The latest APK is always at:
-#   https://github.com/KarstinBok/Budget-Tracker/releases/latest/download/japan-trip-budget.apk
+# Builds the Android app (android/) and, on main, publishes the APK in two places:
+#   - on the trip website: https://japan-trip-budget.netlify.app/downloads/japan-trip-budget.apk
+#     (committed to public/downloads/, which Netlify deploys)
+#   - as a GitHub release: https://github.com/KarstinBok/Budget-Tracker/releases/latest/download/japan-trip-budget.apk
 name: Android app
 
 on:
@@ -53,3 +54,17 @@ jobs:
             Android app for the Japan trip budget tracker. It opens https://japan-trip-budget.netlify.app full screen, so it always has the latest data.
 
             **Install:** download `japan-trip-budget.apk` below on your Android phone (Android 8 or newer) and open it. If asked, allow your browser to install apps. Newer builds install over older ones.
+
+      # Commits made with GITHUB_TOKEN don't start workflows, so this doesn't loop; Netlify
+      # still deploys the commit, which puts the new APK on the website.
+      - name: Put the APK on the website
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git pull --rebase origin main
+          mkdir -p public/downloads
+          cp japan-trip-budget.apk public/downloads/japan-trip-budget.apk
+          git add public/downloads/japan-trip-budget.apk
+          git commit -m "Publish Android app 1.0.${{ github.run_number }} on the website" || exit 0
+          git push origin HEAD:main

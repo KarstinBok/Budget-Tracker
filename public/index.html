@@ -6,6 +6,9 @@
   <title>Japan Trip Budget</title>
   <meta name="description" content="Shared, live-updating expense tracker for our Japan trip." />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23fff'/><circle cx='50' cy='50' r='26' fill='%23bc002d'/></svg>" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="theme-color" content="#bc002d" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -204,9 +207,21 @@
 
     <div id="appSection">
       <hr />
-      <h3>Android app</h3>
-      <p class="muted small">Install the tracker as an app on Android phones (Android 8 or newer). It shows this same live site, so everyone stays in sync.</p>
-      <a class="btn ghost" href="https://github.com/KarstinBok/Budget-Tracker/releases/latest/download/japan-trip-budget.apk">📱 Download the Android app (APK)</a>
+      <h3>Install on your phone</h3>
+      <p class="muted small">Put the tracker on your home screen. Either way it's this same live site, so everyone stays in sync.</p>
+      <div class="backup-actions">
+        <button class="btn" id="installBtn" type="button" hidden>📲 Install app</button>
+        <a class="btn ghost" id="apkLink" href="/downloads/japan-trip-budget.apk" download="japan-trip-budget.apk">📱 Android app (APK)</a>
+      </div>
+      <p class="muted small" id="installHelp"></p>
+      <details class="small install-help">
+        <summary>APK download stuck or blocked?</summary>
+        <ol>
+          <li>Chrome holds APK files that aren't from the Play Store until you confirm. Open Chrome's <b>⋮ → Downloads</b>, find <b>japan-trip-budget.apk</b> and tap <b>Download anyway</b> (or <b>Keep</b>).</li>
+          <li>Tap the file to open it. If Android asks, allow Chrome to <b>install unknown apps</b>, then tap <b>Install</b>.</li>
+          <li>Still stuck? Try the <a href="https://github.com/KarstinBok/Budget-Tracker/releases/latest/download/japan-trip-budget.apk">copy on GitHub</a>, or use <b>Install app</b> / <b>Add to Home screen</b> instead, which needs no APK.</li>
+        </ol>
+      </details>
     </div>
 
     <hr />

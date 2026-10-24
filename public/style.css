@@ -357,6 +357,9 @@ dialog label.cat-choice { display: block; color: var(--text); font-size: 0.9rem;
 .backup-list li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); }
 .backup-list .acts { display: flex; gap: 4px; flex: none; }
 .backup-list .btn { padding: 4px 10px; font-size: 0.85rem; }
+.install-help { margin-top: 4px; color: var(--muted); }
+.install-help summary { cursor: pointer; color: var(--text); }
+.install-help ol { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 6px; }
 .btn.armed { background: var(--accent); border-color: var(--accent); color: #fff; }
 
 /* ---------- journal ---------- */

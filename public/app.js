@@ -870,6 +870,39 @@ $("#csvBtn").addEventListener("click", () => {
 
 setInterval(() => { if (doc) renderLog(); }, 30000);
 
+// ---------------------------------------------------------------- install on your phone
+
+let installPrompt = null; // Chrome's "install this site as an app" prompt, when it offers one
+
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  installPrompt = e;
+  $("#installBtn").hidden = false;
+});
+
+$("#installBtn").addEventListener("click", async () => {
+  if (!installPrompt) return;
+  installPrompt.prompt();
+  await installPrompt.userChoice;
+  installPrompt = null;
+  $("#installBtn").hidden = true;
+});
+
+function installHelp() {
+  const ua = navigator.userAgent;
+  const iPhone = /iPhone|iPad|iPod/.test(ua) || (ua.includes("Macintosh") && navigator.maxTouchPoints > 1);
+  $("#apkLink").hidden = iPhone;
+  if (matchMedia("(display-mode: standalone)").matches) return "You're using the installed app.";
+  if (iPhone) return "On iPhone: open this page in Safari, tap Share, then Add to Home Screen.";
+  if (/Android/.test(ua)) {
+    return installPrompt
+      ? "Install app adds it to your home screen without an APK. Or download the Android app."
+      : "In Chrome, tap ⋮ then Add to Home screen (or Install app). Or download the Android app.";
+  }
+  return "Open this page on your phone to install it.";
+}
+
+$("#settingsBtn").addEventListener("click", () => { $("#installHelp").textContent = installHelp(); });
 $("#appSection").hidden = inAndroidApp(); // no need to offer the app inside the app
 setupIdentity();
 sync.start();
