@@ -257,6 +257,22 @@ function renderCards({ total, loggedDays, byDay, days }) {
   $("#sumMaxDayNote").textContent = maxDay ? fmtDay(maxDay, { weekday: "long", month: "short", day: "numeric" }) : "";
 }
 
+// A whole-yen amount for the table. From `shortFrom` up it also carries a short form
+// ("12.6k") that the phone layout shows instead, so every column fits on screen.
+function num(v, { shortFrom = 10000, sign = "" } = {}) {
+  const full = `${sign}${plain.format(v)}`;
+  if (v < shortFrom) return full;
+  const short = v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : `${(v / 1000).toFixed(v < 100000 ? 1 : 0)}k`;
+  return `<span class="n-full">${full}</span><span class="n-short">${short}</span>`;
+}
+
+// S$ to the whole dollar, for the narrow phone layout.
+const sgdWhole = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
+const fmtSgdShort = (amountYen) => `S$${sgdWhole.format(amountYen / yenPerSgd())}`;
+
+// Both labels are rendered; the stylesheet shows the short one on phones.
+const both = (full, short) => `<span class="n-full">${full}</span><span class="n-short">${short}</span>`;
+
 function renderGrid({ days, sums, byDay, byCat, total, loggedDays }, prevDoc) {
   const cats = doc.categories;
   const table = $("#grid");
@@ -267,12 +283,14 @@ function renderGrid({ days, sums, byDay, byCat, total, loggedDays }, prevDoc) {
     gridSignature = signature;
     const startMs = toMs(doc.trip.start);
     const head = `<thead><tr><th scope="col">Day</th>${cats.map((c) =>
-      `<th scope="col"><span class="emoji">${esc(c.emoji)}</span>${esc(c.name)}</th>`).join("")}<th scope="col">Total ¥</th><th scope="col">Total S$</th></tr></thead>`;
+      `<th scope="col" title="${esc(c.name)}"><span class="emoji">${esc(c.emoji)}</span><span class="cat-name">${esc(c.name)}</span></th>`).join("")}` +
+      `<th scope="col">${both("Total ¥", "Total")}</th><th scope="col" class="sgd-col">Total S$</th></tr></thead>`;
     const body = days.map((d) => {
       const n = Math.round((toMs(d) - startMs) / DAY_MS) + 1;
       const inside = d >= doc.trip.start && d <= doc.trip.end;
       return `<tr class="${d === today ? "today" : ""} ${inside ? "" : "outside"}" data-date="${d}">
-        <th scope="row"><span class="day-label">${fmtDay(d)}</span><span class="day-sub">${inside ? `Day ${n}` : ""}${d === today ? " · today" : ""}</span></th>
+        <th scope="row"><span class="day-label">${fmtDay(d)}</span><span class="day-sub">${inside ? `Day ${n}` : ""}${d === today ? " · today" : ""}</span>
+          <span class="day-short"><span>${fmtDay(d, { weekday: "short" })}</span><b>${Number(d.slice(8))}</b></span></th>
         ${cats.map((c) => `<td><button type="button" class="cell" data-date="${d}" data-cat="${esc(c.id)}"></button></td>`).join("")}
         <td class="total"><button type="button" class="cell day-total" data-date="${d}"></button></td>
         <td class="total sgd-col" data-total-sgd="${d}"></td>
@@ -280,7 +298,7 @@ function renderGrid({ days, sums, byDay, byCat, total, loggedDays }, prevDoc) {
     }).join("");
     const foot = `<tfoot>
       <tr><th scope="row">Total</th>${cats.map((c) => `<td data-cat-total="${esc(c.id)}"></td>`).join("")}<td data-grand></td><td class="sgd-col" data-grand-sgd></td></tr>
-      <tr class="avg"><th scope="row">Avg / day</th>${cats.map((c) => `<td data-cat-avg="${esc(c.id)}"></td>`).join("")}<td data-grand-avg></td><td class="sgd-col" data-grand-avg-sgd></td></tr>
+      <tr class="avg"><th scope="row">${both("Avg / day", "Avg")}</th>${cats.map((c) => `<td data-cat-avg="${esc(c.id)}"></td>`).join("")}<td data-grand-avg></td><td class="sgd-col" data-grand-avg-sgd></td></tr>
     </tfoot>`;
     table.innerHTML = head + `<tbody>${body}</tbody>` + foot;
   }
@@ -290,7 +308,7 @@ function renderGrid({ days, sums, byDay, byCat, total, loggedDays }, prevDoc) {
     const { date, cat } = btn.dataset;
     const cell = sums[date]?.[cat];
     const catName = doc.categories.find((c) => c.id === cat)?.name;
-    btn.textContent = cell ? plain.format(cell.sum) : "–";
+    btn.innerHTML = cell ? num(cell.sum) : "–";
     btn.classList.toggle("empty", !cell);
     btn.setAttribute("aria-label", cell
       ? `${catName} on ${fmtDay(date)}: ${yen.format(cell.sum)}, ${cell.count} expense${cell.count === 1 ? "" : "s"}. Show breakdown`
@@ -304,7 +322,8 @@ function renderGrid({ days, sums, byDay, byCat, total, loggedDays }, prevDoc) {
   }
   for (const btn of table.querySelectorAll("button.day-total")) {
     const v = byDay[btn.dataset.date];
-    btn.textContent = v ? plain.format(v) : "";
+    // On phones the S$ column is hidden and the S$ amount shows under the ¥ total instead.
+    btn.innerHTML = v ? `${num(v)}<span class="sgd-inline">${fmtSgdShort(v)}</span>` : "";
     btn.disabled = !v;
     btn.title = v ? "Click for the day's breakdown" : "";
   }
@@ -313,12 +332,15 @@ function renderGrid({ days, sums, byDay, byCat, total, loggedDays }, prevDoc) {
     td.textContent = v ? fmtSgd(v) : "";
   }
   for (const c of cats) {
-    table.querySelector(`[data-cat-total="${CSS.escape(c.id)}"]`).textContent = yen.format(byCat[c.id]);
-    table.querySelector(`[data-cat-avg="${CSS.escape(c.id)}"]`).textContent =
-      yen.format(loggedDays ? Math.round(byCat[c.id] / loggedDays) : 0);
+    table.querySelector(`[data-cat-total="${CSS.escape(c.id)}"]`).innerHTML = num(byCat[c.id], { shortFrom: 1000, sign: "¥" });
+    table.querySelector(`[data-cat-avg="${CSS.escape(c.id)}"]`).innerHTML =
+      num(loggedDays ? Math.round(byCat[c.id] / loggedDays) : 0, { shortFrom: 1000, sign: "¥" });
   }
-  table.querySelector("[data-grand]").textContent = yen.format(total);
-  table.querySelector("[data-grand-avg]").textContent = yen.format(loggedDays ? Math.round(total / loggedDays) : 0);
+  const avg = loggedDays ? Math.round(total / loggedDays) : 0;
+  table.querySelector("[data-grand]").innerHTML =
+    `${num(total, { shortFrom: 1000, sign: "¥" })}<span class="sgd-inline">${fmtSgdShort(total)}</span>`;
+  table.querySelector("[data-grand-avg]").innerHTML =
+    `${num(avg, { shortFrom: 1000, sign: "¥" })}<span class="sgd-inline">${fmtSgdShort(avg)}</span>`;
   table.querySelector("[data-grand-sgd]").textContent = fmtSgd(total);
   table.querySelector("[data-grand-avg-sgd]").textContent = fmtSgd(loggedDays ? total / loggedDays : 0);
   renderDetail();
@@ -417,7 +439,10 @@ function renderDetail() {
 
   const row = document.createElement("tr");
   row.className = "detail-row";
-  row.innerHTML = `<td colspan="${doc.categories.length + 3}"><div class="detail" id="detail" role="region" aria-label="Breakdown">
+  // Span only the visible columns: on phones the S$ column is hidden, and spanning it
+  // would add an empty column to the table.
+  const columns = [...table.querySelectorAll("thead th")].filter((th) => th.offsetParent !== null).length;
+  row.innerHTML = `<td colspan="${columns || doc.categories.length + 3}"><div class="detail" id="detail" role="region" aria-label="Breakdown">
     <div class="detail-head">
       <div>
         <h3>${category ? `${esc(category.emoji)} ${esc(category.name)}` : "Everything this day"}</h3>
@@ -470,7 +495,10 @@ $("#grid").addEventListener("click", async (e) => {
 
 // Keep the dropdown as wide as the visible part of the table, even when the table scrolls sideways.
 const sizeDetail = () => $(".grid-wrap").style.setProperty("--wrap-w", `${$(".grid-wrap").clientWidth}px`);
-window.addEventListener("resize", sizeDetail);
+window.addEventListener("resize", () => {
+  sizeDetail();
+  if (openCell) renderDetail(); // the visible columns change between phone and desktop layouts
+});
 sizeDetail();
 
 // ---------------------------------------------------------------- settings
@@ -870,6 +898,39 @@ $("#csvBtn").addEventListener("click", () => {
 
 setInterval(() => { if (doc) renderLog(); }, 30000);
 
+// ---------------------------------------------------------------- install on your phone
+
+let installPrompt = null; // Chrome's "install this site as an app" prompt, when it offers one
+
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  installPrompt = e;
+  $("#installBtn").hidden = false;
+});
+
+$("#installBtn").addEventListener("click", async () => {
+  if (!installPrompt) return;
+  installPrompt.prompt();
+  await installPrompt.userChoice;
+  installPrompt = null;
+  $("#installBtn").hidden = true;
+});
+
+function installHelp() {
+  const ua = navigator.userAgent;
+  const iPhone = /iPhone|iPad|iPod/.test(ua) || (ua.includes("Macintosh") && navigator.maxTouchPoints > 1);
+  $("#apkLink").hidden = iPhone;
+  if (matchMedia("(display-mode: standalone)").matches) return "You're using the installed app.";
+  if (iPhone) return "On iPhone: open this page in Safari, tap Share, then Add to Home Screen.";
+  if (/Android/.test(ua)) {
+    return installPrompt
+      ? "Install app adds it to your home screen without an APK. Or download the Android app."
+      : "In Chrome, tap ⋮ then Add to Home screen (or Install app). Or download the Android app.";
+  }
+  return "Open this page on your phone to install it.";
+}
+
+$("#settingsBtn").addEventListener("click", () => { $("#installHelp").textContent = installHelp(); });
 $("#appSection").hidden = inAndroidApp(); // no need to offer the app inside the app
 setupIdentity();
 sync.start();

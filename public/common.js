@@ -69,6 +69,11 @@ export function downloadFile(name, text, type) {
   URL.revokeObjectURL(a.href);
 }
 
+// The installed web app's service worker (public/sw.js); not needed inside the Android app.
+if ("serviceWorker" in navigator && !inAndroidApp()) {
+  navigator.serviceWorker.register("/sw.js").catch(() => { /* installing is optional */ });
+}
+
 // ---------------------------------------------------------------- who's using the page
 
 let me = store.get("trip.name") || "";

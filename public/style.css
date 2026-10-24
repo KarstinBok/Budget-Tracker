@@ -357,6 +357,9 @@ dialog label.cat-choice { display: block; color: var(--text); font-size: 0.9rem;
 .backup-list li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); }
 .backup-list .acts { display: flex; gap: 4px; flex: none; }
 .backup-list .btn { padding: 4px 10px; font-size: 0.85rem; }
+.install-help { margin-top: 4px; color: var(--muted); }
+.install-help summary { cursor: pointer; color: var(--text); }
+.install-help ol { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 6px; }
 .btn.armed { background: var(--accent); border-color: var(--accent); color: #fff; }
 
 /* ---------- journal ---------- */
@@ -446,4 +449,32 @@ dialog textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; 
   .two-col { grid-template-columns: 1fr; }
   .row { grid-template-columns: 1fr; }
   .cat-add { grid-template-columns: 56px 1fr auto; }
+}
+
+/* ---------- daily table: desktop shows full labels, phones the short ones ---------- */
+.n-short, .day-short, .sgd-inline { display: none; }
+
+@media (max-width: 600px) {
+  /* Fit every column on screen: emoji-only headings, a short date, the S$ total under
+     the ¥ total, smaller text, and very large amounts shortened (exact ones are in the
+     dropdown). The table still scrolls sideways if a trip has lots of categories. */
+  main { padding-left: 8px; padding-right: 8px; }
+  .panel { padding: 12px 10px; }
+  .grid { table-layout: fixed; font-size: 0.74rem; }
+  .grid .n-full, .grid .cat-name, .grid .day-label, .grid .day-sub, .grid .sgd-col { display: none; }
+  .grid .n-short, .grid .sgd-inline { display: block; }
+  .grid .day-short { display: flex; flex-direction: column; align-items: center; line-height: 1.1; }
+  .grid .day-short span { font-size: 0.66rem; color: var(--muted); font-weight: 500; }
+  .grid .day-short b { font-size: 0.95rem; }
+  .grid th:first-child, .grid td:first-child { width: 40px; padding: 4px 2px; text-align: center; }
+  .grid thead th { padding: 6px 1px; font-size: 0.7rem; text-align: center; }
+  .grid thead th .emoji { font-size: 1.15rem; }
+  .grid thead th:nth-last-child(2), .grid td.total { width: 64px; }
+  .grid td.total { padding: 0 4px; }
+  .cell { min-width: 0; padding: 9px 2px; font-size: 0.74rem; }
+  button.cell.day-total { padding: 5px 0; }
+  .sgd-inline { font-size: 0.66rem; font-weight: 600; color: var(--accent); }
+  .grid tfoot td, .grid tfoot th { padding: 6px 2px; font-size: 0.7rem; }
+  .grid tr.today .day-short b { color: var(--accent); }
+  button.cell.open::after { content: none; }
 }

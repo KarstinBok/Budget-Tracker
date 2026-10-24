@@ -13,15 +13,20 @@ A shared, live-updating expense tracker for the trip, hosted on Netlify.
 - **Settings:** trip name, dates, total budget, and live or manual exchange rate. You can add, rename, reorder or remove categories.
 - **Export CSV** to download every expense (date, category, note, ¥, S$, who added it, how it was paid).
 
-## Android app
+## Install on your phone
 
-**Download:** https://github.com/KarstinBok/Budget-Tracker/releases/latest/download/japan-trip-budget.apk (also linked in ⚙️ Settings).
+There are two ways, both linked from **⚙️ Settings → Install on your phone**. Either way you get the same live site, so everyone stays in sync.
 
-Open the link on an Android phone (Android 8 or newer) and open the downloaded file. If Android asks, allow your browser to install apps. Newer versions install over older ones without losing anything.
+- **Install the web app (Android and iPhone, no APK):** on Android, open the site in Chrome and tap **Install app** in Settings, or Chrome's **⋮ → Add to Home screen**. On iPhone, open it in Safari and tap **Share → Add to Home Screen**. This works because of `public/manifest.webmanifest`, the icons in `public/icons/`, and `public/sw.js`. The service worker only shows `offline.html` when there's no connection, and never caches the data.
+- **Android app (APK):** download https://japan-trip-budget.netlify.app/downloads/japan-trip-budget.apk (or the [copy on GitHub](https://github.com/KarstinBok/Budget-Tracker/releases/latest/download/japan-trip-budget.apk)) on an Android 8+ phone and open it.
+  - **If the download seems stuck at full size:** Chrome is waiting for you to confirm, because the file isn't from the Play Store. Open **⋮ → Downloads** and tap **Download anyway**.
+  - **Installing:** if asked, allow Chrome to install unknown apps. New versions install over old ones.
+
+### The Android app
 
 The app (`android/`) is a small native wrapper with no extra libraries. It shows the live site full screen, so it always has the latest data and features and syncs with everyone else. Inside the app, exports (CSV, Markdown, backups) are saved to the phone's **Downloads** folder, and the journal's **Print** opens Android's print dialog, which can also save a PDF. Links to other sites open in the phone's browser.
 
-GitHub Actions (`.github/workflows/android.yml`) builds the APK for every pull request that touches `android/`. On `main` it publishes the APK as a new release. The APK is signed with a fixed key kept in the repo (`android/app/trip-app.keystore`). It isn't secret: it only keeps the signature the same, so each new version can install over the last. For a Play Store release you'd sign with a private key stored as a GitHub secret instead.
+GitHub Actions (`.github/workflows/android.yml`) builds the APK for every pull request that touches `android/`. On `main` it publishes the APK as a GitHub release and commits it to `public/downloads/`, so Netlify serves it from the site. The APK is signed with a fixed key kept in the repo (`android/app/trip-app.keystore`). It isn't secret: it only keeps the signature the same, so each new version can install over the last. For a Play Store release you'd sign with a private key stored as a GitHub secret instead.
 
 ## Backups
 
