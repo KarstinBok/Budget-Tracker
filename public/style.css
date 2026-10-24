@@ -478,3 +478,21 @@ dialog textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; 
   .grid tr.today .day-short b { color: var(--accent); }
   button.cell.open::after { content: none; }
 }
+
+/* ---------- cash pool and settling up ---------- */
+.settle td, .settle th { vertical-align: top; }
+.settle tr.sum td { border-top: 2px solid var(--border); }
+.settle .pos { color: var(--good); }
+.settle .neg { color: var(--accent); }
+.settle-up-title { margin-top: 14px; }
+.settle-lines { margin: 6px 0 0; padding-left: 20px; display: grid; gap: 6px; }
+.settle-form { display: grid; gap: 10px; }
+.contrib-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.contrib-list li { display: grid; grid-template-columns: 1fr 110px 1.2fr auto; gap: 6px; align-items: center; }
+.card-list li { grid-template-columns: 1fr 1fr 80px 1.4fr auto; }
+@media (max-width: 560px) {
+  .contrib-list li { grid-template-columns: 1fr 1fr auto; }
+  .contrib-list li [name="note"] { grid-column: 1 / 3; }
+  .card-list li { grid-template-columns: 1fr 1fr 80px; }
+  .card-list li select { grid-column: 1 / 3; }
+}
