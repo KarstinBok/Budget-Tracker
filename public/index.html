@@ -58,6 +58,24 @@
       </article>
     </section>
 
+    <section class="panel summary" aria-labelledby="summaryTitle">
+      <h2 id="summaryTitle" class="sr-only">Spending summary</h2>
+      <div class="summary-hero">
+        <p class="hero" id="heroSgd">S$0.00</p>
+        <p class="muted" id="heroSub">Spent so far</p>
+      </div>
+      <div class="summary-body">
+        <div class="donut-wrap">
+          <svg id="donut" viewBox="0 0 200 200" role="img" aria-labelledby="donutLabel"><title id="donutLabel">Spending by category</title></svg>
+          <div class="donut-center"><b id="donutCenter">S$0</b><span id="donutCenterSub">by category</span></div>
+        </div>
+        <ul class="cat-legend" id="catLegend" aria-label="Spending by category"></ul>
+      </div>
+      <h3 class="daybars-title">Spending per day <span class="muted small">(S$)</span></h3>
+      <div class="daybars" id="dayBars" aria-label="Spending per day"></div>
+      <div class="viz-tip" id="vizTip" role="status" hidden></div>
+    </section>
+
     <div id="limitBanner" class="limit-banner" role="alert" hidden></div>
 
     <section class="panel" id="paymentsPanel" hidden>
@@ -114,10 +132,6 @@
     </section>
 
     <div class="two-col">
-      <section class="panel">
-        <h2>By category</h2>
-        <table class="breakdown" id="breakdown"></table>
-      </section>
       <section class="panel">
         <h2>Recent changes</h2>
         <ol class="log" id="log"></ol>

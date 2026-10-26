@@ -199,7 +199,7 @@ function render(prevDoc = null) {
   renderPayments();
   renderSettle();
   renderGrid(stats, prevDoc);
-  renderBreakdown(stats);
+  renderSummary(stats);
   renderLog();
   if ($("#settingsDlg").open) {
     renderCatList();
@@ -382,20 +382,134 @@ function renderGrid({ days, sums, byDay, byCat, total, loggedDays }, prevDoc) {
   renderDetail();
 }
 
-function renderBreakdown({ byCat, total, loggedDays }) {
-  const rows = [...doc.categories].sort((a, b) => byCat[b.id] - byCat[a.id]);
-  const max = Math.max(1, ...rows.map((c) => byCat[c.id]));
-  $("#breakdown").innerHTML = `
-    <thead><tr><th>Category</th><th class="num">Total</th><th class="num">Avg/day</th><th class="num">Share</th></tr></thead>
-    <tbody>${rows.map((c) => {
-      const v = byCat[c.id];
-      return `<tr>
-        <td>${esc(c.emoji)} ${esc(c.name)}<div class="bar"><span style="width:${(v / max) * 100}%"></span></div></td>
-        <td class="num">${yen.format(v)}<div class="muted small">${fmtSgd(v)}</div></td>
-        <td class="num">${yen.format(loggedDays ? Math.round(v / loggedDays) : 0)}</td>
-        <td class="num">${total ? Math.round((v / total) * 100) : 0}%</td>
-      </tr>`;
-    }).join("")}</tbody>`;
+// ---------------------------------------------------------------- summary charts
+
+// Category colours: the palette's categorical slots, assigned by each category's position
+// so a colour always follows its category. Past seven categories the rest share "Other".
+const SLOTS = 8;
+const catColor = (index) => `var(--series-${index < SLOTS - 1 ? index + 1 : "other"})`;
+
+function arcPath(cx, cy, r, r0, a0, a1) {
+  const pt = (rad, a) => [cx + rad * Math.sin(a), cy - rad * Math.cos(a)];
+  const large = a1 - a0 > Math.PI ? 1 : 0;
+  const [x0, y0] = pt(r, a0), [x1, y1] = pt(r, a1), [x2, y2] = pt(r0, a1), [x3, y3] = pt(r0, a0);
+  return `M${x0},${y0}A${r},${r} 0 ${large} 1 ${x1},${y1}L${x2},${y2}A${r0},${r0} 0 ${large} 0 ${x3},${y3}Z`;
+}
+
+function showTip(html, x, y) {
+  const tip = $("#vizTip");
+  tip.innerHTML = html;
+  tip.hidden = false;
+  const box = tip.parentElement.getBoundingClientRect();
+  tip.style.left = `${Math.min(Math.max(x - box.left, 60), box.width - 60)}px`;
+  tip.style.top = `${y - box.top}px`;
+}
+const hideTip = () => { $("#vizTip").hidden = true; };
+
+function renderSummary({ days, byDay, byCat, total, loggedDays }) {
+  $("#heroSgd").textContent = fmtSgd(total);
+  $("#heroSub").textContent = `Spent so far · ${yen.format(total)} · ${loggedDays} day${loggedDays === 1 ? "" : "s"} with spending`;
+  $("#donutCenter").textContent = fmtSgdShort(total);
+
+  // Slices: categories with spending, in category order (so colours stay put).
+  const slices = [];
+  doc.categories.forEach((c, n) => {
+    const v = byCat[c.id];
+    if (!v) return;
+    if (n >= SLOTS - 1 && doc.categories.length > SLOTS) {
+      const other = slices.find((s) => s.other) ?? slices[slices.push({ other: true, name: "Other", emoji: "•", v: 0, color: catColor(SLOTS) }) - 1];
+      other.v += v;
+    } else {
+      slices.push({ id: c.id, name: c.name, emoji: c.emoji, v, color: catColor(n) });
+    }
+  });
+
+  const svg = $("#donut");
+  const title = svg.querySelector("title").outerHTML;
+  if (!total) {
+    svg.innerHTML = `${title}<circle cx="100" cy="100" r="74" fill="none" stroke="var(--surface-2)" stroke-width="32" />`;
+  } else {
+    let a = 0;
+    svg.innerHTML = title + slices.map((sl) => {
+      const sweep = (sl.v / total) * Math.PI * 2;
+      const a1 = a + Math.min(sweep, Math.PI * 2 - 0.0001); // a full ring still needs two distinct ends
+      const d = arcPath(100, 100, 90, 58, a, a1);
+      a += sweep;
+      return `<path d="${d}" fill="${sl.color}" data-slice="${esc(sl.id ?? "other")}" />`;
+    }).join("");
+  }
+
+  const pct = (v) => (total ? Math.round((v / total) * 100) : 0);
+  const rows = [...slices].sort((x, y) => y.v - x.v);
+  $("#catLegend").innerHTML = rows.length ? rows.map((sl) => `
+    <li data-slice="${esc(sl.id ?? "other")}">
+      <span class="cat-icon" style="--c:${sl.color}"><span>${esc(sl.emoji)}</span></span>
+      <span class="cat-main"><b>${esc(sl.name)}</b><span class="muted small">${pct(sl.v)}% · ${yen.format(loggedDays ? Math.round(sl.v / loggedDays) : 0)}/day</span></span>
+      <span class="cat-amt"><b>${fmtSgd(sl.v)}</b><span class="muted small">${yen.format(sl.v)}</span></span>
+    </li>`).join("") : `<li class="muted small">No spending yet. Add an expense to see the breakdown.</li>`;
+
+  const tipFor = (id) => {
+    const sl = slices.find((s) => (s.id ?? "other") === id);
+    return sl && `<b>${esc(sl.emoji)} ${esc(sl.name)}</b><br>${fmtSgd(sl.v)} · ${yen.format(sl.v)} · ${pct(sl.v)}%`;
+  };
+  svg.onpointermove = (e) => {
+    const id = e.target.closest("[data-slice]")?.dataset.slice;
+    if (!id) return hideTip();
+    showTip(tipFor(id), e.clientX, e.clientY);
+    for (const li of $("#catLegend").children) li.classList.toggle("active", li.dataset.slice === id);
+  };
+  svg.onpointerleave = () => {
+    hideTip();
+    for (const li of $("#catLegend").children) li.classList.remove("active");
+  };
+  // Hovering a row highlights its slice.
+  $("#catLegend").onpointerover = (e) => {
+    const id = e.target.closest("li[data-slice]")?.dataset.slice;
+    for (const p of svg.querySelectorAll("path")) p.classList.toggle("dim", Boolean(id) && p.dataset.slice !== id);
+  };
+  $("#catLegend").onpointerleave = () => { for (const p of svg.querySelectorAll("path")) p.classList.remove("dim"); };
+
+  // Bars: one per trip day, in S$, with three quiet gridlines.
+  const today = localToday();
+  const maxSgd = Math.max(...days.map((d) => byDay[d] / yenPerSgd()), 1);
+  // Round the top of the scale up to a tidy number just above the biggest day.
+  const niceMax = (() => {
+    const mag = 10 ** Math.floor(Math.log10(maxSgd));
+    return [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10].map((m) => m * mag).find((v) => v >= maxSgd);
+  })();
+  const ticks = [niceMax, niceMax / 2, 0];
+  const tick = (v) => (v >= 1000 ? `${+(v / 1000).toFixed(2)}k` : `${Math.round(v)}`);
+  $("#dayBars").innerHTML = `
+    <div class="db-axis">${ticks.map((t) => `<span>${tick(t)}</span>`).join("")}</div>
+    <div class="db-plot">
+      ${ticks.map((t) => `<i class="db-grid" style="bottom:${(t / niceMax) * 100}%"></i>`).join("")}
+      ${days.map((d) => {
+        const v = byDay[d];
+        const h = (v / yenPerSgd() / niceMax) * 100;
+        return `<button type="button" class="db-col${d === today ? " today" : ""}" data-day="${d}"
+            aria-label="${fmtDay(d)}: ${v ? `${fmtSgd(v)}, ${yen.format(v)}` : "nothing spent"}">
+          <span class="db-bar" style="height:${v ? Math.max(h, 1.5) : 0}%"></span>
+          <span class="db-label">${Number(d.slice(8))}</span>
+        </button>`;
+      }).join("")}
+    </div>`;
+  const bars = $("#dayBars");
+  bars.onpointermove = (e) => {
+    const col = e.target.closest(".db-col");
+    if (!col) return hideTip();
+    const v = byDay[col.dataset.day];
+    const r = col.querySelector(".db-bar").getBoundingClientRect();
+    showTip(`<b>${fmtDay(col.dataset.day)}</b><br>${v ? `${fmtSgd(v)} · ${yen.format(v)}` : "Nothing spent"}`, r.left + r.width / 2, r.top);
+  };
+  bars.onpointerleave = hideTip;
+  // Tapping a day opens its breakdown in the table below.
+  bars.onclick = (e) => {
+    const col = e.target.closest(".db-col");
+    if (!col || !byDay[col.dataset.day]) return;
+    openCell = { date: col.dataset.day, cat: null };
+    renderDetail();
+    $("#detail")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
 }
 
 function renderLog() {
