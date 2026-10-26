@@ -12,6 +12,7 @@ import android.os.Environment;
 import android.print.PrintManager;
 import android.provider.MediaStore;
 import android.webkit.JavascriptInterface;
+import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
@@ -43,7 +44,10 @@ public class MainActivity extends Activity {
             + "<p><a href='" + HOME + "' style='display:inline-block;margin-top:12px;padding:12px 20px;"
             + "border-radius:8px;background:#bc002d;color:#fff;text-decoration:none'>Try again</a></p></body>";
 
+    static final int PICK_FILE = 1;
+
     private WebView web;
+    private ValueCallback<Uri[]> pendingFiles; // the page's <input type=file> waiting for a pick
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -57,7 +61,26 @@ public class MainActivity extends Activity {
         settings.setUserAgentString(settings.getUserAgentString() + " JapanTripApp/" + BuildConfig.VERSION_NAME);
 
         web.addJavascriptInterface(new Bridge(), "AndroidBridge");
-        web.setWebChromeClient(new WebChromeClient()); // shows the page's confirm() dialogs
+        web.setWebChromeClient(new WebChromeClient() { // also shows the page's confirm() dialogs
+            // Lets <input type=file> (e.g. the journal's transcript upload) open Android's file picker.
+            @Override
+            public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback, FileChooserParams params) {
+                if (pendingFiles != null) pendingFiles.onReceiveValue(null);
+                pendingFiles = callback;
+                Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                intent.setType("*/*");
+                try {
+                    startActivityForResult(Intent.createChooser(intent, "Choose a file"), PICK_FILE);
+                } catch (ActivityNotFoundException e) {
+                    pendingFiles = null;
+                    callback.onReceiveValue(null);
+                    toast("No app found to pick a file");
+                    return false;
+                }
+                return true;
+            }
+        });
         web.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
@@ -85,6 +108,14 @@ public class MainActivity extends Activity {
         } else {
             web.loadUrl(HOME);
         }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != PICK_FILE || pendingFiles == null) return;
+        pendingFiles.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(resultCode, data));
+        pendingFiles = null;
     }
 
     @Override

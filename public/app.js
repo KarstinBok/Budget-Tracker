@@ -19,7 +19,7 @@ let openCell = null; // { date, cat } whose breakdown is dropped down in the tab
 
 const sync = createSync({
   path: "/api/trip",
-  schema: 3, // matches SCHEMA in netlify/functions/trip.mjs
+  schema: 4, // matches SCHEMA in netlify/functions/trip.mjs
   onDoc(next, prevDoc) {
     doc = next;
     render(prevDoc);
@@ -56,11 +56,44 @@ function cardLevel(usedSgd, limitSgd) {
   return usedSgd >= limitSgd ? "over" : usedSgd >= limitSgd * LIMIT_WARN ? "near" : "";
 }
 
-function cardWarning(card, usedSgd) {
-  const pct = Math.round((usedSgd / card.limitSgd) * 100);
-  return usedSgd >= card.limitSgd
-    ? `⛔ ${cardLabel(card)} is over its ${fmtS(card.limitSgd)} limit by ${fmtS(usedSgd - card.limitSgd)}.`
-    : `⚠️ ${cardLabel(card)} has used ${pct}% of its ${fmtS(card.limitSgd)} limit (${fmtS(card.limitSgd - usedSgd)} left).`;
+// Cards that share a credit limit (linked with "Shares limit with" in Settings) are
+// tracked together: { cards, limitSgd, label, shared }. A shared group's limit is the
+// lowest limit among its cards.
+function limitGroups() {
+  const cards = doc.cards ?? [];
+  const parent = new Map(cards.map((c) => [c.id, c.id]));
+  const find = (id) => (parent.get(id) === id ? id : find(parent.get(id)));
+  for (const c of cards) {
+    if (!c.shareWith || !parent.has(c.shareWith)) continue;
+    const a = find(c.id), b = find(c.shareWith);
+    if (a !== b) parent.set(a, b);
+  }
+  const groups = new Map();
+  for (const c of cards) {
+    const key = find(c.id);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(c);
+  }
+  return [...groups.values()].map((cs) => {
+    const owners = [...new Set(cs.map((c) => c.owner))];
+    return {
+      cards: cs,
+      shared: cs.length > 1,
+      limitSgd: Math.min(...cs.map((c) => c.limitSgd)),
+      label: owners.length === 1 ? `${owners[0]}'s ${cs.map((c) => c.name).join(" + ")}` : cs.map(cardLabel).join(" + "),
+    };
+  });
+}
+
+const groupForCard = (cardId) => limitGroups().find((g) => g.cards.some((c) => c.id === cardId));
+const groupSpentSgd = (group, exceptItemId = null) => group.cards.reduce((sum, c) => sum + cardSpentSgd(c.id, exceptItemId), 0);
+
+function cardWarning(group, usedSgd) {
+  const pct = Math.round((usedSgd / group.limitSgd) * 100);
+  const limit = `${group.shared ? "shared " : ""}${fmtS(group.limitSgd)} limit`;
+  return usedSgd >= group.limitSgd
+    ? `⛔ ${group.label} ${group.shared ? "are" : "is"} over the ${limit} by ${fmtS(usedSgd - group.limitSgd)}.`
+    : `⚠️ ${group.label} ${group.shared ? "have" : "has"} used ${pct}% of the ${limit} (${fmtS(group.limitSgd - usedSgd)} left).`;
 }
 
 function payLabel(i) {
@@ -164,8 +197,9 @@ function render(prevDoc = null) {
 
   renderCards(stats);
   renderPayments();
+  renderSettle();
   renderGrid(stats, prevDoc);
-  renderBreakdown(stats);
+  renderSummary(stats);
   renderLog();
   if ($("#settingsDlg").open) {
     renderCatList();
@@ -178,15 +212,17 @@ function renderPayments() {
   $("#paymentsPanel").hidden = !cards.length && !doc.items.some((i) => i.pay);
 
   const warnings = [];
-  $("#cardMeters").innerHTML = cards.length ? cards.map((c) => {
-    const used = cardSpentSgd(c.id);
-    const level = cardLevel(used, c.limitSgd);
-    if (level) warnings.push(cardWarning(c, used));
-    const pct = (used / c.limitSgd) * 100;
+  $("#cardMeters").innerHTML = cards.length ? limitGroups().map((g) => {
+    const used = groupSpentSgd(g);
+    const level = cardLevel(used, g.limitSgd);
+    if (level) warnings.push(cardWarning(g, used));
+    const pct = (used / g.limitSgd) * 100;
+    const perCard = g.shared ? `<p class="muted small">${g.cards.map((c) => `${esc(c.name)} ${fmtS(cardSpentSgd(c.id))}`).join(" · ")}</p>` : "";
     return `<li class="${level}">
-      <div class="cm-head"><b>${esc(cardLabel(c))}</b><span>${fmtS(used)} of ${fmtS(c.limitSgd)}</span></div>
+      <div class="cm-head"><b>${esc(g.label)}${g.shared ? ' <span class="tag">shared limit</span>' : ""}</b><span>${fmtS(used)} of ${fmtS(g.limitSgd)}</span></div>
       <div class="meter ${level}"><span style="width:${Math.min(100, pct)}%"></span></div>
-      <p class="muted small">${used >= c.limitSgd ? `Over the limit by ${fmtS(used - c.limitSgd)}` : `${fmtS(c.limitSgd - used)} left · ${Math.round(pct)}% used`}</p>
+      <p class="muted small">${used >= g.limitSgd ? `Over the limit by ${fmtS(used - g.limitSgd)}` : `${fmtS(g.limitSgd - used)} left · ${Math.round(pct)}% used`}</p>
+      ${perCard}
     </li>`;
   }).join("") : `<li class="muted small">No cards yet. Add one when you record a card payment, or in ⚙️ Settings.</li>`;
 
@@ -346,20 +382,134 @@ function renderGrid({ days, sums, byDay, byCat, total, loggedDays }, prevDoc) {
   renderDetail();
 }
 
-function renderBreakdown({ byCat, total, loggedDays }) {
-  const rows = [...doc.categories].sort((a, b) => byCat[b.id] - byCat[a.id]);
-  const max = Math.max(1, ...rows.map((c) => byCat[c.id]));
-  $("#breakdown").innerHTML = `
-    <thead><tr><th>Category</th><th class="num">Total</th><th class="num">Avg/day</th><th class="num">Share</th></tr></thead>
-    <tbody>${rows.map((c) => {
-      const v = byCat[c.id];
-      return `<tr>
-        <td>${esc(c.emoji)} ${esc(c.name)}<div class="bar"><span style="width:${(v / max) * 100}%"></span></div></td>
-        <td class="num">${yen.format(v)}<div class="muted small">${fmtSgd(v)}</div></td>
-        <td class="num">${yen.format(loggedDays ? Math.round(v / loggedDays) : 0)}</td>
-        <td class="num">${total ? Math.round((v / total) * 100) : 0}%</td>
-      </tr>`;
-    }).join("")}</tbody>`;
+// ---------------------------------------------------------------- summary charts
+
+// Category colours: the palette's categorical slots, assigned by each category's position
+// so a colour always follows its category. Past seven categories the rest share "Other".
+const SLOTS = 8;
+const catColor = (index) => `var(--series-${index < SLOTS - 1 ? index + 1 : "other"})`;
+
+function arcPath(cx, cy, r, r0, a0, a1) {
+  const pt = (rad, a) => [cx + rad * Math.sin(a), cy - rad * Math.cos(a)];
+  const large = a1 - a0 > Math.PI ? 1 : 0;
+  const [x0, y0] = pt(r, a0), [x1, y1] = pt(r, a1), [x2, y2] = pt(r0, a1), [x3, y3] = pt(r0, a0);
+  return `M${x0},${y0}A${r},${r} 0 ${large} 1 ${x1},${y1}L${x2},${y2}A${r0},${r0} 0 ${large} 0 ${x3},${y3}Z`;
+}
+
+function showTip(html, x, y) {
+  const tip = $("#vizTip");
+  tip.innerHTML = html;
+  tip.hidden = false;
+  const box = tip.parentElement.getBoundingClientRect();
+  tip.style.left = `${Math.min(Math.max(x - box.left, 60), box.width - 60)}px`;
+  tip.style.top = `${y - box.top}px`;
+}
+const hideTip = () => { $("#vizTip").hidden = true; };
+
+function renderSummary({ days, byDay, byCat, total, loggedDays }) {
+  $("#heroSgd").textContent = fmtSgd(total);
+  $("#heroSub").textContent = `Spent so far · ${yen.format(total)} · ${loggedDays} day${loggedDays === 1 ? "" : "s"} with spending`;
+  $("#donutCenter").textContent = fmtSgdShort(total);
+
+  // Slices: categories with spending, in category order (so colours stay put).
+  const slices = [];
+  doc.categories.forEach((c, n) => {
+    const v = byCat[c.id];
+    if (!v) return;
+    if (n >= SLOTS - 1 && doc.categories.length > SLOTS) {
+      const other = slices.find((s) => s.other) ?? slices[slices.push({ other: true, name: "Other", emoji: "•", v: 0, color: catColor(SLOTS) }) - 1];
+      other.v += v;
+    } else {
+      slices.push({ id: c.id, name: c.name, emoji: c.emoji, v, color: catColor(n) });
+    }
+  });
+
+  const svg = $("#donut");
+  const title = svg.querySelector("title").outerHTML;
+  if (!total) {
+    svg.innerHTML = `${title}<circle cx="100" cy="100" r="74" fill="none" stroke="var(--surface-2)" stroke-width="32" />`;
+  } else {
+    let a = 0;
+    svg.innerHTML = title + slices.map((sl) => {
+      const sweep = (sl.v / total) * Math.PI * 2;
+      const a1 = a + Math.min(sweep, Math.PI * 2 - 0.0001); // a full ring still needs two distinct ends
+      const d = arcPath(100, 100, 90, 58, a, a1);
+      a += sweep;
+      return `<path d="${d}" fill="${sl.color}" data-slice="${esc(sl.id ?? "other")}" />`;
+    }).join("");
+  }
+
+  const pct = (v) => (total ? Math.round((v / total) * 100) : 0);
+  const rows = [...slices].sort((x, y) => y.v - x.v);
+  $("#catLegend").innerHTML = rows.length ? rows.map((sl) => `
+    <li data-slice="${esc(sl.id ?? "other")}">
+      <span class="cat-icon" style="--c:${sl.color}"><span>${esc(sl.emoji)}</span></span>
+      <span class="cat-main"><b>${esc(sl.name)}</b><span class="muted small">${pct(sl.v)}% · ${yen.format(loggedDays ? Math.round(sl.v / loggedDays) : 0)}/day</span></span>
+      <span class="cat-amt"><b>${fmtSgd(sl.v)}</b><span class="muted small">${yen.format(sl.v)}</span></span>
+    </li>`).join("") : `<li class="muted small">No spending yet. Add an expense to see the breakdown.</li>`;
+
+  const tipFor = (id) => {
+    const sl = slices.find((s) => (s.id ?? "other") === id);
+    return sl && `<b>${esc(sl.emoji)} ${esc(sl.name)}</b><br>${fmtSgd(sl.v)} · ${yen.format(sl.v)} · ${pct(sl.v)}%`;
+  };
+  svg.onpointermove = (e) => {
+    const id = e.target.closest("[data-slice]")?.dataset.slice;
+    if (!id) return hideTip();
+    showTip(tipFor(id), e.clientX, e.clientY);
+    for (const li of $("#catLegend").children) li.classList.toggle("active", li.dataset.slice === id);
+  };
+  svg.onpointerleave = () => {
+    hideTip();
+    for (const li of $("#catLegend").children) li.classList.remove("active");
+  };
+  // Hovering a row highlights its slice.
+  $("#catLegend").onpointerover = (e) => {
+    const id = e.target.closest("li[data-slice]")?.dataset.slice;
+    for (const p of svg.querySelectorAll("path")) p.classList.toggle("dim", Boolean(id) && p.dataset.slice !== id);
+  };
+  $("#catLegend").onpointerleave = () => { for (const p of svg.querySelectorAll("path")) p.classList.remove("dim"); };
+
+  // Bars: one per trip day, in S$, with three quiet gridlines.
+  const today = localToday();
+  const maxSgd = Math.max(...days.map((d) => byDay[d] / yenPerSgd()), 1);
+  // Round the top of the scale up to a tidy number just above the biggest day.
+  const niceMax = (() => {
+    const mag = 10 ** Math.floor(Math.log10(maxSgd));
+    return [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10].map((m) => m * mag).find((v) => v >= maxSgd);
+  })();
+  const ticks = [niceMax, niceMax / 2, 0];
+  const tick = (v) => (v >= 1000 ? `${+(v / 1000).toFixed(2)}k` : `${Math.round(v)}`);
+  $("#dayBars").innerHTML = `
+    <div class="db-axis">${ticks.map((t) => `<span>${tick(t)}</span>`).join("")}</div>
+    <div class="db-plot">
+      ${ticks.map((t) => `<i class="db-grid" style="bottom:${(t / niceMax) * 100}%"></i>`).join("")}
+      ${days.map((d) => {
+        const v = byDay[d];
+        const h = (v / yenPerSgd() / niceMax) * 100;
+        return `<button type="button" class="db-col${d === today ? " today" : ""}" data-day="${d}"
+            aria-label="${fmtDay(d)}: ${v ? `${fmtSgd(v)}, ${yen.format(v)}` : "nothing spent"}">
+          <span class="db-bar" style="height:${v ? Math.max(h, 1.5) : 0}%"></span>
+          <span class="db-label">${Number(d.slice(8))}</span>
+        </button>`;
+      }).join("")}
+    </div>`;
+  const bars = $("#dayBars");
+  bars.onpointermove = (e) => {
+    const col = e.target.closest(".db-col");
+    if (!col) return hideTip();
+    const v = byDay[col.dataset.day];
+    const r = col.querySelector(".db-bar").getBoundingClientRect();
+    showTip(`<b>${fmtDay(col.dataset.day)}</b><br>${v ? `${fmtSgd(v)} · ${yen.format(v)}` : "Nothing spent"}`, r.left + r.width / 2, r.top);
+  };
+  bars.onpointerleave = hideTip;
+  // Tapping a day opens its breakdown in the table below.
+  bars.onclick = (e) => {
+    const col = e.target.closest(".db-col");
+    if (!col || !byDay[col.dataset.day]) return;
+    openCell = { date: col.dataset.day, cat: null };
+    renderDetail();
+    $("#detail")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
 }
 
 function renderLog() {
@@ -525,6 +675,7 @@ $("#settingsBtn").addEventListener("click", () => {
   f.elements.autoRate.checked = !!doc.trip.autoRate;
   renderCatList();
   renderCardList();
+  renderSettleForm();
   $("#people").innerHTML = people().map((p) => `<option value="${esc(p)}"></option>`).join("");
   renderBackups();
   $("#settingsDlg").showModal();
@@ -626,16 +777,17 @@ function updatePayUI() {
   const label = editingItem ? "Save changes" : "Add";
   const amount = addAmountYen();
   const card = method === "card" && !newCard && cardById(f.card.value);
-  const limit = card ? card.limitSgd : newCard ? Number(f.cardLimit.value) : 0;
+  const group = card && groupForCard(card.id);
+  const limit = group ? group.limitSgd : newCard ? Number(f.cardLimit.value) : 0;
   if (method !== "card" || !(limit > 0)) {
     status.hidden = true;
     submit.textContent = label;
     return null;
   }
-  const used = card ? cardSpentSgd(card.id, editingItem?.id) : 0;
+  const used = group ? groupSpentSgd(group, editingItem?.id) : 0;
   const after = used + (amount > 0 ? amount / yenPerSgd() : 0);
   const level = cardLevel(after, limit);
-  const name = card ? cardLabel(card) : "New card";
+  const name = group ? `${group.label}${group.shared ? " (shared limit)" : ""}` : "New card";
   status.hidden = false;
   status.className = `limit-status ${level}`;
   status.textContent = `${name}: ${fmtS(used)} of ${fmtS(limit)} used → ${fmtS(after)} after this (${Math.round((after / limit) * 100)}%)` +
@@ -753,11 +905,160 @@ addForm.addEventListener("submit", async (e) => {
     ? doc.cards.findLast((c) => c.name === payment.newCard.name.trim() && c.owner === payment.newCard.owner.trim())
     : cardById(payment.card);
   store.set("trip.lastPay", JSON.stringify({ pay: payment.pay, payer: payment.payer, card: card?.id }));
-  if (card) {
-    const used = cardSpentSgd(card.id);
-    if (cardLevel(used, card.limitSgd)) toast(cardWarning(card, used));
+  const group = card && groupForCard(card.id);
+  if (group) {
+    const used = groupSpentSgd(group);
+    if (cardLevel(used, group.limitSgd)) toast(cardWarning(group, used));
   }
   $("#addDlg").close();
+});
+
+// ---------------------------------------------------------------- cash pool and settling up
+
+const samePerson = (a, b) => (a ?? "").trim().toLowerCase() === (b ?? "").trim().toLowerCase();
+
+// Who paid what, and how to even it out when every expense is split equally.
+// "Paid" = cash put into the shared pool + their own cash + their card payments.
+// Cash expenses under the pool holder's name come out of the pool, and so do expenses
+// with no payment recorded. The holder keeps whatever cash is left.
+function settlement() {
+  const { holder, people, contributions } = doc.settle;
+  const paid = new Map(); // display name -> yen
+  const add = (who, a) => {
+    const key = [...paid.keys()].find((k) => samePerson(k, who)) ?? who;
+    paid.set(key, (paid.get(key) ?? 0) + a);
+  };
+  for (const p of people) add(p, 0);
+
+  const pool = contributions.reduce((sum, c) => sum + c.a, 0);
+  for (const c of contributions) add(c.who, c.a);
+
+  const items = doc.items.filter((i) => doc.categories.some((c) => c.id === i.cat));
+  const total = items.reduce((sum, i) => sum + i.a, 0);
+  let poolSpent = 0, unrecorded = 0, cards = 0, ownCash = 0;
+  for (const i of items) {
+    const card = i.pay === "card" && cardById(i.card);
+    if (card) {
+      add(card.owner, i.a);
+      cards += i.a;
+    } else if (i.pay === "cash" && !samePerson(i.payer, holder)) {
+      add(i.payer, i.a);
+      ownCash += i.a;
+    } else {
+      poolSpent += i.a;
+      if (!i.pay) unrecorded += i.a;
+    }
+  }
+  let left = pool - poolSpent;
+  const overdrawn = Math.max(0, -left);
+  if (overdrawn) add(holder, overdrawn); // the holder covered it from their own money
+  left = Math.max(0, left);
+
+  const share = total / people.length;
+  const rows = [...paid].map(([who, amount]) => {
+    const fair = people.some((p) => samePerson(p, who)) ? share : 0;
+    return { who, paid: amount, share: fair, balance: amount - fair };
+  });
+  const holderName = rows.find((r) => samePerson(r.who, holder))?.who ?? holder;
+  const transfers = rows
+    .filter((r) => !samePerson(r.who, holder) && Math.abs(r.balance) >= 1)
+    .map((r) => (r.balance > 0
+      ? { from: holderName, to: r.who, a: Math.round(r.balance) }
+      : { from: r.who, to: holderName, a: Math.round(-r.balance) }));
+  return { holder: holderName, people, pool, poolSpent, left, overdrawn, unrecorded, cards, ownCash, total, share, rows, transfers, contributions };
+}
+
+function renderSettle() {
+  const st = settlement();
+  const money = (yenAmount) => `${yen.format(Math.round(yenAmount))}<div class="muted small">${fmtSgd(yenAmount)}</div>`;
+
+  // Cash pool: each person's contributions, then what's been spent and what's left.
+  const byPerson = new Map();
+  for (const c of st.contributions) {
+    const key = [...byPerson.keys()].find((k) => samePerson(k, c.who)) ?? c.who;
+    byPerson.set(key, [...(byPerson.get(key) ?? []), c.a]);
+  }
+  $("#poolTitle").textContent = `Shared cash, held by ${st.holder}`;
+  $("#poolTable").innerHTML = `
+    <tbody>${[...byPerson].map(([who, amounts]) => `<tr>
+      <td>${esc(who)} put in${amounts.length > 1 ? `<div class="muted small">${amounts.map((a) => yen.format(a)).join(" + ")}</div>` : ""}</td>
+      <td class="num">${money(amounts.reduce((x, y) => x + y, 0))}</td></tr>`).join("")}
+      <tr class="sum"><td><b>Pooled</b></td><td class="num"><b>${money(st.pool)}</b></td></tr>
+      <tr><td>Spent from the pool</td><td class="num">${money(st.poolSpent)}</td></tr>
+      <tr class="sum"><td><b>Cash left now</b></td><td class="num"><b>${money(st.left)}</b></td></tr>
+    </tbody>`;
+  const notes = [];
+  if (st.unrecorded) notes.push(`${yen.format(st.unrecorded)} of expenses have no payment recorded, so they're counted as paid from the pool.`);
+  if (st.overdrawn) notes.push(`${yen.format(st.overdrawn)} more was spent than was pooled; that's counted as ${st.holder}'s own money.`);
+  $("#poolNote").textContent = notes.join(" ");
+  $("#poolNote").hidden = !notes.length;
+
+  // Even split and who owes whom.
+  $("#splitTitle").textContent = `Split evenly between ${st.people.length}`;
+  $("#splitSummary").innerHTML = `Total spent <b>${yen.format(st.total)}</b> (${fmtSgd(st.total)}) · each person's share <b>${yen.format(Math.round(st.share))}</b> (${fmtSgd(st.share)})`;
+  $("#splitTable").innerHTML = `
+    <thead><tr><th>Person</th><th class="num">Paid</th><th class="num">Share</th><th class="num">Balance</th></tr></thead>
+    <tbody>${st.rows.map((r) => `<tr>
+      <td>${esc(r.who)}</td><td class="num">${money(r.paid)}</td><td class="num">${money(r.share)}</td>
+      <td class="num ${r.balance >= 0 ? "pos" : "neg"}">${r.balance >= 0 ? "+" : "−"}${money(Math.abs(r.balance))}</td>
+    </tr>`).join("")}</tbody>`;
+  const lines = [];
+  if (st.left) lines.push(`${esc(st.holder)} keeps the ${yen.format(st.left)} cash that's left.`);
+  for (const t of st.transfers) lines.push(`<b>${esc(t.from)}</b> pays <b>${esc(t.to)}</b> ${yen.format(t.a)} (${fmtSgd(t.a)}).`);
+  if (!st.transfers.length) lines.push("Nobody owes anyone anything.");
+  $("#settleLines").innerHTML = lines.map((l) => `<li>${l}</li>`).join("");
+}
+
+function renderSettleForm() {
+  const form = $("#settleForm");
+  if (form.contains(document.activeElement)) return;
+  const { holder, people, contributions } = doc.settle;
+  form.elements.holder.value = holder;
+  form.elements.people.value = people.join(", ");
+  $("#contribList").replaceChildren(...contributions.map((c) => contribRow(c)));
+}
+
+function contribRow(c = { who: "", a: "", note: "" }) {
+  const li = document.createElement("li");
+  if (c.id) li.dataset.id = c.id;
+  li.innerHTML = `
+    <input name="who" maxlength="30" list="people" placeholder="Who" aria-label="Who put the cash in" required />
+    <input name="a" type="number" min="1" step="1" inputmode="numeric" placeholder="¥" aria-label="Amount in yen" required />
+    <input name="note" maxlength="60" placeholder="Note (optional)" aria-label="Note" />
+    <button type="button" class="icon-btn" data-remove-contrib title="Remove">✕</button>`;
+  li.querySelector('[name="who"]').value = c.who;
+  li.querySelector('[name="a"]').value = c.a;
+  li.querySelector('[name="note"]').value = c.note ?? "";
+  return li;
+}
+
+$("#addContrib").addEventListener("click", () => {
+  const li = contribRow();
+  $("#contribList").append(li);
+  li.querySelector("input").focus();
+});
+
+$("#contribList").addEventListener("click", (e) => {
+  if (e.target.closest("[data-remove-contrib]")) e.target.closest("li").remove();
+});
+
+$("#settleForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const f = e.target.elements;
+  const settle = {
+    holder: f.holder.value,
+    people: f.people.value.split(",").map((p) => p.trim()).filter(Boolean),
+    contributions: [...$("#contribList").children].map((li) => ({
+      id: li.dataset.id,
+      who: li.querySelector('[name="who"]').value,
+      a: li.querySelector('[name="a"]').value,
+      note: li.querySelector('[name="note"]').value,
+    })),
+  };
+  if (await runOp({ op: "updateSettle", settle }, "Cash pool and split saved")) {
+    document.activeElement?.blur();
+    renderSettleForm();
+  }
 });
 
 // ---------------------------------------------------------------- cards and backups (settings)
@@ -772,6 +1073,10 @@ function renderCardList() {
       <input name="name" value="${esc(c.name)}" maxlength="40" aria-label="Card name" />
       <input name="owner" value="${esc(c.owner)}" maxlength="30" list="people" aria-label="Whose card" />
       <input name="limitSgd" type="number" min="1" step="any" value="${c.limitSgd}" aria-label="Limit in S$" />
+      <select name="shareWith" aria-label="Shares a limit with">
+        <option value="">Own limit</option>
+        ${cards.filter((o) => o.id !== c.id).map((o) => `<option value="${esc(o.id)}"${c.shareWith === o.id ? " selected" : ""}>Shares limit with ${esc(cardLabel(o))}</option>`).join("")}
+      </select>
       <button type="button" class="icon-btn" data-remove-card ${used ? `disabled title="Used by ${used} expense${used === 1 ? "" : "s"}"` : 'title="Remove card"'}>🗑</button>
     </li>`;
   }).join("") : `<li class="muted small">No cards yet.</li>`;
@@ -780,7 +1085,7 @@ function renderCardList() {
 $("#cardList").addEventListener("change", (e) => {
   const li = e.target.closest("li[data-id]");
   if (!li) return;
-  const card = Object.fromEntries([...li.querySelectorAll("input")].map((i) => [i.name, i.value]));
+  const card = Object.fromEntries([...li.querySelectorAll("input, select")].map((i) => [i.name, i.value]));
   runOp({ op: "editCard", id: li.dataset.id, card }, "Card updated");
 });
 

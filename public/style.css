@@ -421,6 +421,12 @@ dialog textarea {
   line-height: 1.5;
 }
 dialog textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.import-box { border: 1px dashed var(--border); border-radius: 10px; padding: 10px 12px; background: var(--surface-2); }
+.import-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.import-box .btn.ghost { background: var(--bg); }
+.import-box .muted { margin-top: 6px; }
+.import-box.busy { opacity: 0.7; }
+.import-box.busy #importNote::before { content: "⏳ "; }
 .lesson-edit { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px 12px; margin: 0; }
 .lesson-edit legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .lesson-edit ul { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 6px; }
@@ -477,4 +483,90 @@ dialog textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; 
   .grid tfoot td, .grid tfoot th { padding: 6px 2px; font-size: 0.7rem; }
   .grid tr.today .day-short b { color: var(--accent); }
   button.cell.open::after { content: none; }
+}
+
+/* ---------- cash pool and settling up ---------- */
+.settle td, .settle th { vertical-align: top; }
+.settle tr.sum td { border-top: 2px solid var(--border); }
+.settle .pos { color: var(--good); }
+.settle .neg { color: var(--accent); }
+.settle-up-title { margin-top: 14px; }
+.settle-lines { margin: 6px 0 0; padding-left: 20px; display: grid; gap: 6px; }
+.settle-form { display: grid; gap: 10px; }
+.contrib-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.contrib-list li { display: grid; grid-template-columns: 1fr 110px 1.2fr auto; gap: 6px; align-items: center; }
+.card-list li { grid-template-columns: 1fr 1fr 80px 1.4fr auto; }
+@media (max-width: 560px) {
+  .contrib-list li { grid-template-columns: 1fr 1fr auto; }
+  .contrib-list li [name="note"] { grid-column: 1 / 3; }
+  .card-list li { grid-template-columns: 1fr 1fr 80px; }
+  .card-list li select { grid-column: 1 / 3; }
+}
+
+/* ---------- summary: donut by category and bars per day ---------- */
+/* Categorical colours, assigned by category position (validated palette; light and dark
+   steps are chosen for their own backgrounds). */
+:root {
+  --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --series-4: #eda100;
+  --series-5: #e87ba4; --series-6: #008300; --series-7: #6250d6; --series-other: #8b8a85;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500;
+    --series-5: #d55181; --series-6: #008300; --series-7: #9085e9; --series-other: #77756f;
+  }
+}
+:root[data-theme="dark"] {
+  --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500;
+  --series-5: #d55181; --series-6: #008300; --series-7: #9085e9; --series-other: #77756f;
+}
+
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.summary { position: relative; }
+.summary-hero .hero { margin: 0; font-size: 2rem; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.summary-body { display: grid; grid-template-columns: minmax(180px, 240px) 1fr; gap: 20px; align-items: center; margin-top: 12px; }
+
+.donut-wrap { position: relative; width: 100%; max-width: 240px; justify-self: center; }
+.donut-wrap svg { display: block; width: 100%; height: auto; }
+.donut-wrap path { stroke: var(--surface); stroke-width: 2; transition: opacity 0.15s; cursor: pointer; }
+.donut-wrap path.dim { opacity: 0.25; }
+.donut-center { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; pointer-events: none; }
+.donut-center b { font-size: 1.25rem; font-variant-numeric: tabular-nums; }
+.donut-center span { font-size: 0.75rem; color: var(--muted); }
+
+.cat-legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-width: 560px; }
+.cat-legend li { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; padding: 8px 10px; border-radius: 12px; }
+.cat-legend li.active, .cat-legend li:hover { background: var(--surface-2); }
+.cat-icon {
+  position: relative; width: 40px; height: 40px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 1.15rem;
+}
+.cat-icon::before { content: ""; position: absolute; inset: 0; border-radius: 50%; background: var(--c); opacity: 0.18; }
+.cat-icon::after { content: ""; position: absolute; right: -1px; bottom: -1px; width: 12px; height: 12px; border-radius: 50%; background: var(--c); border: 2px solid var(--surface); }
+.cat-icon span { position: relative; }
+.cat-main, .cat-amt { display: grid; min-width: 0; }
+.cat-amt { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.daybars-title { margin: 18px 0 8px; }
+.daybars { display: grid; grid-template-columns: auto 1fr; gap: 6px; height: 170px; }
+.db-axis { display: flex; flex-direction: column; justify-content: space-between; font-size: 0.7rem; color: var(--muted); text-align: right; padding-bottom: 20px; margin-top: -6px; font-variant-numeric: tabular-nums; }
+.db-plot { position: relative; display: flex; align-items: stretch; gap: 2px; margin-bottom: 20px; }
+.db-grid { position: absolute; left: 0; right: 0; height: 0; border-top: 1px solid var(--border); }
+.db-grid:last-of-type { border-top-color: color-mix(in srgb, var(--muted) 50%, transparent); }
+.db-col { position: relative; flex: 1; min-width: 8px; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; background: none; border: 0; padding: 0; cursor: pointer; font: inherit; }
+.db-bar { width: min(70%, 22px); background: var(--accent); border-radius: 4px 4px 0 0; }
+.db-col:hover .db-bar { filter: brightness(1.12); }
+.db-label { position: absolute; bottom: -18px; font-size: 0.7rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.db-col.today .db-label { color: var(--text); font-weight: 700; }
+
+.viz-tip {
+  position: absolute; z-index: 4; transform: translate(-50%, calc(-100% - 10px));
+  background: var(--text); color: var(--bg); padding: 6px 10px; border-radius: 8px;
+  font-size: 0.8rem; line-height: 1.35; pointer-events: none; white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 600px) {
+  .summary-hero .hero { font-size: 1.7rem; }
+  .summary-body { grid-template-columns: 1fr; gap: 8px; }
+  .donut-wrap { max-width: 210px; }
 }

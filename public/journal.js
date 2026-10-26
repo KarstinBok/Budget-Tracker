@@ -4,7 +4,7 @@
 
 import {
   $, esc, store, localToday, dayNumber, fmtDay, timeAgo, toast,
-  downloadFile, setupIdentity, createSync, fetchJson, inAndroidApp,
+  downloadFile, setupIdentity, createSync, fetchJson, postJson, inAndroidApp,
 } from "./common.js";
 
 const TAGS = [
@@ -108,7 +108,9 @@ function renderEntries() {
       <header class="entry-head">
         <div>
           <h4>${esc(e.title)}</h4>
-          <p class="muted small"><span class="tag">${esc(e.tag)}</span> Written by ${esc(e.by)} ${timeAgo(e.t)}${edited}</p>
+          <p class="muted small"><span class="tag">${esc(e.tag)}</span> ${e.source?.kind === "fireflies"
+            ? `From a <a href="${esc(e.source.url)}" target="_blank" rel="noopener">Fireflies recording</a> ${timeAgo(e.t)}`
+            : `Written by ${esc(e.by)} ${timeAgo(e.t)}`}${edited}</p>
         </div>
         <div class="entry-actions">
           <button type="button" class="icon-btn" data-edit="${esc(e.id)}" title="Edit">✏️ Edit</button>
@@ -225,6 +227,111 @@ form.addEventListener("submit", async (e) => {
 
 for (const btn of document.querySelectorAll("[data-new]")) btn.addEventListener("click", () => openEditor());
 
+// ---------------------------------------------------------------- transcript import
+
+// Reads an uploaded transcript (e.g. a Fireflies export) as text, or as a PDF for Claude to read.
+async function readTranscript(file) {
+  const name = file.name.toLowerCase();
+  if (name.endsWith(".pdf") || file.type === "application/pdf") {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    let bin = "";
+    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    return { pdf: btoa(bin) };
+  }
+  if (name.endsWith(".docx")) return { text: await docxText(file) };
+  return { text: await file.text() };
+}
+
+// The text of a Word file: unzips word/document.xml and keeps one line per paragraph.
+async function docxText(file) {
+  const buf = new DataView(await file.arrayBuffer());
+  const bytes = new Uint8Array(buf.buffer);
+  // Find the zip's central directory from the end-of-central-directory record.
+  let eocd = -1;
+  for (let i = bytes.length - 22; i >= Math.max(0, bytes.length - 65557); i--) {
+    if (buf.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw new Error("That .docx file looks damaged");
+  let p = buf.getUint32(eocd + 16, true);
+  const count = buf.getUint16(eocd + 10, true);
+  for (let n = 0; n < count; n++) {
+    const method = buf.getUint16(p + 10, true);
+    const size = buf.getUint32(p + 20, true);
+    const nameLen = buf.getUint16(p + 28, true);
+    const extraLen = buf.getUint16(p + 30, true);
+    const commentLen = buf.getUint16(p + 32, true);
+    const local = buf.getUint32(p + 42, true);
+    const entry = new TextDecoder().decode(bytes.subarray(p + 46, p + 46 + nameLen));
+    p += 46 + nameLen + extraLen + commentLen;
+    if (entry !== "word/document.xml") continue;
+    const start = local + 30 + buf.getUint16(local + 26, true) + buf.getUint16(local + 28, true);
+    let data = bytes.subarray(start, start + size);
+    if (method === 8) {
+      const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+      data = new Uint8Array(await new Response(stream).arrayBuffer());
+    }
+    const xml = new DOMParser().parseFromString(new TextDecoder().decode(data), "application/xml");
+    const W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+    return [...xml.getElementsByTagNameNS(W, "p")]
+      .map((para) => [...para.getElementsByTagNameNS(W, "t")].map((t) => t.textContent).join(""))
+      .join("\n");
+  }
+  throw new Error("Couldn't find any text in that .docx file");
+}
+
+// Sends the transcript to /api/categorize and fills the form with Claude's draft.
+async function categorize(payload, { replaceText }) {
+  const box = $(".import-box");
+  const note = $("#importNote");
+  const before = note.textContent;
+  box.classList.add("busy");
+  for (const b of box.querySelectorAll("button")) b.disabled = true;
+  note.textContent = "Claude is reading the transcript and sorting the lessons…";
+  try {
+    const f = form.elements;
+    const out = await postJson("/api/categorize", { ...payload, date: f.date.value, tags: TAGS });
+    if (out.title && (replaceText || !f.title.value.trim())) f.title.value = out.title;
+    if (out.tag) f.tag.value = out.tag;
+    if (replaceText && out.text) f.text.value = out.text;
+    // Keep lessons already typed in, then add Claude's.
+    const kept = [...$("#lessonRows").children].filter((li) => li.querySelector("input").value.trim());
+    $("#lessonRows").replaceChildren(...kept, ...out.lessons.map((l) => lessonRow(l)));
+    if (!$("#lessonRows").children.length) $("#lessonRows").append(lessonRow());
+    if (!editing) store.set(DRAFT_KEY, JSON.stringify(readForm()));
+    const n = out.lessons.length;
+    toast(n ? `Added ${n} lesson${n === 1 ? "" : "s"}. Check them, then save.` : "No lessons found in that transcript.");
+  } catch (err) {
+    toast(err.message);
+  } finally {
+    box.classList.remove("busy");
+    for (const b of box.querySelectorAll("button")) b.disabled = false;
+    note.textContent = before;
+  }
+}
+
+$("#importBtn").addEventListener("click", () => $("#importFile").click());
+
+$("#importFile").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  e.target.value = ""; // let the same file be picked again
+  if (!file) return;
+  let payload;
+  try {
+    payload = await readTranscript(file);
+  } catch (err) {
+    return toast(err.message || "Couldn't read that file");
+  }
+  if (payload.text !== undefined && !payload.text.trim()) return toast("That file has no text in it");
+  await categorize({ ...payload, fileName: file.name }, { replaceText: true });
+});
+
+// For a transcript pasted into "What happened": keep the text as written, just add the lessons.
+$("#sortBtn").addEventListener("click", () => {
+  const text = form.elements.text.value.trim();
+  if (!text) return toast("Paste or write something in “What happened” first");
+  categorize({ text }, { replaceText: false });
+});
+
 // ---------------------------------------------------------------- entry actions
 
 $("#entries").addEventListener("click", async (e) => {
@@ -248,6 +355,20 @@ $("#entries").addEventListener("click", async (e) => {
   }
   const entry = doc.entries.find((x) => x.id === del.dataset.delete);
   if (entry) await sync.runOp({ op: "deleteEntry", id: entry.id }, `Deleted "${entry.title}"`);
+});
+
+// Adds any trip recordings from Fireflies the webhook missed; they appear through live sync.
+$("#ffBtn").addEventListener("click", async (e) => {
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  try {
+    await postJson("/api/fireflies-sync", {});
+    toast("Checking Fireflies. New trip recordings appear here in a minute or two.");
+  } catch (err) {
+    toast(err.message);
+  } finally {
+    setTimeout(() => { btn.disabled = false; }, 5000);
+  }
 });
 
 $("#search").addEventListener("input", renderEntries);

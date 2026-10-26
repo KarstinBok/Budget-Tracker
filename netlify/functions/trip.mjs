@@ -9,7 +9,7 @@ const KEY = "trip-v1";
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_AMOUNT = 100_000_000;
 const DEFAULT_SGD_RATE = 115; // ¥ per S$1, used until a live rate is available
-const SCHEMA = 3; // bump when the doc shape changes so open pages know to reload
+const SCHEMA = 4; // bump when the doc shape changes so open pages know to reload
 const MAX_ITEMS = 5000;
 const MAX_CARDS = 30;
 const DEFAULT_CARD_LIMIT_SGD = 1000;
@@ -40,8 +40,10 @@ function defaultDoc() {
       { id: "shopping", name: "Shopping", emoji: "🛍️" },
       { id: "misc", name: "Misc", emoji: "🎌" },
     ],
-    // Cards people pay with: { id, name, owner, limitSgd }
+    // Cards people pay with: { id, name, owner, limitSgd, shareWith }. shareWith links a
+    // card to another one it shares a credit limit with (e.g. two cards on one account).
     cards: [],
+    settle: defaultSettle(),
     // One entry per expense: { id, date, cat, a: amountInYen, note, by, t,
     //   pay: "cash" | "card", payer (whose cash, or the card's owner), card (card id) }
     items: [],
@@ -76,6 +78,7 @@ function normalize(doc) {
   }
   doc.items ??= [];
   doc.cards ??= [];
+  doc.settle ??= defaultSettle();
   splitCombinedItems(doc);
   doc.schema = SCHEMA;
   return doc;
@@ -147,6 +150,39 @@ function findCategory(doc, id) {
   return cat;
 }
 
+// Settling up: the shared cash pool (who put in how much, who holds it) and who splits
+// the trip's expenses evenly. Pre-filled with what Karstin and Lilin brought; editable
+// in Settings.
+function defaultSettle() {
+  return {
+    holder: "Karstin",
+    people: ["Karstin", "Lilin"],
+    contributions: [
+      { id: "start-1", who: "Karstin", a: 66000, note: "" },
+      { id: "start-2", who: "Karstin", a: 4080, note: "" },
+      { id: "start-3", who: "Lilin", a: 576, note: "" },
+      { id: "start-4", who: "Lilin", a: 16000, note: "" },
+    ],
+  };
+}
+
+function cleanSettle(input = {}) {
+  const holder = str(input.holder, 30);
+  if (!holder) fail("Say who holds the shared cash");
+  const people = [...new Set((Array.isArray(input.people) ? input.people : []).map((p) => str(p, 30)).filter(Boolean))];
+  if (!people.length) fail("Add at least one person to split the expenses between");
+  if (people.length > 20) fail("Too many people");
+  const contributions = (Array.isArray(input.contributions) ? input.contributions : []).map((c) => {
+    const who = str(c?.who, 30);
+    const a = Math.round(Number(c?.a));
+    if (!who) fail("Say who put the cash in");
+    if (!Number.isFinite(a) || a <= 0 || a > MAX_AMOUNT) fail("Invalid cash amount");
+    return { id: /^[\w-]{1,40}$/.test(c?.id ?? "") ? c.id : randomUUID(), who, a, note: str(c?.note, 60) };
+  });
+  if (contributions.length > 100) fail("Too many cash entries");
+  return { holder, people, contributions };
+}
+
 // Mutates doc and returns a human readable log line (or null for no-op).
 function cleanCard(input = {}) {
   const name = str(input.name, 40);
@@ -155,12 +191,18 @@ function cleanCard(input = {}) {
   if (!owner) fail("Say whose card it is");
   const limitSgd = input.limitSgd === undefined || input.limitSgd === "" ? DEFAULT_CARD_LIMIT_SGD : Number(input.limitSgd);
   if (!Number.isFinite(limitSgd) || limitSgd <= 0 || limitSgd > 1_000_000) fail("Invalid card limit");
-  return { name, owner, limitSgd: Math.round(limitSgd * 100) / 100 };
+  return { name, owner, limitSgd: Math.round(limitSgd * 100) / 100, shareWith: str(input.shareWith, 40) || null };
+}
+
+// A card can only share a limit with another card that exists.
+function checkShareWith(doc, card) {
+  if (card.shareWith && (card.shareWith === card.id || !doc.cards.some((c) => c.id === card.shareWith))) card.shareWith = null;
 }
 
 function addCard(doc, input) {
   if (doc.cards.length >= MAX_CARDS) fail("Too many cards");
   const card = { id: randomUUID(), ...cleanCard(input) };
+  checkShareWith(doc, card);
   doc.cards.push(card);
   return card;
 }
@@ -226,6 +268,7 @@ function applyOp(doc, body, by) {
       const card = doc.cards.find((c) => c.id === body.id);
       if (!card) fail("That card was removed by someone else", 409);
       Object.assign(card, cleanCard(body.card));
+      checkShareWith(doc, card);
       for (const i of doc.items) if (i.card === card.id) i.payer = card.owner;
       return `updated the card ${cardLabel(card)} (limit S$${card.limitSgd})`;
     }
@@ -236,7 +279,14 @@ function applyOp(doc, body, by) {
       const used = doc.items.filter((i) => i.card === card.id).length;
       if (used) fail(`${cardLabel(card)} is used by ${used} expense${used === 1 ? "" : "s"}, so it can't be removed`);
       doc.cards = doc.cards.filter((c) => c !== card);
+      for (const c of doc.cards) if (c.shareWith === card.id) c.shareWith = null;
       return `removed the card ${cardLabel(card)}`;
+    }
+
+    case "updateSettle": {
+      doc.settle = cleanSettle(body.settle);
+      const total = doc.settle.contributions.reduce((sum, c) => sum + c.a, 0);
+      return `updated the cash pool (${yen.format(total)}, held by ${doc.settle.holder}) and the split`;
     }
 
     case "deleteItem": {

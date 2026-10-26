@@ -58,6 +58,24 @@
       </article>
     </section>
 
+    <section class="panel summary" aria-labelledby="summaryTitle">
+      <h2 id="summaryTitle" class="sr-only">Spending summary</h2>
+      <div class="summary-hero">
+        <p class="hero" id="heroSgd">S$0.00</p>
+        <p class="muted" id="heroSub">Spent so far</p>
+      </div>
+      <div class="summary-body">
+        <div class="donut-wrap">
+          <svg id="donut" viewBox="0 0 200 200" role="img" aria-labelledby="donutLabel"><title id="donutLabel">Spending by category</title></svg>
+          <div class="donut-center"><b id="donutCenter">S$0</b><span id="donutCenterSub">by category</span></div>
+        </div>
+        <ul class="cat-legend" id="catLegend" aria-label="Spending by category"></ul>
+      </div>
+      <h3 class="daybars-title">Spending per day <span class="muted small">(S$)</span></h3>
+      <div class="daybars" id="dayBars" aria-label="Spending per day"></div>
+      <div class="viz-tip" id="vizTip" role="status" hidden></div>
+    </section>
+
     <div id="limitBanner" class="limit-banner" role="alert" hidden></div>
 
     <section class="panel" id="paymentsPanel" hidden>
@@ -70,6 +88,29 @@
         <div>
           <h3>Paid by</h3>
           <table class="breakdown" id="payers"></table>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="settlePanel">
+      <div class="panel-head">
+        <div>
+          <h2>Cash pool &amp; settle up</h2>
+          <p class="muted small">Every expense is split evenly. "Paid" counts cash put into the pool, your own cash, and your card payments. Change the pool or who's splitting in ⚙️ Settings.</p>
+        </div>
+      </div>
+      <div class="two-col">
+        <div>
+          <h3 id="poolTitle">Shared cash</h3>
+          <table class="breakdown settle" id="poolTable"></table>
+          <p class="muted small" id="poolNote" hidden></p>
+        </div>
+        <div>
+          <h3 id="splitTitle">Split evenly</h3>
+          <p class="small" id="splitSummary"></p>
+          <table class="breakdown settle" id="splitTable"></table>
+          <h3 class="settle-up-title">Settle up</h3>
+          <ul class="settle-lines" id="settleLines"></ul>
         </div>
       </div>
     </section>
@@ -91,10 +132,6 @@
     </section>
 
     <div class="two-col">
-      <section class="panel">
-        <h2>By category</h2>
-        <table class="breakdown" id="breakdown"></table>
-      </section>
       <section class="panel">
         <h2>Recent changes</h2>
         <ol class="log" id="log"></ol>
@@ -191,6 +228,22 @@
       <input name="emoji" maxlength="8" placeholder="🍡" class="emoji-in" aria-label="Emoji" />
       <input name="name" maxlength="40" placeholder="New category" required aria-label="Category name" />
       <button class="btn" type="submit">Add</button>
+    </form>
+
+    <hr />
+
+    <h3>Cash pool &amp; split</h3>
+    <p class="muted small">The cash everyone put together, who's holding it, and who the expenses are split between. Cash expenses under the holder's name come out of the pool.</p>
+    <form id="settleForm" class="settle-form">
+      <div class="row">
+        <label>Holding the cash <input name="holder" maxlength="30" list="people" required /></label>
+        <label>Split between (comma-separated) <input name="people" maxlength="300" required placeholder="Karstin, Lilin" /></label>
+      </div>
+      <ul class="contrib-list" id="contribList"></ul>
+      <div class="dlg-actions">
+        <button type="button" class="btn ghost" id="addContrib">＋ Add cash</button>
+        <button type="submit" class="btn">Save cash pool</button>
+      </div>
     </form>
 
     <hr />
