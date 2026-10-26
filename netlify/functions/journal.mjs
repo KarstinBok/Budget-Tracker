@@ -5,13 +5,46 @@
 import { randomUUID } from "node:crypto";
 import { createDocHandler, fail, str } from "../lib/shared-doc.mjs";
 
+export const JOURNAL_KEY = "journal-v1";
+// The topics the page offers (public/journal.js), for entries written on the server.
+export const TAGS = [
+  "General", "Transport", "Food & Drinks", "Lodging", "Activities", "Shopping",
+  "Money", "Planning & bookings", "Packing", "Health & safety", "Other",
+];
+const MAX_SEEN = 1000;
+
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const LESSON_TYPES = ["avoid", "tip", "keep"];
 const MAX_ENTRIES = 1000;
 const MAX_LESSONS = 30;
 
-function defaultDoc() {
-  return { version: 0, schema: 1, updatedAt: Date.now(), entries: [], log: [] };
+export function defaultDoc() {
+  return { version: 0, schema: 1, updatedAt: Date.now(), entries: [], log: [], fireflies: { seen: [] } };
+}
+
+export function normalize(doc) {
+  doc.fireflies ??= { seen: [] };
+  return doc;
+}
+
+// Fireflies recordings already handled: imported, or checked and found not to be about the
+// trip. Only ids are kept, never anything from a recording that was left out.
+export const seenRecording = (doc, id) => doc.fireflies.seen.includes(id);
+
+export function markSeen(doc, id) {
+  if (seenRecording(doc, id)) return;
+  doc.fireflies.seen.push(id);
+  if (doc.fireflies.seen.length > MAX_SEEN) doc.fireflies.seen.splice(0, doc.fireflies.seen.length - MAX_SEEN);
+}
+
+// Adds an entry drafted from a Fireflies recording, unless it was imported already.
+export function importRecordingOp(doc, { id, url, entry }) {
+  if (seenRecording(doc, id)) return null;
+  if (doc.entries.length >= MAX_ENTRIES) fail("The journal is full");
+  const added = { id: randomUUID(), ...cleanEntry(entry), by: "Fireflies", t: Date.now(), source: { kind: "fireflies", id, url } };
+  doc.entries.push(added);
+  markSeen(doc, id);
+  return `imported "${added.title}" from a Fireflies recording${lessonCount(added.lessons.length)}`;
 }
 
 // Validates and cleans an entry sent by the page.
@@ -74,8 +107,9 @@ function applyOp(doc, body, by) {
 }
 
 export default createDocHandler({
-  key: "journal-v1",
+  key: JOURNAL_KEY,
   defaultDoc,
+  normalize,
   applyOp,
   busyMessage: "The journal is busy, please try again.",
 });

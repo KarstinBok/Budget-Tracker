@@ -69,42 +69,45 @@ export function createDocHandler({ key, defaultDoc, normalize = (doc) => doc, ap
         return json({ error: "Invalid JSON" }, 400);
       }
       const by = str(body.by, 30) || "Someone";
-
-      for (let attempt = 0; attempt < 10; attempt++) {
-        const current = await store.getWithMetadata(key, { type: "json" });
-        const doc = current ? normalize(current.data) : defaultDoc();
-
-        let message;
-        try {
-          message = applyOp(doc, body, by);
-        } catch (err) {
-          if (err.status) return json({ error: err.message }, err.status);
-          throw err;
-        }
-
-        doc.version += 1;
-        doc.updatedAt = Date.now();
-        if (message && Array.isArray(doc.log)) {
-          doc.log.unshift({ t: doc.updatedAt, by, msg: message });
-          doc.log.length = Math.min(doc.log.length, MAX_LOG);
-        }
-
-        const result = await store.setJSON(
-          key,
-          doc,
-          current ? { onlyIfMatch: current.etag } : { onlyIfNew: true },
-        );
-        if (result.modified) {
-          await saveBackup(key, doc);
-          return json({ changed: true, doc });
-        }
-
-        // Someone else wrote in between; back off briefly and re-apply on the newer copy.
-        await sleep(30 + Math.random() * 120 * (attempt + 1));
+      try {
+        const doc = await updateDoc({ key, defaultDoc, normalize, by, mutate: (d) => applyOp(d, body, by) });
+        return doc ? json({ changed: true, doc }) : json({ error: busyMessage ?? "Busy, please try again." }, 409);
+      } catch (err) {
+        if (err.status) return json({ error: err.message }, err.status);
+        throw err;
       }
-      return json({ error: busyMessage ?? "Busy, please try again." }, 409);
     }
 
     return json({ error: "Method not allowed" }, 405);
   };
+}
+
+// Applies one change to the stored doc and saves it: mutate(doc) changes the doc and
+// returns a log line (or null). Re-applies on the newer copy if someone else saved in
+// between, and backs up every saved change. Returns the saved doc, or null if it stayed
+// busy. Errors thrown by mutate (e.g. fail()) are passed on. Also used by functions that
+// change a doc on the server, such as the Fireflies import.
+export async function updateDoc({ key, defaultDoc, normalize = (doc) => doc, mutate, by = "Someone" }) {
+  const store = liveStore();
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const current = await store.getWithMetadata(key, { type: "json" });
+    const doc = current ? normalize(current.data) : defaultDoc();
+    const message = mutate(doc);
+
+    doc.version += 1;
+    doc.updatedAt = Date.now();
+    if (message && Array.isArray(doc.log)) {
+      doc.log.unshift({ t: doc.updatedAt, by, msg: message });
+      doc.log.length = Math.min(doc.log.length, MAX_LOG);
+    }
+
+    const result = await store.setJSON(key, doc, current ? { onlyIfMatch: current.etag } : { onlyIfNew: true });
+    if (result.modified) {
+      await saveBackup(key, doc);
+      return doc;
+    }
+    // Someone else wrote in between; back off briefly and re-apply on the newer copy.
+    await sleep(30 + Math.random() * 120 * (attempt + 1));
+  }
+  return null;
 }
