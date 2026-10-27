@@ -79,6 +79,8 @@ function normalize(doc) {
   doc.items ??= [];
   doc.cards ??= [];
   doc.settle ??= defaultSettle();
+  // All cash comes from the shared pool, so cash expenses always belong to its holder.
+  for (const i of doc.items) if (i.pay === "cash") i.payer = doc.settle.holder;
   splitCombinedItems(doc);
   doc.schema = SCHEMA;
   return doc;
@@ -213,7 +215,7 @@ const cardLabel = (card) => `${card.owner}'s ${card.name}`;
 // person is adding on the spot comes in as body.newCard.
 function readPayment(doc, body, by) {
   if (!body.pay) return {};
-  if (body.pay === "cash") return { pay: "cash", payer: str(body.payer, 30) || by };
+  if (body.pay === "cash") return { pay: "cash", payer: doc.settle.holder }; // the shared cash
   if (body.pay !== "card") fail("Pick cash or card");
   const card = body.newCard ? addCard(doc, body.newCard) : doc.cards.find((c) => c.id === body.card);
   if (!card) fail("Pick which card was used");
@@ -285,6 +287,7 @@ function applyOp(doc, body, by) {
 
     case "updateSettle": {
       doc.settle = cleanSettle(body.settle);
+      for (const i of doc.items) if (i.pay === "cash") i.payer = doc.settle.holder;
       const total = doc.settle.contributions.reduce((sum, c) => sum + c.a, 0);
       return `updated the cash pool (${yen.format(total)}, held by ${doc.settle.holder}) and the split`;
     }

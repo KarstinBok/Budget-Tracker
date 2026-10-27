@@ -209,7 +209,6 @@ function render(prevDoc = null) {
 
 function renderPayments() {
   const cards = doc.cards ?? [];
-  $("#paymentsPanel").hidden = !cards.length && !doc.items.some((i) => i.pay);
 
   const warnings = [];
   $("#cardMeters").innerHTML = cards.length ? limitGroups().map((g) => {
@@ -228,6 +227,7 @@ function renderPayments() {
 
   const banner = $("#limitBanner");
   banner.hidden = !warnings.length;
+  $('[data-fold="paymentsPanel"]').classList.toggle("warn", warnings.length > 0);
   banner.innerHTML = warnings.map((w) => `<p>${esc(w)}</p>`).join("");
 
   // Cash and card spending per person, in S$.
@@ -821,7 +821,7 @@ function openAdd(prefill = {}, item = null) {
   try { last = JSON.parse(store.get("trip.lastPay")); } catch { /* none */ }
   const pay = item ? { pay: item.pay ?? "cash", payer: item.payer, card: item.card } : last ?? { pay: "cash" };
   addForm.querySelector(`input[name="pay"][value="${pay.pay === "card" ? "card" : "cash"}"]`).checked = true;
-  f.payer.value = (pay.pay === "cash" && pay.payer) || myName();
+  $("#cashNote").textContent = `From the shared cash, held by ${doc.settle.holder}.`;
   f.card.value = cardById(pay.card) ? pay.card : (doc.cards?.[0]?.id ?? NEW_CARD);
   f.cardName.value = "";
   f.cardOwner.value = myName();
@@ -869,7 +869,7 @@ addForm.addEventListener("submit", async (e) => {
 
   const payment = { pay: payMethod() };
   if (payment.pay === "cash") {
-    payment.payer = f.payer.value.trim() || myName();
+    // Cash always comes from the shared pool; the server files it under the holder.
   } else if (f.card.value === NEW_CARD) {
     if (!f.cardName.value.trim() || !f.cardOwner.value.trim()) {
       toast("Give the new card a name and say whose it is");
@@ -917,62 +917,72 @@ addForm.addEventListener("submit", async (e) => {
 
 const samePerson = (a, b) => (a ?? "").trim().toLowerCase() === (b ?? "").trim().toLowerCase();
 
-// Who paid what, and how to even it out when every expense is split equally.
-// "Paid" = cash put into the shared pool + their own cash + their card payments.
-// Cash expenses under the pool holder's name come out of the pool, and so do expenses
-// with no payment recorded. The holder keeps whatever cash is left.
+// How the trip's costs are shared:
+//  - cash comes from the shared pool, so cash spending, and whatever cash is left at the
+//    end, are shared in proportion to what each person put into the pool;
+//  - card spending is split evenly between the people splitting the trip.
+// Expenses with no payment recorded count as pool cash. Everyone settles with the holder,
+// who has the leftover cash.
 function settlement() {
   const { holder, people, contributions } = doc.settle;
-  const paid = new Map(); // display name -> yen
-  const add = (who, a) => {
-    const key = [...paid.keys()].find((k) => samePerson(k, who)) ?? who;
-    paid.set(key, (paid.get(key) ?? 0) + a);
-  };
-  for (const p of people) add(p, 0);
+  const names = [];
+  const nameOf = (who) => names.find((n) => samePerson(n, who)) ?? (names.push(who), who);
+  people.forEach(nameOf);
+  const holderName = nameOf(holder);
 
+  const put = new Map();
+  for (const c of contributions) {
+    const n = nameOf(c.who);
+    put.set(n, (put.get(n) ?? 0) + c.a);
+  }
   const pool = contributions.reduce((sum, c) => sum + c.a, 0);
-  for (const c of contributions) add(c.who, c.a);
 
   const items = doc.items.filter((i) => doc.categories.some((c) => c.id === i.cat));
   const total = items.reduce((sum, i) => sum + i.a, 0);
-  let poolSpent = 0, unrecorded = 0, cards = 0, ownCash = 0;
+  const cardPaid = new Map();
+  let cashSpent = 0, unrecorded = 0, cardTotal = 0;
   for (const i of items) {
     const card = i.pay === "card" && cardById(i.card);
     if (card) {
-      add(card.owner, i.a);
-      cards += i.a;
-    } else if (i.pay === "cash" && !samePerson(i.payer, holder)) {
-      add(i.payer, i.a);
-      ownCash += i.a;
+      const n = nameOf(card.owner);
+      cardPaid.set(n, (cardPaid.get(n) ?? 0) + i.a);
+      cardTotal += i.a;
     } else {
-      poolSpent += i.a;
+      cashSpent += i.a;
       if (!i.pay) unrecorded += i.a;
     }
   }
-  let left = pool - poolSpent;
-  const overdrawn = Math.max(0, -left);
-  if (overdrawn) add(holder, overdrawn); // the holder covered it from their own money
-  left = Math.max(0, left);
+  const left = pool - cashSpent; // below zero: the holder topped the pool up with their own money
 
-  const share = total / people.length;
-  const rows = [...paid].map(([who, amount]) => {
-    const fair = people.some((p) => samePerson(p, who)) ? share : 0;
-    return { who, paid: amount, share: fair, balance: amount - fair };
+  const splitting = (n) => people.some((p) => samePerson(p, n));
+  const pct = (n) => (pool ? (put.get(n) ?? 0) / pool : (n === holderName ? 1 : 0));
+  const cardShare = cardTotal / people.length;
+  const rows = names.map((n) => {
+    const f = pct(n);
+    const cardCost = splitting(n) ? cardShare : 0;
+    const paidCards = cardPaid.get(n) ?? 0;
+    return {
+      who: n, put: put.get(n) ?? 0, pct: f, paidCards,
+      cashCost: f * cashSpent, cardCost, total: f * cashSpent + cardCost,
+      leftShare: f * left, cardBalance: paidCards - cardCost,
+    };
   });
-  const holderName = rows.find((r) => samePerson(r.who, holder))?.who ?? holder;
-  const transfers = rows
-    .filter((r) => !samePerson(r.who, holder) && Math.abs(r.balance) >= 1)
-    .map((r) => (r.balance > 0
-      ? { from: holderName, to: r.who, a: Math.round(r.balance) }
-      : { from: r.who, to: holderName, a: Math.round(-r.balance) }));
-  return { holder: holderName, people, pool, poolSpent, left, overdrawn, unrecorded, cards, ownCash, total, share, rows, transfers, contributions };
+
+  // Each person settles with the holder: their part of the leftover cash, plus or minus
+  // the difference between what they paid on cards and their even share.
+  const transfers = rows.filter((r) => r.who !== holderName).map((r) => {
+    const net = Math.round(r.leftShare + r.cardBalance);
+    return { ...r, net, from: net >= 0 ? holderName : r.who, to: net >= 0 ? r.who : holderName };
+  });
+  return { holder: holderName, people, pool, cashSpent, left, unrecorded, cardTotal, cardShare, total, rows, transfers, contributions };
 }
 
 function renderSettle() {
   const st = settlement();
   const money = (yenAmount) => `${yen.format(Math.round(yenAmount))}<div class="muted small">${fmtSgd(yenAmount)}</div>`;
+  const pctText = (f) => `${(f * 100).toFixed(1)}%`;
 
-  // Cash pool: each person's contributions, then what's been spent and what's left.
+  // Cash pool: each person's contributions and share, then what's been spent and what's left.
   const byPerson = new Map();
   for (const c of st.contributions) {
     const key = [...byPerson.keys()].find((k) => samePerson(k, c.who)) ?? c.who;
@@ -980,32 +990,59 @@ function renderSettle() {
   }
   $("#poolTitle").textContent = `Shared cash, held by ${st.holder}`;
   $("#poolTable").innerHTML = `
-    <tbody>${[...byPerson].map(([who, amounts]) => `<tr>
-      <td>${esc(who)} put in${amounts.length > 1 ? `<div class="muted small">${amounts.map((a) => yen.format(a)).join(" + ")}</div>` : ""}</td>
-      <td class="num">${money(amounts.reduce((x, y) => x + y, 0))}</td></tr>`).join("")}
+    <tbody>${[...byPerson].map(([who, amounts]) => {
+      const sum = amounts.reduce((x, y) => x + y, 0);
+      return `<tr>
+        <td>${esc(who)} put in <b>${st.pool ? pctText(sum / st.pool) : ""}</b>${amounts.length > 1 ? `<div class="muted small">${amounts.map((a) => yen.format(a)).join(" + ")}</div>` : ""}</td>
+        <td class="num">${money(sum)}</td></tr>`;
+    }).join("")}
       <tr class="sum"><td><b>Pooled</b></td><td class="num"><b>${money(st.pool)}</b></td></tr>
-      <tr><td>Spent from the pool</td><td class="num">${money(st.poolSpent)}</td></tr>
-      <tr class="sum"><td><b>Cash left now</b></td><td class="num"><b>${money(st.left)}</b></td></tr>
+      <tr><td>Spent from the pool</td><td class="num">${money(st.cashSpent)}</td></tr>
+      <tr class="sum"><td><b>${st.left >= 0 ? "Cash left now" : `Overspent (topped up by ${esc(st.holder)})`}</b></td><td class="num"><b>${money(Math.abs(st.left))}</b></td></tr>
     </tbody>`;
   const notes = [];
-  if (st.unrecorded) notes.push(`${yen.format(st.unrecorded)} of expenses have no payment recorded, so they're counted as paid from the pool.`);
-  if (st.overdrawn) notes.push(`${yen.format(st.overdrawn)} more was spent than was pooled; that's counted as ${st.holder}'s own money.`);
+  if (st.unrecorded) notes.push(`${yen.format(st.unrecorded)} of expenses have no payment recorded, so they're counted as pool cash.`);
   $("#poolNote").textContent = notes.join(" ");
   $("#poolNote").hidden = !notes.length;
 
-  // Even split and who owes whom.
-  $("#splitTitle").textContent = `Split evenly between ${st.people.length}`;
-  $("#splitSummary").innerHTML = `Total spent <b>${yen.format(st.total)}</b> (${fmtSgd(st.total)}) · each person's share <b>${yen.format(Math.round(st.share))}</b> (${fmtSgd(st.share)})`;
+  // Each person's cost: their % of the pool cash spent, plus an even share of the cards.
+  $("#splitSummary").innerHTML = `Cash spent <b>${yen.format(st.cashSpent)}</b> is shared by pool share · cards <b>${yen.format(st.cardTotal)}</b> split evenly between ${st.people.length} (${yen.format(Math.round(st.cardShare))} each)`;
   $("#splitTable").innerHTML = `
-    <thead><tr><th>Person</th><th class="num">Paid</th><th class="num">Share</th><th class="num">Balance</th></tr></thead>
+    <thead><tr><th>Person</th><th class="num">Cash</th><th class="num">Cards</th><th class="num">Trip cost</th></tr></thead>
     <tbody>${st.rows.map((r) => `<tr>
-      <td>${esc(r.who)}</td><td class="num">${money(r.paid)}</td><td class="num">${money(r.share)}</td>
-      <td class="num ${r.balance >= 0 ? "pos" : "neg"}">${r.balance >= 0 ? "+" : "−"}${money(Math.abs(r.balance))}</td>
-    </tr>`).join("")}</tbody>`;
+      <td>${esc(r.who)}<div class="muted small">${pctText(r.pct)} of the pool${r.paidCards ? ` · paid ${yen.format(r.paidCards)} on cards` : ""}</div></td>
+      <td class="num">${money(r.cashCost)}</td><td class="num">${money(r.cardCost)}</td><td class="num"><b>${money(r.total)}</b></td>
+    </tr>`).join("")}
+    <tr class="sum"><td><b>Total</b></td><td class="num">${money(st.cashSpent)}</td><td class="num">${money(st.cardTotal)}</td><td class="num"><b>${money(st.total)}</b></td></tr></tbody>`;
+
+  // Settle up through the holder, showing where each amount comes from.
   const lines = [];
-  if (st.left) lines.push(`${esc(st.holder)} keeps the ${yen.format(st.left)} cash that's left.`);
-  for (const t of st.transfers) lines.push(`<b>${esc(t.from)}</b> pays <b>${esc(t.to)}</b> ${yen.format(t.a)} (${fmtSgd(t.a)}).`);
-  if (!st.transfers.length) lines.push("Nobody owes anyone anything.");
+  if (st.left > 0) lines.push(`${esc(st.holder)} holds the ${yen.format(st.left)} cash that's left.`);
+  for (const t of st.transfers) {
+    const parts = [];
+    if (Math.round(t.leftShare)) {
+      parts.push(t.leftShare > 0
+        ? `${esc(t.who)}'s ${pctText(t.pct)} of the ${yen.format(st.left)} cash left: ${yen.format(Math.round(t.leftShare))}`
+        : `${esc(t.who)}'s ${pctText(t.pct)} of the ${yen.format(-st.left)} ${esc(st.holder)} topped up: −${yen.format(Math.round(-t.leftShare))}`);
+    }
+    if (Math.round(t.cardBalance)) {
+      parts.push(t.cardBalance > 0
+        ? `paid ${yen.format(Math.round(t.cardBalance))} more than an even share on cards: +${yen.format(Math.round(t.cardBalance))}`
+        : `paid ${yen.format(Math.round(-t.cardBalance))} less than an even share on cards: −${yen.format(Math.round(-t.cardBalance))}`);
+    }
+    if (!t.net) {
+      lines.push(`${esc(t.who)} and ${esc(st.holder)} are even.`);
+      continue;
+    }
+    lines.push(`<b>${esc(t.from)}</b> pays <b>${esc(t.to)}</b> <b>${yen.format(Math.abs(t.net))}</b> (${fmtSgd(Math.abs(t.net))})` +
+      (parts.length ? `<div class="muted small">${parts.join(" · ")}</div>` : ""));
+  }
+  // What the holder ends up with once they've paid others out of the leftover cash.
+  const paidOut = st.transfers.reduce((sum, t) => sum + (t.net > 0 ? t.net : 0), 0);
+  if (st.left > 0 && paidOut > 0 && paidOut <= st.left) {
+    lines.push(`That leaves ${esc(st.holder)} with ${yen.format(st.left - paidOut)} (${fmtSgd(st.left - paidOut)}) of the cash.`);
+  }
+  if (!st.transfers.some((t) => t.net)) lines.push("Nobody owes anyone anything.");
   $("#settleLines").innerHTML = lines.map((l) => `<li>${l}</li>`).join("");
 }
 
@@ -1202,6 +1239,26 @@ $("#csvBtn").addEventListener("click", () => {
 // ---------------------------------------------------------------- boot
 
 setInterval(() => { if (doc) renderLog(); }, 30000);
+
+// ---------------------------------------------------------------- fold-out sections
+
+// The summary chart, payments, settle-up and recent changes stay folded away to keep the
+// page short; a row of buttons opens one at a time. This device remembers the last one.
+function openFold(id) {
+  for (const btn of document.querySelectorAll(".fold-tab")) {
+    const open = btn.dataset.fold === id;
+    btn.classList.toggle("active", open);
+    btn.setAttribute("aria-expanded", String(open));
+    $(`#${btn.dataset.fold}`).hidden = !open;
+  }
+  store.set("trip.fold", id ?? "");
+}
+
+$(".fold-tabs").addEventListener("click", (e) => {
+  const btn = e.target.closest(".fold-tab");
+  if (btn) openFold(btn.classList.contains("active") ? null : btn.dataset.fold);
+});
+openFold(store.get("trip.fold") || null);
 
 // ---------------------------------------------------------------- install on your phone
 

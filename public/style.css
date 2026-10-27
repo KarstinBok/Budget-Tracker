@@ -570,3 +570,20 @@ dialog textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; 
   .summary-body { grid-template-columns: 1fr; gap: 8px; }
   .donut-wrap { max-width: 210px; }
 }
+
+/* ---------- fold-out sections ---------- */
+.fold-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.fold-tab {
+  font: inherit; font-size: 0.92rem; cursor: pointer;
+  padding: 9px 14px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  box-shadow: var(--shadow);
+}
+.fold-tab:hover { border-color: var(--accent); }
+.fold-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.fold-tab.warn::after { content: " ⚠️"; }
+.panel.fold { animation: drop 0.18s ease-out; }
+@media (max-width: 600px) {
+  .fold-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .fold-tab { padding: 9px 8px; font-size: 0.86rem; }
+}
