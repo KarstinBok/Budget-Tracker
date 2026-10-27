@@ -209,7 +209,6 @@ function render(prevDoc = null) {
 
 function renderPayments() {
   const cards = doc.cards ?? [];
-  $("#paymentsPanel").hidden = !cards.length && !doc.items.some((i) => i.pay);
 
   const warnings = [];
   $("#cardMeters").innerHTML = cards.length ? limitGroups().map((g) => {
@@ -228,6 +227,7 @@ function renderPayments() {
 
   const banner = $("#limitBanner");
   banner.hidden = !warnings.length;
+  $('[data-fold="paymentsPanel"]').classList.toggle("warn", warnings.length > 0);
   banner.innerHTML = warnings.map((w) => `<p>${esc(w)}</p>`).join("");
 
   // Cash and card spending per person, in S$.
@@ -1239,6 +1239,26 @@ $("#csvBtn").addEventListener("click", () => {
 // ---------------------------------------------------------------- boot
 
 setInterval(() => { if (doc) renderLog(); }, 30000);
+
+// ---------------------------------------------------------------- fold-out sections
+
+// The summary chart, payments, settle-up and recent changes stay folded away to keep the
+// page short; a row of buttons opens one at a time. This device remembers the last one.
+function openFold(id) {
+  for (const btn of document.querySelectorAll(".fold-tab")) {
+    const open = btn.dataset.fold === id;
+    btn.classList.toggle("active", open);
+    btn.setAttribute("aria-expanded", String(open));
+    $(`#${btn.dataset.fold}`).hidden = !open;
+  }
+  store.set("trip.fold", id ?? "");
+}
+
+$(".fold-tabs").addEventListener("click", (e) => {
+  const btn = e.target.closest(".fold-tab");
+  if (btn) openFold(btn.classList.contains("active") ? null : btn.dataset.fold);
+});
+openFold(store.get("trip.fold") || null);
 
 // ---------------------------------------------------------------- install on your phone
 
