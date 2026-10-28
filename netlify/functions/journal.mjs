@@ -4,6 +4,7 @@
 
 import { randomUUID } from "node:crypto";
 import { createDocHandler, fail, str } from "../lib/shared-doc.mjs";
+import { lessonsFromNotes } from "../lib/notes.mjs";
 
 export const JOURNAL_KEY = "journal-v1";
 // The topics the page offers (public/journal.js), for entries written on the server.
@@ -24,7 +25,20 @@ export function defaultDoc() {
 
 export function normalize(doc) {
   doc.fireflies ??= { seen: [] };
+  for (const entry of doc.entries) sortPastedNotes(entry);
   return doc;
+}
+
+// An entry whose write-up is pasted Fireflies notes, saved without lessons, gets one
+// lesson per key point. This happens once per entry (notesSorted), so lessons someone
+// removes on purpose don't come back. Ids come from the entry's id, so reads that don't
+// save produce the same lessons each time.
+function sortPastedNotes(entry) {
+  if (entry.notesSorted) return;
+  entry.notesSorted = true;
+  if (entry.lessons.length || !entry.text) return;
+  entry.lessons = lessonsFromNotes(entry.text).slice(0, MAX_LESSONS)
+    .map((l, n) => ({ id: `${entry.id.slice(0, 30)}-n${n}`, ...l }));
 }
 
 // Fireflies recordings already handled: imported, or checked and found not to be about the
@@ -79,6 +93,7 @@ function applyOp(doc, body, by) {
     case "addEntry": {
       if (doc.entries.length >= MAX_ENTRIES) fail("The journal is full");
       const entry = { id: randomUUID(), ...cleanEntry(body.entry), by, t: Date.now() };
+      sortPastedNotes(entry);
       doc.entries.push(entry);
       return `wrote "${entry.title}"${lessonCount(entry.lessons.length)}`;
     }
@@ -90,7 +105,10 @@ function applyOp(doc, body, by) {
       if (body.expect !== (entry.editedAt ?? entry.t)) {
         fail(`${entry.editedBy ?? entry.by} changed this entry while you were editing. Copy your text, then reopen the entry.`, 409);
       }
+      const before = entry.text;
       Object.assign(entry, cleanEntry(body.entry), { editedBy: by, editedAt: Date.now() });
+      if (entry.text !== before) entry.notesSorted = false; // new notes pasted in: sort them
+      sortPastedNotes(entry);
       return `edited "${entry.title}"`;
     }
 
