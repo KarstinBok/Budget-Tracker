@@ -191,9 +191,15 @@
         <div class="seg" role="radiogroup" aria-label="Paid with">
           <label><input type="radio" name="pay" value="cash" checked /><span>💵 Cash</span></label>
           <label><input type="radio" name="pay" value="card" /><span>💳 Card</span></label>
+          <label><input type="radio" name="pay" value="suica" /><span>🚃 Suica</span></label>
         </div>
         <p class="muted small" data-pay="cash" id="cashNote">From the shared cash.</p>
         <label data-pay="card">Which card <select name="card"></select></label>
+        <div data-pay="suica" class="suica-pick">
+          <p class="muted small" id="suicaHint">Enter the fare for one person. It's added to each Suica ticked below.</p>
+          <div class="suica-people" id="suicaPeople" role="group" aria-label="Whose Suica"></div>
+          <p class="convert" id="suicaTotal"></p>
+        </div>
         <div data-pay="newcard" class="new-card">
           <label>Card name <input name="cardName" maxlength="40" placeholder="e.g. DBS Visa" /></label>
           <label>Whose card <input name="cardOwner" list="people" maxlength="30" autocomplete="off" /></label>
