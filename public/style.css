@@ -587,3 +587,10 @@ dialog textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; 
   .fold-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
   .fold-tab { padding: 9px 8px; font-size: 0.86rem; }
 }
+
+/* ---------- Suica: one fare for several people ---------- */
+.suica-pick { display: grid; gap: 8px; }
+.suica-pick .muted { margin: 0; }
+.suica-people { display: flex; flex-wrap: wrap; gap: 6px; }
+.suica-people input:disabled + span { opacity: 0.85; cursor: default; }
+#suicaTotal:empty { display: none; }

@@ -97,6 +97,7 @@ function cardWarning(group, usedSgd) {
 }
 
 function payLabel(i) {
+  if (i.pay === "suica") return `🚃 ${esc(i.payer)}'s Suica`;
   if (i.pay === "cash") return `💵 ${esc(i.payer)}'s cash`;
   const card = i.pay === "card" && cardById(i.card);
   return card ? `💳 ${esc(cardLabel(card))}` : "";
@@ -234,17 +235,18 @@ function renderPayments() {
   const rows = new Map();
   for (const i of doc.items) {
     if (!i.pay) continue;
-    const r = rows.get(i.payer) ?? { cash: 0, card: 0 };
+    const r = rows.get(i.payer) ?? { cash: 0, card: 0, suica: 0 };
     r[i.pay] += i.a;
     rows.set(i.payer, r);
   }
   const unrecorded = doc.items.filter((i) => !i.pay).reduce((sum, i) => sum + i.a, 0);
   $("#payers").innerHTML = `
-    <thead><tr><th>Person</th><th class="num">💵 Cash</th><th class="num">💳 Card</th><th class="num">Total</th></tr></thead>
+    <thead><tr><th>Person</th><th class="num">💵 Cash</th><th class="num">💳 Card</th><th class="num">🚃 Suica</th><th class="num">Total</th></tr></thead>
     <tbody>${[...rows].sort((a, b) => a[0].localeCompare(b[0])).map(([who, r]) => `<tr>
-      <td>${esc(who)}</td><td class="num">${fmtSgd(r.cash)}</td><td class="num">${fmtSgd(r.card)}</td><td class="num"><b>${fmtSgd(r.cash + r.card)}</b></td>
+      <td>${esc(who)}</td><td class="num">${fmtSgd(r.cash)}</td><td class="num">${fmtSgd(r.card)}</td><td class="num">${fmtSgd(r.suica)}</td>
+      <td class="num"><b>${fmtSgd(r.cash + r.card + r.suica)}</b></td>
     </tr>`).join("")}
-    ${unrecorded ? `<tr><td class="muted">Not recorded</td><td></td><td></td><td class="num muted">${fmtSgd(unrecorded)}</td></tr>` : ""}</tbody>`;
+    ${unrecorded ? `<tr><td class="muted">Not recorded</td><td></td><td></td><td></td><td class="num muted">${fmtSgd(unrecorded)}</td></tr>` : ""}</tbody>`;
 }
 
 function renderCards({ total, loggedDays, byDay, days }) {
@@ -776,6 +778,12 @@ function updatePayUI() {
   const submit = $("#addSubmit");
   const label = editingItem ? "Save changes" : "Add";
   const amount = addAmountYen();
+  if (method === "suica") {
+    const who = suicaChecked();
+    $("#suicaTotal").textContent = amount > 0 && who.length > 1
+      ? `${who.length} × ${yen.format(amount)} = ${yen.format(amount * who.length)} (${fmtSgd(amount * who.length)}) in all`
+      : "";
+  }
   const card = method === "card" && !newCard && cardById(f.card.value);
   const group = card && groupForCard(card.id);
   const limit = group ? group.limitSgd : newCard ? Number(f.cardLimit.value) : 0;
@@ -794,6 +802,19 @@ function updatePayUI() {
     (level === "over" ? ". This goes over the limit." : level === "near" ? ". Getting close to the limit." : "");
   submit.textContent = level === "over" && overLimitOk ? "Over limit: save anyway?" : label;
   return { level, after, limit, card };
+}
+
+// Suica: a fare is entered once and added to each ticked person's Suica. Editing one of
+// those expenses changes just that person's fare.
+const suicaChecked = () => [...$("#suicaPeople").querySelectorAll("input:checked")].map((i) => i.value);
+
+function renderSuicaPeople(selected, editing) {
+  const names = [...new Set([...doc.settle.people, ...selected])];
+  $("#suicaPeople").innerHTML = names.map((n) => `<label class="cat-choice"><input type="checkbox" value="${esc(n)}"
+      ${selected.some((x) => samePerson(x, n)) ? "checked" : ""} ${editing ? "disabled" : ""} /><span>🚃 ${esc(n)}</span></label>`).join("");
+  $("#suicaHint").textContent = editing
+    ? `This is ${selected[0]}'s fare. Other people's fares from the same trip are separate expenses.`
+    : "Enter the fare for one person. It's added to each Suica ticked below.";
 }
 
 // prefill: optional { date, cat } (cat may be null) when opened from the table.
@@ -820,7 +841,9 @@ function openAdd(prefill = {}, item = null) {
   let last = null;
   try { last = JSON.parse(store.get("trip.lastPay")); } catch { /* none */ }
   const pay = item ? { pay: item.pay ?? "cash", payer: item.payer, card: item.card } : last ?? { pay: "cash" };
-  addForm.querySelector(`input[name="pay"][value="${pay.pay === "card" ? "card" : "cash"}"]`).checked = true;
+  const method = ["card", "suica"].includes(pay.pay) ? pay.pay : "cash";
+  addForm.querySelector(`input[name="pay"][value="${method}"]`).checked = true;
+  renderSuicaPeople(item?.pay === "suica" ? [item.payer] : (pay.suicaFor ?? doc.settle.people), item?.pay === "suica");
   $("#cashNote").textContent = `From the shared cash, held by ${doc.settle.holder}.`;
   f.card.value = cardById(pay.card) ? pay.card : (doc.cards?.[0]?.id ?? NEW_CARD);
   f.cardName.value = "";
@@ -849,6 +872,11 @@ function openAdd(prefill = {}, item = null) {
 
 for (const btn of document.querySelectorAll("[data-add]")) btn.addEventListener("click", () => openAdd());
 $("#addCancel").addEventListener("click", () => $("#addDlg").close());
+// Choosing Suica for a new expense picks the Transport category.
+addForm.addEventListener("change", (e) => {
+  if (e.target.name === "pay" && e.target.value === "suica" && !editingItem) selectCat("transport");
+});
+
 addForm.addEventListener("input", () => {
   overLimitOk = false;
   updateConvert();
@@ -870,6 +898,14 @@ addForm.addEventListener("submit", async (e) => {
   const payment = { pay: payMethod() };
   if (payment.pay === "cash") {
     // Cash always comes from the shared pool; the server files it under the holder.
+  } else if (payment.pay === "suica") {
+    if (editingItem?.pay === "suica") {
+      payment.payer = editingItem.payer;
+    } else {
+      payment.suicaFor = suicaChecked();
+      if (!payment.suicaFor.length) return toast("Tick whose Suica was used");
+      if (editingItem) [payment.payer] = payment.suicaFor; // switching one expense to Suica
+    }
   } else if (f.card.value === NEW_CARD) {
     if (!f.cardName.value.trim() || !f.cardOwner.value.trim()) {
       toast("Give the new card a name and say whose it is");
@@ -894,9 +930,11 @@ addForm.addEventListener("submit", async (e) => {
   const op = editingItem
     ? { op: "updateItem", id: editingItem.id, date, cat, amount, note, ...payment }
     : { op: "addItem", date, cat, amount, note, ...payment };
+  const each = payment.suicaFor?.length > 1 && !editingItem
+    ? ` on ${payment.suicaFor.length} Suica cards (${yen.format(amount * payment.suicaFor.length)} in all)` : "";
   const ok = await runOp(op, editingItem
     ? `Saved ${yen.format(amount)} (${fmtSgd(amount)})`
-    : `Added ${yen.format(amount)} (${fmtSgd(amount)}) to ${category.name} on ${fmtDay(date)}`);
+    : `Added ${yen.format(amount)} (${fmtSgd(amount)})${each} to ${category.name} on ${fmtDay(date)}`);
   submit.disabled = false;
   if (!ok) return;
 
@@ -904,7 +942,7 @@ addForm.addEventListener("submit", async (e) => {
   const card = payment.newCard
     ? doc.cards.findLast((c) => c.name === payment.newCard.name.trim() && c.owner === payment.newCard.owner.trim())
     : cardById(payment.card);
-  store.set("trip.lastPay", JSON.stringify({ pay: payment.pay, payer: payment.payer, card: card?.id }));
+  store.set("trip.lastPay", JSON.stringify({ pay: payment.pay, payer: payment.payer, card: card?.id, suicaFor: payment.suicaFor }));
   const group = card && groupForCard(card.id);
   if (group) {
     const used = groupSpentSgd(group);
@@ -943,8 +981,8 @@ function settlement() {
   let cashSpent = 0, unrecorded = 0, cardTotal = 0;
   for (const i of items) {
     const card = i.pay === "card" && cardById(i.card);
-    if (card) {
-      const n = nameOf(card.owner);
+    if (card || i.pay === "suica") {
+      const n = nameOf(card ? card.owner : i.payer); // cards and Suica are paid by their owner
       cardPaid.set(n, (cardPaid.get(n) ?? 0) + i.a);
       cardTotal += i.a;
     } else {
@@ -1006,11 +1044,11 @@ function renderSettle() {
   $("#poolNote").hidden = !notes.length;
 
   // Each person's cost: their % of the pool cash spent, plus an even share of the cards.
-  $("#splitSummary").innerHTML = `Cash spent <b>${yen.format(st.cashSpent)}</b> is shared by pool share · cards <b>${yen.format(st.cardTotal)}</b> split evenly between ${st.people.length} (${yen.format(Math.round(st.cardShare))} each)`;
+  $("#splitSummary").innerHTML = `Cash spent <b>${yen.format(st.cashSpent)}</b> is shared by pool share · cards &amp; Suica <b>${yen.format(st.cardTotal)}</b> split evenly between ${st.people.length} (${yen.format(Math.round(st.cardShare))} each)`;
   $("#splitTable").innerHTML = `
-    <thead><tr><th>Person</th><th class="num">Cash</th><th class="num">Cards</th><th class="num">Trip cost</th></tr></thead>
+    <thead><tr><th>Person</th><th class="num">Cash</th><th class="num">Cards &amp; Suica</th><th class="num">Trip cost</th></tr></thead>
     <tbody>${st.rows.map((r) => `<tr>
-      <td>${esc(r.who)}<div class="muted small">${pctText(r.pct)} of the pool${r.paidCards ? ` · paid ${yen.format(r.paidCards)} on cards` : ""}</div></td>
+      <td>${esc(r.who)}<div class="muted small">${pctText(r.pct)} of the pool${r.paidCards ? ` · paid ${yen.format(r.paidCards)} on cards &amp; Suica` : ""}</div></td>
       <td class="num">${money(r.cashCost)}</td><td class="num">${money(r.cardCost)}</td><td class="num"><b>${money(r.total)}</b></td>
     </tr>`).join("")}
     <tr class="sum"><td><b>Total</b></td><td class="num">${money(st.cashSpent)}</td><td class="num">${money(st.cardTotal)}</td><td class="num"><b>${money(st.total)}</b></td></tr></tbody>`;
@@ -1027,8 +1065,8 @@ function renderSettle() {
     }
     if (Math.round(t.cardBalance)) {
       parts.push(t.cardBalance > 0
-        ? `paid ${yen.format(Math.round(t.cardBalance))} more than an even share on cards: +${yen.format(Math.round(t.cardBalance))}`
-        : `paid ${yen.format(Math.round(-t.cardBalance))} less than an even share on cards: −${yen.format(Math.round(-t.cardBalance))}`);
+        ? `paid ${yen.format(Math.round(t.cardBalance))} more than an even share on cards &amp; Suica: +${yen.format(Math.round(t.cardBalance))}`
+        : `paid ${yen.format(Math.round(-t.cardBalance))} less than an even share on cards &amp; Suica: −${yen.format(Math.round(-t.cardBalance))}`);
     }
     if (!t.net) {
       lines.push(`${esc(t.who)} and ${esc(st.holder)} are even.`);

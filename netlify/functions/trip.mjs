@@ -45,7 +45,8 @@ function defaultDoc() {
     cards: [],
     settle: defaultSettle(),
     // One entry per expense: { id, date, cat, a: amountInYen, note, by, t,
-    //   pay: "cash" | "card", payer (whose cash, or the card's owner), card (card id) }
+    //   pay: "cash" | "card" | "suica", payer (the cash holder, the card's owner, or whose
+    //   Suica), card (card id), group (links the fares of one Suica trip for several people) }
     items: [],
     log: [],
   };
@@ -216,14 +217,29 @@ const cardLabel = (card) => `${card.owner}'s ${card.name}`;
 function readPayment(doc, body, by) {
   if (!body.pay) return {};
   if (body.pay === "cash") return { pay: "cash", payer: doc.settle.holder }; // the shared cash
-  if (body.pay !== "card") fail("Pick cash or card");
+  if (body.pay === "suica") {
+    const payer = str(body.payer, 30);
+    if (!payer) fail("Pick whose Suica was used");
+    return { pay: "suica", payer };
+  }
+  if (body.pay !== "card") fail("Pick cash, card or Suica");
   const card = body.newCard ? addCard(doc, body.newCard) : doc.cards.find((c) => c.id === body.card);
   if (!card) fail("Pick which card was used");
   return { pay: "card", payer: card.owner, card: card.id };
 }
 
+// Whose Suica cards a fare was paid with: one fare each, so a trip taken together is
+// entered once.
+function suicaPeople(body) {
+  const names = [...new Set((Array.isArray(body.suicaFor) ? body.suicaFor : [body.payer]).map((p) => str(p, 30)).filter(Boolean))];
+  if (!names.length) fail("Pick whose Suica was used");
+  if (names.length > 20) fail("Too many people");
+  return names;
+}
+
 function paymentText(doc, item) {
   if (item.pay === "cash") return ` · 💵 ${item.payer}'s cash`;
+  if (item.pay === "suica") return ` · 🚃 ${item.payer}'s Suica`;
   const card = item.pay === "card" && doc.cards.find((c) => c.id === item.card);
   return card ? ` · 💳 ${cardLabel(card)}` : "";
 }
@@ -243,6 +259,18 @@ function applyOp(doc, body, by) {
     case "addItem":
     case "addToCell": {
       const { date, cat, amount, note } = readExpense(doc, body);
+      if (body.pay === "suica") {
+        // The same fare on each person's Suica, saved as linked expenses.
+        const who = suicaPeople(body);
+        if (doc.items.length + who.length > MAX_ITEMS) fail("Too many expenses");
+        const t = Date.now();
+        const group = who.length > 1 ? randomUUID() : undefined;
+        for (const payer of who) {
+          doc.items.push({ id: randomUUID(), date, cat: cat.id, a: amount, note, by, t, pay: "suica", payer, ...(group ? { group } : {}) });
+        }
+        return `added ${yen.format(amount)}${who.length > 1 ? ` each (${yen.format(amount * who.length)} in all)` : ""} to ` +
+          `${cat.emoji} ${cat.name} on ${prettyDate(date)}${note ? ` (${note})` : ""} · 🚃 Suica: ${who.join(", ")}`;
+      }
       if (doc.items.length >= MAX_ITEMS) fail("Too many expenses");
       const item = { id: randomUUID(), date, cat: cat.id, a: amount, note, by, t: Date.now(), ...readPayment(doc, body, by) };
       doc.items.push(item);
@@ -255,7 +283,7 @@ function applyOp(doc, body, by) {
       if (!item) fail("This expense was deleted by someone else", 409);
       const { date, cat, amount, note } = readExpense(doc, body);
       const before = `${yen.format(item.a)}${item.note ? ` (${item.note})` : ""}`;
-      for (const k of ["pay", "payer", "card"]) delete item[k];
+      for (const k of ["pay", "payer", "card", "group"]) delete item[k];
       Object.assign(item, { date, cat: cat.id, a: amount, note, editedBy: by, editedAt: Date.now() }, readPayment(doc, body, by));
       return `edited ${before} → ${yen.format(amount)}${note ? ` (${note})` : ""} in ${cat.emoji} ${cat.name} on ${prettyDate(date)}` +
         paymentText(doc, item);
