@@ -60,6 +60,12 @@ function normalize(doc) {
     doc.trip.autoRate = true;
   }
   doc.trip.autoRate ??= true;
+  // The trip was set up with the default 10 days (to 31 Oct) but runs until 5 Nov; extend it
+  // once. tripDatesChecked keeps a later choice in Settings from being overridden.
+  if (!doc.trip.tripDatesChecked) {
+    if (doc.trip.start === "2026-10-22" && doc.trip.end === "2026-10-31") doc.trip.end = "2026-11-05";
+    doc.trip.tripDatesChecked = true;
+  }
   // The budget used to be stored in yen; it's now set in SGD.
   if (doc.trip.budgetSgd === undefined) {
     doc.trip.budgetSgd = doc.trip.budget ? Math.round(doc.trip.budget / doc.trip.rate) : 0;
@@ -342,6 +348,7 @@ function applyOp(doc, body, by) {
         currency: "SGD",
         rate: Number(t.rate),
         autoRate: t.autoRate === true || t.autoRate === "on",
+        tripDatesChecked: true,
       };
       if (!DATE_RE.test(next.start) || !DATE_RE.test(next.end)) fail("Invalid dates");
       if (next.end < next.start) fail("End date is before start date");
