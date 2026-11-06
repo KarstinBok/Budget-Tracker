@@ -1,0 +1,550 @@
+// Everyday expenses – client for /daily/ (netlify/functions/daily.mjs, /api/daily).
+// Two screens on one page: 👤 Personal (each person's own spending, visible to both) and
+// 🤝 Shared (spending that is split, with who owes whom). Changes sync live like the
+// Japan trip tracker; amounts are whole cents in SGD.
+
+import {
+  $, esc, store, localToday, fmtDay, timeAgo, toast, downloadFile,
+  myName, setupIdentity, createSync,
+} from "/common.js";
+
+let doc = null;
+let screen = "personal";
+let month = localToday().slice(0, 7); // "YYYY-MM"
+let filter = store.get("daily.filter") || ""; // personal screen: a person, or "all"
+let openCell = null; // { date, cat } dropped down in the table; cat null = whole day
+let editing = null; // expense being edited in the dialog
+
+const sync = createSync({
+  path: "/api/daily",
+  schema: 1,
+  onDoc(next) {
+    doc = next;
+    render();
+  },
+});
+
+// ---------------------------------------------------------------- formatting
+
+const twoDp = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const whole = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
+const money = (c) => `S$${twoDp.format(c / 100)}`;
+// Table cells: the exact amount, plus a whole-dollar form the phone layout shows instead.
+const cell = (c) => `<span class="n-full">${twoDp.format(c / 100)}</span><span class="n-short">${whole.format(c / 100)}</span>`;
+
+// "12.50", "$12.5", "S$ 12" -> 1250 cents, or NaN.
+function parseCents(text) {
+  const t = String(text).replace(/S?\$|,|\s/gi, "");
+  return /^\d+(\.\d{1,2})?$/.test(t) ? Math.round(Number(t) * 100) : NaN;
+}
+
+const monthName = (ym, opts = { month: "long", year: "numeric" }) =>
+  new Date(`${ym}-01T00:00:00Z`).toLocaleDateString("en-US", { ...opts, timeZone: "UTC" });
+
+function shiftMonth(ym, by) {
+  const [y, m] = ym.split("-").map(Number);
+  const d = new Date(Date.UTC(y, m - 1 + by, 1));
+  return d.toISOString().slice(0, 7);
+}
+
+function daysOf(ym) {
+  const [y, m] = ym.split("-").map(Number);
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const today = localToday();
+  const days = [];
+  for (let d = 1; d <= last; d++) {
+    const iso = `${ym}-${String(d).padStart(2, "0")}`;
+    if (iso <= today) days.push(iso);
+  }
+  return days.reverse(); // newest first
+}
+
+// ---------------------------------------------------------------- people
+
+const norm = (s) => (s ?? "").toLowerCase().replace(/\s+/g, "");
+// The listed person this device's name belongs to ("Karstin Bok" -> Karstin).
+function me() {
+  const n = norm(myName());
+  return doc.people.find((p) => n && (norm(p) === n || n.startsWith(norm(p)) || norm(p).startsWith(n))) ?? null;
+}
+
+const catOf = (id) => doc.categories.find((c) => c.id === id) ?? { id, name: "Other", emoji: "📦" };
+
+// ---------------------------------------------------------------- data
+
+// The expenses this screen shows for a month.
+function itemsFor(ym, who = filter) {
+  return doc.items.filter((i) => i.kind === screen && i.date.startsWith(ym) &&
+    (screen === "shared" || who === "all" || i.owner === who));
+}
+
+const sum = (items) => items.reduce((s, i) => s + i.a, 0);
+
+// Shared: each person's balance over all time. Positive = is owed money.
+function balances() {
+  const net = Object.fromEntries(doc.people.map((p) => [p, 0]));
+  for (const i of doc.items.filter((x) => x.kind === "shared")) {
+    if (i.paidBy in net) net[i.paidBy] += i.a;
+    for (const [p, f] of Object.entries(i.shares ?? {})) if (p in net) net[p] -= i.a * f;
+  }
+  for (const s of doc.settlements) {
+    if (s.from in net) net[s.from] += s.a;
+    if (s.to in net) net[s.to] -= s.a;
+  }
+  // Fewest payments to even it out: largest debtor pays largest creditor, repeat.
+  const owe = Object.entries(net).map(([p, v]) => ({ p, v: Math.round(v) }));
+  const transfers = [];
+  for (let guard = 0; guard < 20; guard++) {
+    owe.sort((a, b) => a.v - b.v);
+    const debtor = owe[0], creditor = owe[owe.length - 1];
+    if (!debtor || debtor.v > -1 || creditor.v < 1) break;
+    const a = Math.min(-debtor.v, creditor.v);
+    transfers.push({ from: debtor.p, to: creditor.p, a });
+    debtor.v += a;
+    creditor.v -= a;
+  }
+  return transfers;
+}
+
+// ---------------------------------------------------------------- rendering
+
+function render() {
+  if (!doc) return;
+  if (filter !== "all" && !doc.people.includes(filter)) filter = me() ?? "all";
+  for (const el of document.querySelectorAll("[data-only]")) el.hidden = el.dataset.only !== screen;
+  for (const a of document.querySelectorAll(".screen-tabs a")) {
+    a.classList.toggle("active", a.dataset.screen === screen);
+    if (a.dataset.screen === screen) a.setAttribute("aria-current", "page");
+    else a.removeAttribute("aria-current");
+  }
+  if ($(".fold-tab.active")?.hidden) openFold(null);
+
+  $("#subtitle").textContent = screen === "personal" ? "What each of us spends" : `Split between ${doc.people.join(" and ")}`;
+  $("#monthTitle").textContent = monthName(month);
+  $("#nextMonth").disabled = month >= localToday().slice(0, 7);
+  $("#tableTitle").textContent = screen === "personal" ? "Daily spending" : "Shared spending";
+
+  $("#personFilter").innerHTML = [...doc.people, "all"].map((p) => `<label><input type="radio" name="who" value="${esc(p)}"
+    ${p === filter ? "checked" : ""} /><span>${p === "all" ? "Both" : esc(p)}</span></label>`).join("");
+
+  const items = itemsFor(month);
+  renderCards(items);
+  if (screen === "shared") renderSettle();
+  renderGrid(items);
+  renderSummary(items);
+  renderLog();
+  renderPayments();
+  if ($("#settingsDlg").open) renderSettings();
+}
+
+function setCard(n, label, big, sub) {
+  $(`#c${n}Label`).textContent = label;
+  $(`#c${n}`).textContent = big;
+  $(`#c${n}Sub`).textContent = sub;
+}
+
+function topCategory(items) {
+  const by = new Map();
+  for (const i of items) by.set(i.cat, (by.get(i.cat) ?? 0) + i.a);
+  const [id, a] = [...by].sort((x, y) => y[1] - x[1])[0] ?? [];
+  return id ? { cat: catOf(id), a } : null;
+}
+
+function renderCards(items) {
+  const total = sum(items);
+  const n = items.length;
+  const days = month === localToday().slice(0, 7) ? Number(localToday().slice(8)) : daysOf(month).length;
+  const top = topCategory(items);
+  const whose = screen === "personal" ? (filter === "all" ? "Both of you" : filter) : "Shared";
+  setCard(1, `${whose} · ${monthName(month, { month: "short" })}`, money(total), `${n} expense${n === 1 ? "" : "s"}`);
+  setCard(3, "Top category", top ? `${top.cat.emoji} ${top.cat.name}` : "—", top ? `${money(top.a)} · ${Math.round((top.a / total) * 100)}%` : "Nothing yet");
+
+  if (screen === "personal") {
+    setCard(2, "Average per day", money(days ? total / days : 0), `over ${days} day${days === 1 ? "" : "s"}`);
+    const last = sum(itemsFor(shiftMonth(month, -1)));
+    const diff = last ? Math.round(((total - last) / last) * 100) : null;
+    setCard(4, monthName(shiftMonth(month, -1), { month: "long" }), money(last),
+      diff === null ? "Nothing recorded" : `This month is ${Math.abs(diff)}% ${diff >= 0 ? "higher" : "lower"} so far`);
+  } else {
+    const mine = me() ?? doc.people[0];
+    const shareOf = (p) => items.reduce((s, i) => s + i.a * (i.shares?.[p] ?? 0), 0);
+    setCard(2, `${mine}'s share`, money(shareOf(mine)),
+      doc.people.filter((p) => p !== mine).map((p) => `${p}: ${money(shareOf(p))}`).join(" · "));
+    const paid = (p) => sum(items.filter((i) => i.paidBy === p));
+    setCard(4, `${mine} paid`, money(paid(mine)),
+      doc.people.filter((p) => p !== mine).map((p) => `${p} paid ${money(paid(p))}`).join(" · "));
+  }
+}
+
+function renderSettle() {
+  const t = balances();
+  $("#settleNow").innerHTML = t.length
+    ? t.map((x) => `<b>${esc(x.from)}</b> owes <b>${esc(x.to)}</b> <b>${money(x.a)}</b>`).join("<br>")
+    : "✅ You're all square.";
+}
+
+function renderGrid(items) {
+  const table = $("#grid");
+  const days = daysOf(month);
+  // Columns: the categories used this month (all of them if none yet), in category order.
+  const used = new Set(items.map((i) => i.cat));
+  const cats = doc.categories.filter((c) => used.has(c.id));
+  const cols = cats.length ? cats : doc.categories;
+  const sums = {};
+  for (const i of items) (sums[i.date] ??= {})[i.cat] = ((sums[i.date] ??= {})[i.cat] ?? 0) + i.a;
+  const dayTotal = (d) => Object.values(sums[d] ?? {}).reduce((s, v) => s + v, 0);
+  const catTotal = (c) => days.reduce((s, d) => s + (sums[d]?.[c] ?? 0), 0);
+  const today = localToday();
+
+  if (!days.length) {
+    table.innerHTML = `<tbody><tr><td class="muted">This month hasn't started yet.</td></tr></tbody>`;
+    return;
+  }
+  table.innerHTML = `
+    <thead><tr><th scope="col">Day</th>${cols.map((c) => `<th scope="col" title="${esc(c.name)}"><span class="emoji">${esc(c.emoji)}</span><span class="cat-name">${esc(c.name)}</span></th>`).join("")}<th scope="col">Total</th></tr></thead>
+    <tbody>${days.map((d) => `<tr data-date="${d}" class="${d === today ? "today" : ""}">
+      <th scope="row"><span class="day-label">${fmtDay(d)}</span><span class="day-short"><span>${fmtDay(d, { weekday: "short" })}</span><b>${Number(d.slice(8))}</b></span></th>
+      ${cols.map((c) => {
+        const v = sums[d]?.[c.id];
+        return `<td><button type="button" class="cell${v ? "" : " empty"}" data-date="${d}" data-cat="${esc(c.id)}"
+          aria-label="${esc(c.name)} on ${fmtDay(d)}: ${v ? money(v) : "nothing yet"}">${v ? cell(v) : "–"}</button></td>`;
+      }).join("")}
+      <td class="total"><button type="button" class="cell day-total" data-date="${d}" ${dayTotal(d) ? "" : "disabled"}>${dayTotal(d) ? cell(dayTotal(d)) : ""}</button></td>
+    </tr>`).join("")}</tbody>
+    <tfoot><tr><th scope="row">Total</th>${cols.map((c) => `<td>${cell(catTotal(c.id))}</td>`).join("")}<td><b>${cell(sum(items))}</b></td></tr></tfoot>`;
+  renderDetail();
+}
+
+function itemRow(i) {
+  const c = catOf(i.cat);
+  const who = i.kind === "personal"
+    ? i.owner
+    : `Paid by ${i.paidBy} · ${Object.entries(i.shares ?? {}).filter(([, f]) => f > 0).map(([p, f]) => `${p} ${Math.round(f * 100)}%`).join(" / ")}`;
+  return `<li>
+    <div class="item-main">
+      <span class="item-note">${esc(c.emoji)} <b class="item-who">${esc(who)}</b>${i.note ? ` · ${esc(i.note)}` : ""}</span>
+      <span class="item-meta">${fmtDay(i.date)} · added by ${esc(i.by)} ${timeAgo(i.t)}${i.editedAt ? ` · edited by ${esc(i.editedBy)}` : ""}</span>
+    </div>
+    <div class="item-amt">${money(i.a)}</div>
+    <button type="button" class="icon-btn" data-edit-item="${esc(i.id)}" title="Edit" aria-label="Edit ${money(i.a)}">✏️</button>
+    <button type="button" class="icon-btn" data-del="${esc(i.id)}" title="Delete" aria-label="Delete ${money(i.a)}">🗑</button>
+  </li>`;
+}
+
+// The expenses behind an amount, dropped down under its day.
+function renderDetail() {
+  const table = $("#grid");
+  table.querySelector("tr.detail-row")?.remove();
+  for (const b of table.querySelectorAll("button.cell.open")) b.classList.remove("open");
+  if (!openCell) return;
+  const dayRow = table.querySelector(`tbody tr[data-date="${openCell.date}"]`);
+  if (!dayRow) return void (openCell = null);
+  const list = itemsFor(month).filter((i) => i.date === openCell.date && (!openCell.cat || i.cat === openCell.cat)).sort((a, b) => a.t - b.t);
+  const btn = openCell.cat ? dayRow.querySelector(`button.cell[data-cat="${CSS.escape(openCell.cat)}"]`) : dayRow.querySelector(".day-total");
+  btn?.classList.add("open");
+  const cat = openCell.cat && catOf(openCell.cat);
+  const row = document.createElement("tr");
+  row.className = "detail-row";
+  row.innerHTML = `<td colspan="${dayRow.children.length}"><div class="detail" id="detail">
+    <div class="detail-head">
+      <div><h3>${cat ? `${esc(cat.emoji)} ${esc(cat.name)}` : "Everything this day"}</h3>
+        <p class="muted small">${fmtDay(openCell.date, { weekday: "long", month: "short", day: "numeric" })} · ${list.length} expense${list.length === 1 ? "" : "s"}</p></div>
+      <div class="detail-sum">${money(sum(list))}</div>
+    </div>
+    ${list.length ? `<ul class="items-list">${list.map(itemRow).join("")}</ul>` : `<p class="muted">Nothing here yet.</p>`}
+    <div class="detail-actions">
+      <button type="button" class="btn ghost" data-detail-close>▲ Close</button>
+      <button type="button" class="btn" data-detail-add>＋ Add expense</button>
+    </div>
+  </div></td>`;
+  dayRow.after(row);
+}
+
+$("#grid").addEventListener("click", async (e) => {
+  const edit = e.target.closest("[data-edit-item]");
+  if (edit) return openAdd({}, doc.items.find((i) => i.id === edit.dataset.editItem));
+  const del = e.target.closest("[data-del]");
+  if (del) {
+    del.disabled = true;
+    if (!(await sync.runOp({ op: "deleteItem", id: del.dataset.del }, "Deleted"))) del.disabled = false;
+    return;
+  }
+  if (e.target.closest("[data-detail-close]")) return void (openCell = null, renderDetail());
+  if (e.target.closest("[data-detail-add]")) return openAdd({ date: openCell.date, cat: openCell.cat });
+  const btn = e.target.closest("button.cell");
+  if (!btn) return;
+  const { date, cat } = btn.dataset;
+  if (btn.classList.contains("empty")) return openAdd({ date, cat });
+  const target = btn.classList.contains("day-total") ? { date, cat: null } : { date, cat };
+  openCell = openCell && openCell.date === target.date && openCell.cat === target.cat ? null : target;
+  renderDetail();
+});
+
+// ---------------------------------------------------------------- summary chart
+
+const catColor = (n) => `var(--series-${n < 7 ? n + 1 : "other"})`;
+
+function arcPath(r, r0, a0, a1) {
+  const pt = (rad, a) => [100 + rad * Math.sin(a), 100 - rad * Math.cos(a)];
+  const large = a1 - a0 > Math.PI ? 1 : 0;
+  const [x0, y0] = pt(r, a0), [x1, y1] = pt(r, a1), [x2, y2] = pt(r0, a1), [x3, y3] = pt(r0, a0);
+  return `M${x0},${y0}A${r},${r} 0 ${large} 1 ${x1},${y1}L${x2},${y2}A${r0},${r0} 0 ${large} 0 ${x3},${y3}Z`;
+}
+
+function showTip(html, x, y) {
+  const tip = $("#vizTip");
+  tip.innerHTML = html;
+  tip.hidden = false;
+  const box = tip.parentElement.getBoundingClientRect();
+  tip.style.left = `${Math.min(Math.max(x - box.left, 60), box.width - 60)}px`;
+  tip.style.top = `${y - box.top}px`;
+}
+const hideTip = () => { $("#vizTip").hidden = true; };
+
+function renderSummary(items) {
+  const total = sum(items);
+  $("#donutCenter").textContent = `S$${whole.format(total / 100)}`;
+  const slices = doc.categories.map((c, n) => ({ c, v: sum(items.filter((i) => i.cat === c.id)), color: catColor(n) })).filter((s) => s.v);
+  const svg = $("#donut");
+  const title = svg.querySelector("title").outerHTML;
+  let a = 0;
+  svg.innerHTML = title + (total ? slices.map((s) => {
+    const sweep = (s.v / total) * Math.PI * 2;
+    const d = arcPath(90, 58, a, a + Math.min(sweep, Math.PI * 2 - 0.0001));
+    a += sweep;
+    return `<path d="${d}" fill="${s.color}" data-slice="${esc(s.c.id)}" />`;
+  }).join("") : `<circle cx="100" cy="100" r="74" fill="none" stroke="var(--surface-2)" stroke-width="32" />`);
+  const pct = (v) => (total ? Math.round((v / total) * 100) : 0);
+  $("#catLegend").innerHTML = slices.length ? [...slices].sort((x, y) => y.v - x.v).map((s) => `
+    <li data-slice="${esc(s.c.id)}"><span class="cat-icon" style="--c:${s.color}"><span>${esc(s.c.emoji)}</span></span>
+      <span class="cat-main"><b>${esc(s.c.name)}</b><span class="muted small">${pct(s.v)}%</span></span>
+      <span class="cat-amt"><b>${money(s.v)}</b></span></li>`).join("") : `<li class="muted small">Nothing spent this month yet.</li>`;
+  svg.onpointermove = (e) => {
+    const s = slices.find((x) => x.c.id === e.target.closest("[data-slice]")?.dataset.slice);
+    if (!s) return hideTip();
+    showTip(`<b>${esc(s.c.emoji)} ${esc(s.c.name)}</b><br>${money(s.v)} · ${pct(s.v)}%`, e.clientX, e.clientY);
+  };
+  svg.onpointerleave = hideTip;
+
+  const days = [...daysOf(month)].reverse();
+  const byDay = (d) => sum(items.filter((i) => i.date === d));
+  const max = Math.max(...days.map(byDay), 1) / 100;
+  const mag = 10 ** Math.floor(Math.log10(max));
+  const top = [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10].map((m) => m * mag).find((v) => v >= max);
+  const tick = (v) => (v >= 1000 ? `${+(v / 1000).toFixed(2)}k` : `${Math.round(v)}`);
+  $("#dayBars").innerHTML = `
+    <div class="db-axis">${[top, top / 2, 0].map((t) => `<span>${tick(t)}</span>`).join("")}</div>
+    <div class="db-plot">${[top, top / 2, 0].map((t) => `<i class="db-grid" style="bottom:${(t / top) * 100}%"></i>`).join("")}
+      ${days.map((d) => `<button type="button" class="db-col${d === localToday() ? " today" : ""}" data-day="${d}" aria-label="${fmtDay(d)}: ${money(byDay(d))}">
+        <span class="db-bar" style="height:${byDay(d) ? Math.max((byDay(d) / 100 / top) * 100, 1.5) : 0}%"></span>
+        <span class="db-label">${Number(d.slice(8)) % 5 === 1 || days.length <= 10 ? Number(d.slice(8)) : ""}</span></button>`).join("")}
+    </div>`;
+  $("#dayBars").onpointermove = (e) => {
+    const col = e.target.closest(".db-col");
+    if (!col) return hideTip();
+    const r = col.querySelector(".db-bar").getBoundingClientRect();
+    showTip(`<b>${fmtDay(col.dataset.day)}</b><br>${money(byDay(col.dataset.day))}`, r.left + r.width / 2, r.top);
+  };
+  $("#dayBars").onpointerleave = hideTip;
+}
+
+function renderLog() {
+  $("#log").innerHTML = doc.log.slice(0, 40).map((e) =>
+    `<li><b>${esc(e.by)}</b> ${esc(e.msg)}<time>${timeAgo(e.t)}</time></li>`).join("") || `<li class="empty">No changes yet.</li>`;
+}
+
+function renderPayments() {
+  const list = [...doc.settlements].sort((a, b) => b.date.localeCompare(a.date) || b.t - a.t);
+  $("#payments").innerHTML = list.length ? list.map((s) => `<li>
+    <div class="item-main"><span class="item-note"><b>${esc(s.from)}</b> paid <b>${esc(s.to)}</b>${s.note ? ` · ${esc(s.note)}` : ""}</span>
+      <span class="item-meta">${fmtDay(s.date)} · recorded by ${esc(s.by)}</span></div>
+    <div class="item-amt">${money(s.a)}</div>
+    <button type="button" class="icon-btn" data-del-payment="${esc(s.id)}" title="Delete" aria-label="Delete payment">🗑</button>
+  </li>`).join("") : `<li class="muted small">No payments recorded yet.</li>`;
+}
+
+$("#payments").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-del-payment]");
+  if (b) sync.runOp({ op: "deleteSettlement", id: b.dataset.delPayment }, "Payment removed");
+});
+
+// ---------------------------------------------------------------- add / edit expense
+
+const form = $("#addForm");
+const radioValue = (name) => form.querySelector(`input[name="${name}"]:checked`)?.value;
+
+function chips(container, name, options, selected) {
+  $(container).innerHTML = options.map((o) => `<label class="cat-choice"><input type="radio" name="${name}" value="${esc(o.value)}"
+    ${o.value === selected ? "checked" : ""} required /><span>${o.label}</span></label>`).join("");
+}
+
+function splitShares() {
+  if (radioValue("split") !== "custom") return Object.fromEntries(doc.people.map((p) => [p, 1 / doc.people.length]));
+  const raw = Object.fromEntries([...$("#splitCustom").querySelectorAll("input")].map((i) => [i.name, Math.max(0, Number(i.value) || 0)]));
+  const total = Object.values(raw).reduce((s, v) => s + v, 0) || 1;
+  return Object.fromEntries(Object.entries(raw).map(([p, v]) => [p, v / total]));
+}
+
+function updateSplitUI() {
+  $("#splitCustom").hidden = radioValue("split") !== "custom";
+  const a = parseCents(form.elements.amount.value);
+  const shares = splitShares();
+  $("#splitPreview").textContent = a > 0 ? doc.people.map((p) => `${p} ${money(a * shares[p])}`).join(" · ") : "";
+}
+
+function openAdd(prefill = {}, item = null) {
+  if (!doc) return;
+  editing = item;
+  const kind = item?.kind ?? screen;
+  for (const el of form.querySelectorAll("[data-kind]")) el.hidden = el.dataset.kind !== kind;
+  const f = form.elements;
+  const lastCat = store.get(`daily.lastCat.${kind}`);
+  const cat = item?.cat ?? prefill.cat ?? lastCat ?? doc.categories[0].id;
+  chips("#catChoices", "cat", doc.categories.map((c) => ({ value: c.id, label: `<span class="emoji">${esc(c.emoji)}</span>${esc(c.name)}` })),
+    doc.categories.some((c) => c.id === cat) ? cat : doc.categories[0].id);
+  const people = doc.people.map((p) => ({ value: p, label: esc(p) }));
+  chips("#ownerChoices", "owner", people, item?.owner ?? (filter !== "all" ? filter : me()) ?? doc.people[0]);
+  chips("#payerChoices", "payer", people, item?.paidBy ?? me() ?? doc.people[0]);
+  const shares = item?.shares ?? {};
+  const equal = !item || doc.people.every((p) => Math.abs((shares[p] ?? 0) - 1 / doc.people.length) < 0.001);
+  form.querySelector(`input[name="split"][value="${equal ? "equal" : "custom"}"]`).checked = true;
+  $("#splitCustom").innerHTML = doc.people.map((p) => `<label>${esc(p)} pays (%)
+    <input name="${esc(p)}" type="number" min="0" max="100" step="1" inputmode="numeric" value="${Math.round((equal ? 1 / doc.people.length : shares[p] ?? 0) * 100)}" /></label>`).join("");
+  f.date.value = item?.date ?? prefill.date ?? localToday();
+  f.date.max = localToday();
+  f.amount.value = item ? (item.a / 100).toFixed(2) : "";
+  f.note.value = item?.note ?? "";
+  $("#addTitle").textContent = `${item ? "Edit" : "Add"} ${kind === "shared" ? "shared " : ""}expense`;
+  $("#addSubmit").textContent = item ? "Save changes" : "Add";
+  updateSplitUI();
+  $("#addDlg").showModal();
+  f.amount.focus();
+}
+
+form.addEventListener("input", updateSplitUI);
+$("#addCancel").addEventListener("click", () => $("#addDlg").close());
+for (const b of document.querySelectorAll("[data-add]")) b.addEventListener("click", () => openAdd());
+
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const a = parseCents(form.elements.amount.value);
+  if (!(a > 0)) return toast("Enter an amount, e.g. 12.50");
+  const kind = editing?.kind ?? screen;
+  const body = {
+    kind, date: form.elements.date.value, cat: radioValue("cat"), a, note: form.elements.note.value,
+    ...(kind === "personal" ? { owner: radioValue("owner") } : { paidBy: radioValue("payer"), shares: splitShares() }),
+  };
+  const submit = $("#addSubmit");
+  submit.disabled = true;
+  const ok = await sync.runOp(editing ? { op: "updateItem", id: editing.id, ...body } : { op: "addItem", ...body },
+    `${editing ? "Saved" : "Added"} ${money(a)}`);
+  submit.disabled = false;
+  if (!ok) return;
+  store.set(`daily.lastCat.${kind}`, body.cat);
+  if (body.date.slice(0, 7) !== month) month = body.date.slice(0, 7);
+  $("#addDlg").close();
+  render();
+});
+
+// ---------------------------------------------------------------- settle up
+
+$("#settleBtn").addEventListener("click", () => {
+  const t = balances()[0];
+  const f = $("#settleForm").elements;
+  const opts = doc.people.map((p) => `<option>${esc(p)}</option>`).join("");
+  f.from.innerHTML = opts;
+  f.to.innerHTML = opts;
+  f.from.value = t?.from ?? doc.people[1] ?? doc.people[0];
+  f.to.value = t?.to ?? doc.people[0];
+  f.amount.value = t ? (t.a / 100).toFixed(2) : "";
+  f.date.value = localToday();
+  f.note.value = "";
+  $("#settleDlg").showModal();
+});
+$("#settleCancel").addEventListener("click", () => $("#settleDlg").close());
+$("#settleForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const f = e.target.elements;
+  const a = parseCents(f.amount.value);
+  if (!(a > 0)) return toast("Enter an amount, e.g. 42.50");
+  if (await sync.runOp({ op: "addSettlement", from: f.from.value, to: f.to.value, a, date: f.date.value, note: f.note.value },
+    `Recorded ${f.from.value} paying ${f.to.value} ${money(a)}`)) $("#settleDlg").close();
+});
+
+// ---------------------------------------------------------------- settings
+
+function renderSettings() {
+  if ($("#settingsDlg").contains(document.activeElement)) return;
+  $("#peopleInputs").innerHTML = doc.people.map((p, n) => `<label>Person ${n + 1} <input name="p${n}" value="${esc(p)}" maxlength="30" required /></label>`).join("");
+  $("#catList").innerHTML = doc.categories.map((c) => `<li data-id="${esc(c.id)}">
+    <input class="emoji-in" name="emoji" value="${esc(c.emoji)}" maxlength="8" aria-label="Emoji" />
+    <input name="name" value="${esc(c.name)}" maxlength="40" aria-label="Category name" />
+    <span class="acts"><button type="button" class="icon-btn" data-remove-cat title="Remove">🗑</button></span></li>`).join("");
+}
+
+$("#settingsBtn").addEventListener("click", () => { if (doc) { renderSettings(); $("#settingsDlg").showModal(); } });
+$("#closeSettings").addEventListener("click", () => $("#settingsDlg").close());
+$("#peopleForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+  sync.runOp({ op: "updateSettings", people: [...e.target.querySelectorAll("input")].map((i) => i.value) }, "Names saved");
+});
+$("#catList").addEventListener("change", (e) => {
+  const li = e.target.closest("li");
+  sync.runOp({ op: "editCategory", id: li.dataset.id, name: li.querySelector('[name="name"]').value, emoji: li.querySelector('[name="emoji"]').value });
+});
+$("#catList").addEventListener("click", (e) => {
+  if (e.target.closest("[data-remove-cat]")) sync.runOp({ op: "removeCategory", id: e.target.closest("li").dataset.id }, "Category removed");
+});
+$("#catForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const { name, emoji } = Object.fromEntries(new FormData(e.target));
+  if (await sync.runOp({ op: "addCategory", name, emoji }, `Added ${name}`)) e.target.reset();
+});
+
+$("#csvBtn").addEventListener("click", () => {
+  const q = (s) => `"${String(s ?? "").replace(/"/g, '""')}"`;
+  const rows = [...doc.items].sort((a, b) => a.date.localeCompare(b.date));
+  const lines = [["Date", "Type", "Category", "Note", "Amount (SGD)", "Whose / paid by", "Split", "Added by"].map(q).join(","),
+    ...rows.map((i) => [i.date, i.kind, q(catOf(i.cat).name), q(i.note), (i.a / 100).toFixed(2), q(i.owner ?? i.paidBy),
+      q(i.shares ? Object.entries(i.shares).map(([p, f]) => `${p} ${Math.round(f * 100)}%`).join(" / ") : ""), q(i.by)].join(","))];
+  downloadFile(`our-expenses_${localToday()}.csv`, lines.join("\n"), "text/csv");
+});
+$("#jsonBtn").addEventListener("click", () => downloadFile(`our-expenses_${localToday()}.json`, JSON.stringify(doc, null, 2), "application/json"));
+
+// ---------------------------------------------------------------- navigation
+
+function openFold(id) {
+  for (const btn of document.querySelectorAll(".fold-tab")) {
+    const open = btn.dataset.fold === id;
+    btn.classList.toggle("active", open);
+    btn.setAttribute("aria-expanded", String(open));
+    $(`#${btn.dataset.fold}`).hidden = !open;
+  }
+  store.set("daily.fold", id ?? "");
+}
+$(".fold-tabs").addEventListener("click", (e) => {
+  const btn = e.target.closest(".fold-tab");
+  if (btn) openFold(btn.classList.contains("active") ? null : btn.dataset.fold);
+});
+
+$("#personFilter").addEventListener("change", (e) => {
+  filter = e.target.value;
+  store.set("daily.filter", filter);
+  openCell = null;
+  render();
+});
+$("#prevMonth").addEventListener("click", () => { month = shiftMonth(month, -1); openCell = null; render(); });
+$("#nextMonth").addEventListener("click", () => { month = shiftMonth(month, 1); openCell = null; render(); });
+
+function readScreen() {
+  screen = location.hash === "#shared" ? "shared" : "personal";
+  openCell = null;
+  render();
+}
+window.addEventListener("hashchange", readScreen);
+
+setInterval(() => { if (doc) renderLog(); }, 60000);
+openFold(store.get("daily.fold") || null);
+setupIdentity();
+readScreen();
+sync.start();

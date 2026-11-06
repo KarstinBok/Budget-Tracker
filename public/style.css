@@ -594,3 +594,26 @@ dialog textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; 
 .suica-people { display: flex; flex-wrap: wrap; gap: 6px; }
 .suica-people input:disabled + span { opacity: 0.85; cursor: default; }
 #suicaTotal:empty { display: none; }
+
+/* ---------- everyday expenses (/daily/) ---------- */
+.screen-tabs { display: flex; gap: 0; background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 16px; }
+.screen-tabs a {
+  flex: 1; max-width: 220px; text-align: center; padding: 12px 10px;
+  color: var(--muted); text-decoration: none; font-weight: 600;
+  border-bottom: 3px solid transparent;
+}
+.screen-tabs a.active { color: var(--accent); border-bottom-color: var(--accent); }
+.month-bar { display: flex; align-items: center; justify-content: center; gap: 12px; }
+.month-bar h2 { font-size: 1.15rem; min-width: 170px; text-align: center; }
+.month-bar .icon-btn { font-size: 1.5rem; padding: 2px 14px; }
+.month-bar .icon-btn:disabled { opacity: 0.3; cursor: default; }
+.person-filter { justify-self: center; }
+.settle-box { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.settle-now { font-size: 1.15rem; margin: 6px 0 2px; }
+.split-custom { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+.daily .grid thead th:nth-last-child(2) { width: auto; }
+@media (max-width: 600px) {
+  .daily .grid thead th:last-child { width: 64px; }
+  .screen-tabs { padding: 0 8px; }
+  .screen-tabs a { max-width: none; }
+}

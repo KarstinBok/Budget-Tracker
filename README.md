@@ -55,6 +55,14 @@ A second page, linked from the top of the budget page (📒 Journal), for writin
 - **Shared and live:** everyone sees new and edited entries within a few seconds. If two people edit the same entry, the second save is refused with a message, and their text stays in the dialog so nothing is lost. Deleting an entry takes two clicks.
 - **Keep it for next time:** **Export Markdown** downloads the lessons and the whole journal as one file, and **Print** prints every write-up in full.
 
+## Everyday expenses (`/daily/`)
+
+A separate tracker for Karstin and Lilin's day-to-day spending in Singapore dollars, built the same way as the trip budget (live sync, category buttons, tap-to-expand table, donut summary, backups). It has no journal and no transcript upload. Install it on a phone from `/daily/` as **Our Expenses**.
+
+- **👤 Personal** (`/daily/#personal`): each of you records your own expenses. Everyone can see them; the filter shows yours, the other person's, or both. Cards show the month's total, average per day, top category and the change from last month.
+- **🤝 Shared** (`/daily/#shared`): expenses you split. Pick who paid and split equally or by custom %. **Settle up** shows who owes whom across all shared expenses and payments, and **💸 Record a payment** logs money paid back.
+- Browse months with ‹ ›. **⚙️ Settings** renames people (their expenses follow), edits categories, and downloads a CSV or all data. Every change is backed up like the trip data (`daily-v1`).
+
 ## How it works
 
 | Piece | Where |
