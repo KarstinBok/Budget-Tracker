@@ -49,18 +49,19 @@
       <article class="card"><h2 id="c4Label">Last month</h2><p class="big" id="c4"></p><p class="muted" id="c4Sub"></p></article>
     </section>
 
-    <section class="panel settle-box" id="settleBox" data-only="shared">
+    <section class="panel settle-box" id="settleBox">
       <div>
         <h2>Settle up</h2>
         <p class="settle-now" id="settleNow"></p>
-        <p class="muted small">Across every shared expense and payment so far, not only this month.</p>
+        <p class="muted small">Across every shared expense, borrowed card and payment so far, not only this month.</p>
       </div>
       <button class="btn" type="button" id="settleBtn">💸 Record a payment</button>
     </section>
 
     <nav class="fold-tabs" aria-label="More details">
       <button type="button" class="fold-tab" data-fold="summaryPanel" aria-controls="summaryPanel" aria-expanded="false">📊 Summary</button>
-      <button type="button" class="fold-tab" data-fold="paymentsPanel" aria-controls="paymentsPanel" aria-expanded="false" data-only="shared">💸 Payments</button>
+      <button type="button" class="fold-tab" data-fold="paymentsPanel" aria-controls="paymentsPanel" aria-expanded="false">💸 Payments</button>
+      <button type="button" class="fold-tab" data-fold="cardsPanel" aria-controls="cardsPanel" aria-expanded="false">💳 Cards</button>
       <button type="button" class="fold-tab" data-fold="logPanel" aria-controls="logPanel" aria-expanded="false">🕒 Recent changes</button>
     </nav>
 
@@ -80,6 +81,17 @@
     <section class="panel fold" id="paymentsPanel" hidden>
       <h2>Payments between you</h2>
       <ul class="items-list" id="payments"></ul>
+    </section>
+
+    <section class="panel fold" id="cardsPanel" hidden>
+      <div class="panel-head">
+        <div>
+          <h2>Our cards</h2>
+          <p class="muted small">What each card is for, and how much went on it this month. Using the other person's card on your own expense means paying them back.</p>
+        </div>
+        <div class="head-actions"><button class="btn ghost" type="button" id="manageCards">✏️ Manage cards</button></div>
+      </div>
+      <ul class="card-list" id="cardList"></ul>
     </section>
 
     <section class="panel fold" id="logPanel" hidden>
@@ -114,11 +126,16 @@
       </fieldset>
       <label>Amount (S$) <input name="amount" inputmode="decimal" autocomplete="off" placeholder="0.00" required /></label>
       <label>Note (optional) <input name="note" maxlength="80" placeholder="e.g. Lunch at the hawker centre" /></label>
+      <fieldset class="cat-pick">
+        <legend>Paid with</legend>
+        <div class="cat-choices" id="cardChoices" role="radiogroup" aria-label="Paid with"></div>
+        <p class="convert" id="cardNote"></p>
+      </fieldset>
       <fieldset class="cat-pick" data-kind="personal">
         <legend>Whose expense</legend>
         <div class="cat-choices" id="ownerChoices" role="radiogroup" aria-label="Whose expense"></div>
       </fieldset>
-      <fieldset class="cat-pick" data-kind="shared">
+      <fieldset class="cat-pick" data-kind="shared" id="payerPick">
         <legend>Paid by</legend>
         <div class="cat-choices" id="payerChoices" role="radiogroup" aria-label="Paid by"></div>
       </fieldset>
@@ -173,6 +190,19 @@
       <input name="emoji" maxlength="8" placeholder="☕" class="emoji-in" aria-label="Emoji" />
       <input name="name" maxlength="40" placeholder="New category" required aria-label="Category name" />
       <button class="btn" type="submit">Add</button>
+    </form>
+    <hr />
+    <h3 id="cardsHeading">Cards</h3>
+    <p class="muted small">Add each card, whose it is, and the categories it's for. The card for a category is picked for you when you add an expense.</p>
+    <ul class="card-edit-list" id="cardEditList"></ul>
+    <form id="cardForm" class="card-edit">
+      <div class="row card-add-row">
+        <input name="emoji" maxlength="8" placeholder="💳" class="emoji-in" aria-label="Card emoji" />
+        <input name="name" maxlength="30" placeholder="Card name, e.g. DBS Live Fresh" required aria-label="Card name" />
+        <select name="owner" aria-label="Whose card" required></select>
+      </div>
+      <div class="cat-choices card-cats" aria-label="Used for"></div>
+      <button class="btn" type="submit">Add card</button>
     </form>
     <hr />
     <h3>Your data</h3>

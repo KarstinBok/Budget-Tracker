@@ -5,6 +5,10 @@
 //  - "shared": spending the two of them split. paidBy says who paid, shares says who owes
 //    what fraction (e.g. { Karstin: 0.5, Lilin: 0.5 }).
 // Settlements record money paid back between people. Amounts are whole cents (SGD).
+//
+// Cards: each belongs to one person and lists the categories it's meant for. An expense can
+// say which card paid. Using someone else's card on a personal expense means owing them the
+// whole amount; on a shared expense the card's owner is the one who paid.
 
 import { randomUUID } from "node:crypto";
 import { createDocHandler, fail, str } from "../lib/shared-doc.mjs";
@@ -33,10 +37,20 @@ function defaultDoc() {
     // { id, kind: "personal" | "shared", date, cat, a: cents, note, by, t,
     //   owner (personal), paidBy + shares (shared) }
     items: [],
+    // { id, name, emoji, owner, cats: [category ids it's meant for] }
+    cards: [],
     // Money paid back: { id, date, from, to, a: cents, note, by, t }
     settlements: [],
     log: [],
   };
+}
+
+const MAX_CARDS = 20;
+
+// Older documents had no cards.
+function normalize(doc) {
+  doc.cards ??= [];
+  return doc;
 }
 
 const money = (cents) => `S$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -87,14 +101,32 @@ function readItem(doc, body) {
   const cat = doc.categories.find((c) => c.id === body.cat);
   if (!cat) fail("Pick a category");
   const item = { kind, date: date(body.date), cat: cat.id, a: cents(body.a), note: str(body.note, 80) };
+  let card = null;
+  if (body.card) {
+    card = doc.cards.find((c) => c.id === body.card);
+    if (!card) fail("That card was removed, pick another");
+    item.card = card.id;
+  }
   if (kind === "personal") item.owner = person(doc, body.owner, "whose expense this is");
-  else Object.assign(item, { paidBy: person(doc, body.paidBy, "who paid"), shares: shares(doc, body.shares) });
-  return { item, cat };
+  else Object.assign(item, { paidBy: card ? card.owner : person(doc, body.paidBy, "who paid"), shares: shares(doc, body.shares) });
+  return { item, cat, card };
 }
 
-function describe(item, cat) {
+const cardName = (card) => `${card.owner}'s ${card.name}`;
+
+function describe(doc, item, cat) {
   const whose = item.kind === "personal" ? `${item.owner}'s` : `shared (paid by ${item.paidBy})`;
-  return `${money(item.a)} ${whose} ${cat.emoji} ${cat.name} on ${prettyDate(item.date)}${item.note ? ` (${item.note})` : ""}`;
+  const card = item.card && doc.cards.find((c) => c.id === item.card);
+  return `${money(item.a)} ${whose} ${cat.emoji} ${cat.name} on ${prettyDate(item.date)}` +
+    `${card ? ` with ${cardName(card)}` : ""}${item.note ? ` (${item.note})` : ""}`;
+}
+
+// A card from the page: name, emoji, owner and the categories it's for.
+function readCard(doc, body) {
+  const name = str(body.name, 30);
+  if (!name) fail("Give the card a name");
+  const cats = [...new Set((Array.isArray(body.cats) ? body.cats : []).filter((id) => doc.categories.some((c) => c.id === id)))];
+  return { name, emoji: str(body.emoji, 8) || "💳", owner: person(doc, body.owner, "whose card this is"), cats };
 }
 
 function applyOp(doc, body, by) {
@@ -103,16 +135,16 @@ function applyOp(doc, body, by) {
       if (doc.items.length >= MAX_ITEMS) fail("Too many expenses");
       const { item, cat } = readItem(doc, body);
       doc.items.push({ id: randomUUID(), ...item, by, t: Date.now() });
-      return `added ${describe(item, cat)}`;
+      return `added ${describe(doc, item, cat)}`;
     }
 
     case "updateItem": {
       const old = doc.items.find((i) => i.id === body.id);
       if (!old) fail("This expense was deleted by someone else", 409);
       const { item, cat } = readItem(doc, { ...body, kind: old.kind });
-      for (const k of ["owner", "paidBy", "shares"]) delete old[k];
+      for (const k of ["owner", "paidBy", "shares", "card"]) delete old[k];
       Object.assign(old, item, { editedBy: by, editedAt: Date.now() });
-      return `edited ${describe(old, cat)}`;
+      return `edited ${describe(doc, old, cat)}`;
     }
 
     case "deleteItem": {
@@ -120,7 +152,7 @@ function applyOp(doc, body, by) {
       if (!item) return null;
       doc.items = doc.items.filter((i) => i !== item);
       const cat = doc.categories.find((c) => c.id === item.cat) ?? { emoji: "", name: "an expense" };
-      return `deleted ${describe(item, cat)}`;
+      return `deleted ${describe(doc, item, cat)}`;
     }
 
     case "addSettlement": {
@@ -151,6 +183,7 @@ function applyOp(doc, body, by) {
         if (i.shares) i.shares = Object.fromEntries(Object.entries(i.shares).map(([p, f]) => [rename(p), f]));
       }
       for (const s of doc.settlements) Object.assign(s, { from: rename(s.from), to: rename(s.to) });
+      for (const c of doc.cards) c.owner = rename(c.owner);
       doc.people = people;
       return `updated the people to ${people.join(" and ")}`;
     }
@@ -180,7 +213,35 @@ function applyOp(doc, body, by) {
       const used = doc.items.filter((i) => i.cat === cat.id).length;
       if (used) fail(`${cat.name} has ${used} expense${used === 1 ? "" : "s"}, so it can't be removed`);
       doc.categories = doc.categories.filter((c) => c !== cat);
+      for (const card of doc.cards) card.cats = card.cats.filter((id) => id !== cat.id);
       return `removed the category ${cat.name}`;
+    }
+
+    case "addCard": {
+      if (doc.cards.length >= MAX_CARDS) fail("Too many cards");
+      const card = { id: randomUUID(), ...readCard(doc, body) };
+      doc.cards.push(card);
+      return `added the card ${cardName(card)}`;
+    }
+
+    case "editCard": {
+      const card = doc.cards.find((c) => c.id === body.id);
+      if (!card) fail("That card was removed");
+      const next = readCard(doc, body);
+      if (next.owner !== card.owner && doc.items.some((i) => i.card === card.id)) {
+        fail(`${cardName(card)} has expenses on it, so its owner can't change. Add a new card instead.`);
+      }
+      Object.assign(card, next);
+      return `updated the card ${cardName(card)}`;
+    }
+
+    case "removeCard": {
+      const card = doc.cards.find((c) => c.id === body.id);
+      if (!card) return null;
+      const used = doc.items.filter((i) => i.card === card.id).length;
+      if (used) fail(`${cardName(card)} has ${used} expense${used === 1 ? "" : "s"}, so it can't be removed`);
+      doc.cards = doc.cards.filter((c) => c !== card);
+      return `removed the card ${cardName(card)}`;
     }
 
     default:
@@ -191,6 +252,7 @@ function applyOp(doc, body, by) {
 export default createDocHandler({
   key: DAILY_KEY,
   defaultDoc,
+  normalize,
   applyOp,
   busyMessage: "The tracker is busy, please try again.",
 });

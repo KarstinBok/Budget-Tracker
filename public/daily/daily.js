@@ -1,7 +1,8 @@
 // Everyday expenses – client for /daily/ (netlify/functions/daily.mjs, /api/daily).
 // Two screens on one page: 👤 Personal (each person's own spending, visible to both) and
 // 🤝 Shared (spending that is split, with who owes whom). Changes sync live like the
-// Japan trip tracker; amounts are whole cents in SGD.
+// Japan trip tracker; amounts are whole cents in SGD. Expenses can say which card paid:
+// using the other person's card on your own expense means paying them back.
 
 import {
   $, esc, store, localToday, fmtDay, timeAgo, toast, downloadFile,
@@ -14,6 +15,7 @@ let month = localToday().slice(0, 7); // "YYYY-MM"
 let filter = store.get("daily.filter") || ""; // personal screen: a person, or "all"
 let openCell = null; // { date, cat } dropped down in the table; cat null = whole day
 let editing = null; // expense being edited in the dialog
+let cardTouched = false; // the card was picked by hand in the open dialog, so don't suggest one
 
 const sync = createSync({
   path: "/api/daily",
@@ -68,6 +70,14 @@ function me() {
   return doc.people.find((p) => n && (norm(p) === n || n.startsWith(norm(p)) || norm(p).startsWith(n))) ?? null;
 }
 
+const cardOf = (id) => (id && doc.cards.find((c) => c.id === id)) || null;
+const cardLabel = (c) => `${c.emoji} ${c.owner}'s ${c.name}`;
+// A personal expense paid with someone else's card: who owes whom.
+const borrowed = (i) => {
+  const c = i.kind === "personal" && cardOf(i.card);
+  return c && c.owner !== i.owner ? { from: i.owner, to: c.owner, card: c } : null;
+};
+
 const catOf = (id) => doc.categories.find((c) => c.id === id) ?? { id, name: "Other", emoji: "📦" };
 
 // ---------------------------------------------------------------- data
@@ -80,9 +90,17 @@ function itemsFor(ym, who = filter) {
 
 const sum = (items) => items.reduce((s, i) => s + i.a, 0);
 
-// Shared: each person's balance over all time. Positive = is owed money.
+// Each person's balance over all time, from shared expenses, borrowed cards and payments.
+// Positive = is owed money.
 function balances() {
   const net = Object.fromEntries(doc.people.map((p) => [p, 0]));
+  for (const i of doc.items) {
+    const b = borrowed(i);
+    if (b && b.from in net && b.to in net) {
+      net[b.to] += i.a;
+      net[b.from] -= i.a;
+    }
+  }
   for (const i of doc.items.filter((x) => x.kind === "shared")) {
     if (i.paidBy in net) net[i.paidBy] += i.a;
     for (const [p, f] of Object.entries(i.shares ?? {})) if (p in net) net[p] -= i.a * f;
@@ -129,7 +147,8 @@ function render() {
 
   const items = itemsFor(month);
   renderCards(items);
-  if (screen === "shared") renderSettle();
+  renderSettle();
+  renderCardList();
   renderGrid(items);
   renderSummary(items);
   renderLog();
@@ -178,9 +197,42 @@ function renderCards(items) {
 
 function renderSettle() {
   const t = balances();
-  $("#settleNow").innerHTML = t.length
+  // Borrowed-card totals this month, by direction, so the balance can be explained.
+  const lent = new Map();
+  for (const i of doc.items) {
+    const b = i.date.startsWith(month) && borrowed(i);
+    if (b) lent.set(`${b.from}\u0000${b.to}`, (lent.get(`${b.from}\u0000${b.to}`) ?? 0) + i.a);
+  }
+  const lines = [...lent].map(([k, a]) => {
+    const [from, to] = k.split("\u0000");
+    return `${esc(from)} used ${esc(to)}'s card for ${money(a)} in ${monthName(month, { month: "long" })}`;
+  });
+  $("#settleNow").innerHTML = (t.length
     ? t.map((x) => `<b>${esc(x.from)}</b> owes <b>${esc(x.to)}</b> <b>${money(x.a)}</b>`).join("<br>")
-    : "✅ You're all square.";
+    : "✅ You're all square.") + (lines.length ? `<span class="muted small borrow-line">💳 ${lines.join(" · ")}</span>` : "");
+}
+
+// The 💳 Cards fold-out: each card, what it's for, and what went on it this month.
+function renderCardList() {
+  if (!doc.cards.length) {
+    $("#cardList").innerHTML = `<li class="muted small">No cards yet. Tap ✏️ Manage cards to add yours and Lilin's.</li>`;
+    return;
+  }
+  const items = doc.items.filter((i) => i.date.startsWith(month));
+  $("#cardList").innerHTML = doc.cards.map((c) => {
+    const on = items.filter((i) => i.card === c.id);
+    const byOthers = new Map();
+    for (const i of on) { const b = borrowed(i); if (b) byOthers.set(b.from, (byOthers.get(b.from) ?? 0) + i.a); }
+    const cats = c.cats.map((id) => catOf(id)).map((k) => `<span class="tag">${esc(k.emoji)} ${esc(k.name)}</span>`).join("");
+    return `<li>
+      <div class="item-main">
+        <span class="item-note"><b>${esc(c.emoji)} ${esc(c.name)}</b> · ${esc(c.owner)}'s</span>
+        <span class="card-cats-view">${cats || `<span class="muted small">Any category</span>`}</span>
+        ${byOthers.size ? `<span class="item-meta">${[...byOthers].map(([p, a]) => `${esc(p)} used it for ${money(a)}, owes ${esc(c.owner)}`).join(" · ")}</span>` : ""}
+      </div>
+      <div class="item-amt">${money(sum(on))}<span class="muted small"> this month</span></div>
+    </li>`;
+  }).join("");
 }
 
 function renderGrid(items) {
@@ -220,9 +272,13 @@ function itemRow(i) {
   const who = i.kind === "personal"
     ? i.owner
     : `Paid by ${i.paidBy} · ${Object.entries(i.shares ?? {}).filter(([, f]) => f > 0).map(([p, f]) => `${p} ${Math.round(f * 100)}%`).join(" / ")}`;
+  const card = cardOf(i.card);
+  const b = borrowed(i);
+  const paid = card ? `<span class="item-card">💳 ${esc(card.owner)}'s ${esc(card.name)}${b ? ` · ${esc(b.from)} owes ${esc(b.to)}` : ""}</span>` : "";
   return `<li>
     <div class="item-main">
       <span class="item-note">${esc(c.emoji)} <b class="item-who">${esc(who)}</b>${i.note ? ` · ${esc(i.note)}` : ""}</span>
+      ${paid}
       <span class="item-meta">${fmtDay(i.date)} · added by ${esc(i.by)} ${timeAgo(i.t)}${i.editedAt ? ` · edited by ${esc(i.editedBy)}` : ""}</span>
     </div>
     <div class="item-amt">${money(i.a)}</div>
@@ -392,6 +448,35 @@ function updateSplitUI() {
   $("#splitPreview").textContent = a > 0 ? doc.people.map((p) => `${p} ${money(a * shares[p])}`).join(" · ") : "";
 }
 
+// The card meant for this category, preferring the given person's own; null if none.
+function suggestCard(cat, person) {
+  const fits = doc.cards.filter((c) => c.cats.includes(cat));
+  return fits.find((c) => c.owner === person) ?? fits[0] ?? null;
+}
+
+function updateCardUI() {
+  const kind = editing?.kind ?? screen;
+  if (!cardTouched) {
+    const person = kind === "personal" ? radioValue("owner") : me();
+    const id = suggestCard(radioValue("cat"), person)?.id ?? "";
+    const input = form.querySelector(`input[name="card"][value="${CSS.escape(id)}"]`);
+    if (input) input.checked = true;
+  }
+  const card = cardOf(radioValue("card"));
+  const a = parseCents(form.elements.amount.value);
+  const amt = a > 0 ? money(a) : "the amount";
+  let note = "";
+  if (card && kind === "shared") {
+    note = `Paid by ${card.owner}, on their card.`;
+    const payer = form.querySelector(`input[name="payer"][value="${CSS.escape(card.owner)}"]`);
+    if (payer) payer.checked = true;
+  } else if (card && card.owner !== radioValue("owner")) {
+    note = `${radioValue("owner")} will owe ${card.owner} ${amt} for using ${card.owner}'s card.`;
+  }
+  $("#cardNote").textContent = note;
+  $("#payerPick").hidden = kind !== "shared" || !!card;
+}
+
 function openAdd(prefill = {}, item = null) {
   if (!doc) return;
   editing = item;
@@ -405,6 +490,10 @@ function openAdd(prefill = {}, item = null) {
   const people = doc.people.map((p) => ({ value: p, label: esc(p) }));
   chips("#ownerChoices", "owner", people, item?.owner ?? (filter !== "all" ? filter : me()) ?? doc.people[0]);
   chips("#payerChoices", "payer", people, item?.paidBy ?? me() ?? doc.people[0]);
+  chips("#cardChoices", "card", [{ value: "", label: "💵 Cash / other" },
+    ...doc.cards.map((c) => ({ value: c.id, label: `${esc(c.emoji)} ${esc(c.name)} <span class="muted small">${esc(c.owner)}</span>` }))],
+    item?.card ?? "");
+  cardTouched = !!item;
   const shares = item?.shares ?? {};
   const equal = !item || doc.people.every((p) => Math.abs((shares[p] ?? 0) - 1 / doc.people.length) < 0.001);
   form.querySelector(`input[name="split"][value="${equal ? "equal" : "custom"}"]`).checked = true;
@@ -417,11 +506,16 @@ function openAdd(prefill = {}, item = null) {
   $("#addTitle").textContent = `${item ? "Edit" : "Add"} ${kind === "shared" ? "shared " : ""}expense`;
   $("#addSubmit").textContent = item ? "Save changes" : "Add";
   updateSplitUI();
+  updateCardUI();
   $("#addDlg").showModal();
   f.amount.focus();
 }
 
-form.addEventListener("input", updateSplitUI);
+form.addEventListener("input", (e) => {
+  if (e.target.name === "card") cardTouched = true;
+  updateSplitUI();
+  updateCardUI();
+});
 $("#addCancel").addEventListener("click", () => $("#addDlg").close());
 for (const b of document.querySelectorAll("[data-add]")) b.addEventListener("click", () => openAdd());
 
@@ -431,8 +525,8 @@ form.addEventListener("submit", async (e) => {
   if (!(a > 0)) return toast("Enter an amount, e.g. 12.50");
   const kind = editing?.kind ?? screen;
   const body = {
-    kind, date: form.elements.date.value, cat: radioValue("cat"), a, note: form.elements.note.value,
-    ...(kind === "personal" ? { owner: radioValue("owner") } : { paidBy: radioValue("payer"), shares: splitShares() }),
+    kind, date: form.elements.date.value, cat: radioValue("cat"), a, note: form.elements.note.value, card: radioValue("card") || "",
+    ...(kind === "personal" ? { owner: radioValue("owner") } : { paidBy: cardOf(radioValue("card"))?.owner ?? radioValue("payer"), shares: splitShares() }),
   };
   const submit = $("#addSubmit");
   submit.disabled = true;
@@ -480,7 +574,60 @@ function renderSettings() {
     <input class="emoji-in" name="emoji" value="${esc(c.emoji)}" maxlength="8" aria-label="Emoji" />
     <input name="name" value="${esc(c.name)}" maxlength="40" aria-label="Category name" />
     <span class="acts"><button type="button" class="icon-btn" data-remove-cat title="Remove">🗑</button></span></li>`).join("");
+  const owners = (sel) => doc.people.map((p) => `<option ${p === sel ? "selected" : ""}>${esc(p)}</option>`).join("");
+  const catBoxes = (picked) => doc.categories.map((k) => `<label class="cat-choice"><input type="checkbox" name="cats" value="${esc(k.id)}"
+    ${picked.includes(k.id) ? "checked" : ""} /><span><span class="emoji">${esc(k.emoji)}</span>${esc(k.name)}</span></label>`).join("");
+  $("#cardEditList").innerHTML = doc.cards.map((c) => `<li class="card-edit" data-id="${esc(c.id)}">
+    <div class="row card-add-row">
+      <input class="emoji-in" name="emoji" value="${esc(c.emoji)}" maxlength="8" aria-label="Card emoji" />
+      <input name="name" value="${esc(c.name)}" maxlength="30" aria-label="Card name" />
+      <select name="owner" aria-label="Whose card">${owners(c.owner)}</select>
+      <button type="button" class="icon-btn" data-remove-card title="Remove card" aria-label="Remove ${esc(c.name)}">🗑</button>
+    </div>
+    <div class="cat-choices card-cats" aria-label="${esc(c.name)} is used for">${catBoxes(c.cats)}</div>
+  </li>`).join("") || `<li class="muted small">No cards yet.</li>`;
+  const add = $("#cardForm");
+  if (!add.contains(document.activeElement)) {
+    const picked = [...add.querySelectorAll('input[name="cats"]:checked')].map((i) => i.value);
+    add.elements.owner.innerHTML = owners(add.elements.owner.value || me() || doc.people[0]);
+    add.querySelector(".card-cats").innerHTML = catBoxes(picked);
+  }
 }
+
+const cardFields = (el) => ({
+  emoji: el.querySelector('[name="emoji"]').value,
+  name: el.querySelector('[name="name"]').value,
+  owner: el.querySelector('[name="owner"]').value,
+  cats: [...el.querySelectorAll('input[name="cats"]:checked')].map((i) => i.value),
+});
+
+$("#cardEditList").addEventListener("change", async (e) => {
+  const li = e.target.closest("li[data-id]");
+  if (li && !(await sync.runOp({ op: "editCard", id: li.dataset.id, ...cardFields(li) }, "Card saved"))) renderSettingsNow();
+});
+$("#cardEditList").addEventListener("click", (e) => {
+  if (e.target.closest("[data-remove-card]")) sync.runOp({ op: "removeCard", id: e.target.closest("li").dataset.id }, "Card removed");
+});
+$("#cardForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const fields = cardFields(e.target);
+  if (await sync.runOp({ op: "addCard", ...fields }, `Added ${fields.name}`)) {
+    e.target.reset();
+    document.activeElement?.blur();
+    renderSettingsNow();
+  }
+});
+// Redraws settings even while a field in it has focus (after a refused or finished edit).
+function renderSettingsNow() {
+  document.activeElement?.blur();
+  renderSettings();
+}
+$("#manageCards").addEventListener("click", () => {
+  if (!doc) return;
+  renderSettings();
+  $("#settingsDlg").showModal();
+  $("#cardsHeading").scrollIntoView({ block: "start" });
+});
 
 $("#settingsBtn").addEventListener("click", () => { if (doc) { renderSettings(); $("#settingsDlg").showModal(); } });
 $("#closeSettings").addEventListener("click", () => $("#settingsDlg").close());
@@ -504,9 +651,10 @@ $("#catForm").addEventListener("submit", async (e) => {
 $("#csvBtn").addEventListener("click", () => {
   const q = (s) => `"${String(s ?? "").replace(/"/g, '""')}"`;
   const rows = [...doc.items].sort((a, b) => a.date.localeCompare(b.date));
-  const lines = [["Date", "Type", "Category", "Note", "Amount (SGD)", "Whose / paid by", "Split", "Added by"].map(q).join(","),
+  const lines = [["Date", "Type", "Category", "Note", "Amount (SGD)", "Whose / paid by", "Split", "Card", "Added by"].map(q).join(","),
     ...rows.map((i) => [i.date, i.kind, q(catOf(i.cat).name), q(i.note), (i.a / 100).toFixed(2), q(i.owner ?? i.paidBy),
-      q(i.shares ? Object.entries(i.shares).map(([p, f]) => `${p} ${Math.round(f * 100)}%`).join(" / ") : ""), q(i.by)].join(","))];
+      q(i.shares ? Object.entries(i.shares).map(([p, f]) => `${p} ${Math.round(f * 100)}%`).join(" / ") : ""),
+      q(cardOf(i.card) ? `${cardOf(i.card).owner}'s ${cardOf(i.card).name}` : ""), q(i.by)].join(","))];
   downloadFile(`our-expenses_${localToday()}.csv`, lines.join("\n"), "text/csv");
 });
 $("#jsonBtn").addEventListener("click", () => downloadFile(`our-expenses_${localToday()}.json`, JSON.stringify(doc, null, 2), "application/json"));

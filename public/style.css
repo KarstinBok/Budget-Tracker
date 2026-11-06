@@ -617,3 +617,21 @@ dialog textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; 
   .screen-tabs { padding: 0 8px; }
   .screen-tabs a { max-width: none; }
 }
+.settle-now .borrow-line { display: block; margin-top: 4px; font-size: 0.85rem; }
+.item-card { display: block; font-size: 0.82rem; color: var(--muted); }
+.card-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.card-list li { display: flex; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; }
+.card-list .item-main { display: grid; gap: 4px; min-width: 0; }
+.card-list .item-amt { text-align: right; white-space: nowrap; font-weight: 600; }
+.card-list .item-amt .muted { display: block; font-weight: 400; }
+.card-cats-view { display: flex; flex-wrap: wrap; gap: 4px; }
+.card-cats-view .tag { font-size: 0.78rem; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); }
+.card-edit-list { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 10px; }
+.card-edit { display: grid; gap: 6px; padding: 10px; border: 1px solid var(--border); border-radius: 10px; }
+.card-add-row { grid-template-columns: 56px 1fr auto; align-items: center; }
+.card-add-row select { grid-row: 2; grid-column: 1 / 3; }
+#cardForm .card-add-row { grid-template-columns: 56px 1fr; }
+#cardNote { font-size: 0.9rem; }
+.cat-choice input:checked + span .muted { color: inherit; opacity: 0.85; }
+.card-cats .cat-choice > span { font-size: 0.82rem; padding: 4px 8px; }
+#cardForm .btn { justify-self: start; }
