@@ -871,16 +871,3 @@ dialog.bell-dlg { width: min(480px, calc(100vw - 24px)); padding: 16px; }
 .suica-list li { padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; }
 .suica-list p { margin: 4px 0 0; }
 .push-who { display: flex; gap: 8px; flex-wrap: wrap; }
-
-/* Everyday expenses: 📥 import from Spendee */
-.import-body { display: grid; gap: 12px; }
-.import-file { position: relative; justify-self: start; cursor: pointer; }
-.import-file input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-#importPreview { display: grid; gap: 12px; }
-#importPreview[hidden] { display: none; }
-.import-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.import-checks { display: flex; flex-wrap: wrap; gap: 6px; }
-.import-cats { display: grid; gap: 8px; max-height: 40vh; overflow: auto; }
-.import-cats label { display: grid; grid-template-columns: 1fr 1.2fr; gap: 8px; align-items: center; color: var(--text); }
-#importCurrencies { display: grid; gap: 8px; }
-.import-list .btn.confirm { color: var(--accent); border-color: var(--accent); }

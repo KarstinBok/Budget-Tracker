@@ -234,11 +234,6 @@
       <button class="btn" type="submit">Add card</button>
     </form>
     <hr />
-    <h3>Import</h3>
-    <p class="muted small">Bring in expenses exported from another app as a CSV file, such as Spendee (Settings → Export data → CSV).</p>
-    <div class="backup-actions"><button class="btn" type="button" id="importBtn">📥 Import from Spendee (CSV)</button></div>
-    <ul class="items-list import-list" id="importList"></ul>
-    <hr />
     <h3>Your data</h3>
     <p class="muted small">Every change is backed up on Netlify. You can also download everything.</p>
     <div class="backup-actions">
@@ -246,29 +241,6 @@
       <button class="btn ghost" type="button" id="jsonBtn">⬇️ Download all data</button>
     </div>
     <div class="dlg-actions"><button class="btn ghost" type="button" id="closeSettings">Close</button></div>
-  </dialog>
-
-  <dialog id="importDlg" class="wide-dlg">
-    <div class="import-body">
-      <div class="bell-head"><h2>📥 Import from Spendee</h2><button type="button" class="icon-btn" id="importClose" aria-label="Close">✕</button></div>
-      <label class="btn ghost import-file">📄 Choose the CSV file<input type="file" id="importFile" accept=".csv,text/csv,text/plain" /></label>
-      <p class="muted small" id="importHint">In Spendee: Settings → Export data → CSV, then save the file to your phone or computer. Only expenses are imported: income and transfers are left out.</p>
-      <div id="importPreview" hidden>
-        <div class="import-stats" id="importStats"></div>
-        <label>Whose expenses <select id="importOwner"></select></label>
-        <fieldset class="pay-edit" id="importWalletsBox"><legend>Wallets</legend><div id="importWallets" class="import-checks"></div></fieldset>
-        <fieldset class="pay-edit" id="importCurrencyBox" hidden><legend>Other currencies</legend><div id="importCurrencies"></div></fieldset>
-        <fieldset class="pay-edit"><legend>Categories</legend>
-          <p class="muted small">Each Spendee category goes into one of ours. Pick "＋ New category" to add it as it is.</p>
-          <div id="importCats" class="import-cats"></div>
-        </fieldset>
-        <p class="muted small" id="importDupes"></p>
-        <div class="dlg-actions">
-          <button class="btn ghost" type="button" id="importCancel">Cancel</button>
-          <button class="btn" type="button" id="importGo" disabled>Import</button>
-        </div>
-      </div>
-    </div>
   </dialog>
 
   <dialog id="nameDlg">
