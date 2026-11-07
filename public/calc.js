@@ -48,6 +48,10 @@ export function settleUp(doc) {
 const ACTIVITY = { sedentary: 1.2, light: 1.375, moderate: 1.55, active: 1.725, very: 1.9 };
 const KCAL_PER_KG = 7700;
 
+// Whether a person's exercise calories are added back to their daily goal (on unless they
+// turned it off in Goals). Exercise is still logged and shown either way.
+export const exerciseAddsBack = (doc, p) => doc.profiles?.[p]?.addExercise !== false;
+
 // A person's weigh-ins, oldest first.
 export function weighInsOf(doc, p) {
   return doc.weights.filter((w) => w.person === p).sort((a, b) => a.date.localeCompare(b.date) || a.t - b.t);

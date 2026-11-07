@@ -23,6 +23,7 @@ function defaultProfile() {
   return {
     sex: "", birthYear: null, heightCm: null, goalKg: null, weeklyKg: -0.5,
     activity: "light", kcalTarget: null, macros: { p: 30, c: 40, f: 30 },
+    addExercise: true, // add exercise calories back to the day's goal
   };
 }
 
@@ -138,6 +139,7 @@ function readProfile(body, old) {
   if (body.goalKg !== undefined) p.goalKg = num(body.goalKg, { min: 20, max: 400, dp: 1, label: "goal weight", optional: true });
   if (body.weeklyKg !== undefined) p.weeklyKg = num(body.weeklyKg, { min: -1, max: 1, dp: 2, label: "weekly goal" });
   if (body.activity !== undefined) p.activity = ACTIVITY.includes(body.activity) ? body.activity : "light";
+  if (body.addExercise !== undefined) p.addExercise = body.addExercise === true || body.addExercise === "on";
   if (body.kcalTarget !== undefined) p.kcalTarget = num(body.kcalTarget, { min: 800, max: 6000, label: "calorie goal", optional: true });
   if (body.macros !== undefined) {
     const m = { p: num(body.macros?.p, { max: 100, label: "protein %" }), c: num(body.macros?.c, { max: 100, label: "carbs %" }), f: num(body.macros?.f, { max: 100, label: "fat %" }) };

@@ -103,7 +103,7 @@ const TOOLS = [
   {
     name: "log_exercise",
     title: "Log exercise",
-    description: "Record exercise and the calories it burned (they're added back to the day's goal). Estimate calories from MET x kg x hours if the person doesn't give them.",
+    description: "Record exercise and the calories it burned (added back to the day's goal unless the person turned that off; see exercise_added_to_goal). Estimate calories from MET x kg x hours if the person doesn't give them.",
     inputSchema: {
       type: "object",
       properties: { person: PERSON, date: DATE, name: { type: "string" }, minutes: num("Minutes."), kcal: num("Calories burned."), note: { type: "string" } },
@@ -175,6 +175,7 @@ function diary(doc, p, d) {
   const goal = targets(doc, p, d);
   const eaten = { kcal: total(foods, "kcal"), protein_g: total(foods, "p"), carbs_g: total(foods, "c"), fat_g: total(foods, "f") };
   const burned = total(ex, "kcal");
+  const addsBack = doc.profiles[p]?.addExercise !== false;
   const latest = doc.weights.filter((w) => w.person === p).sort((a, b) => a.date.localeCompare(b.date)).at(-1);
   return {
     person: p,
@@ -182,8 +183,9 @@ function diary(doc, p, d) {
     goal,
     eaten,
     exercise_kcal: burned,
+    exercise_added_to_goal: addsBack,
     remaining: {
-      kcal: Math.round(goal.kcal - eaten.kcal + burned),
+      kcal: Math.round(goal.kcal - eaten.kcal + (addsBack ? burned : 0)),
       protein_g: r1(goal.protein_g - eaten.protein_g), carbs_g: r1(goal.carbs_g - eaten.carbs_g), fat_g: r1(goal.fat_g - eaten.fat_g),
     },
     meals: Object.fromEntries(MEALS.map((m) => [m, foods.filter((f) => f.meal === m).map((f) => ({
