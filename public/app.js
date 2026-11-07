@@ -240,53 +240,81 @@ function render(prevDoc = null) {
   }
 }
 
+const tripOver = () => localToday() > doc.trip.end;
+
+// Credit cards (not Suica) with what's recorded on them, in yen, including Suica spending
+// on a Suica they topped up; and the bank's billed S$ once the statement is in.
+function cardStatements() {
+  return (doc.cards ?? []).filter((c) => !isSuicaCard(c)).map((c) => {
+    const recorded = cardSpentSgd(c.id) * yenPerSgd();
+    const billed = c.billedSgd ?? null;
+    return { card: c, recorded, billed, diffSgd: billed === null ? null : billed - recorded / yenPerSgd() };
+  }).filter((r) => r.recorded > 0 || r.billed !== null);
+}
+
 function renderPayments() {
   const cards = doc.cards ?? [];
+  const over = tripOver();
 
+  // During the trip: each card's spending against its limit. After it: against the statement.
   const warnings = [];
-  $("#cardMeters").innerHTML = cards.length ? limitGroups().map((g) => {
-    const used = groupSpentSgd(g);
-    const level = cardLevel(used, g.limitSgd);
-    if (level) warnings.push(cardWarning(g, used));
-    const pct = (used / g.limitSgd) * 100;
-    const perCard = g.shared ? `<p class="muted small">${g.cards.map((c) => `${esc(c.name)} ${fmtS(cardSpentSgd(c.id))}`).join(" · ")}</p>` : "";
-    return `<li class="${level}">
-      <div class="cm-head"><b>${esc(g.label)}${g.shared ? ' <span class="tag">shared limit</span>' : ""}</b><span>${fmtS(used)} of ${fmtS(g.limitSgd)}</span></div>
-      <div class="meter ${level}"><span style="width:${Math.min(100, pct)}%"></span></div>
-      <p class="muted small">${used >= g.limitSgd ? `Over the limit by ${fmtS(used - g.limitSgd)}` : `${fmtS(g.limitSgd - used)} left · ${Math.round(pct)}% used`}</p>
-      ${perCard}
-    </li>`;
-  }).join("") : `<li class="muted small">No cards yet. Add one when you record a card payment, or in ⚙️ Settings.</li>`;
+  $("#cardsTitle").textContent = over ? "Card statements" : "Card limits";
+  $("#cardMeters").hidden = over;
+  $("#statements").hidden = !over;
+  $("#cardsNote").hidden = !over;
+  if (over) {
+    const rows = cardStatements();
+    $("#cardsNote").textContent = `Recorded spending (including Suica top-ups paid with the card) against what the bank billed, at S$1 = ¥${sgdFmt.format(yenPerSgd())}. Enter a card's billed amount in ⚙️ Settings.`;
+    $("#statements").innerHTML = `
+      <thead><tr><th>Card</th><th class="num">Recorded</th><th class="num">Billed</th><th class="num">Difference</th></tr></thead>
+      <tbody>${rows.map((r) => `<tr>
+        <td>${esc(cardLabel(r.card))}</td>
+        <td class="num">${fmtS(r.recorded / yenPerSgd())}<div class="muted small">${yen.format(Math.round(r.recorded))}</div></td>
+        <td class="num">${r.billed === null ? `<span class="muted">—</span>` : fmtS(r.billed)}</td>
+        <td class="num">${r.diffSgd === null ? "" : Math.abs(r.diffSgd) < 1 ? "✅ matches" : `<b>${r.diffSgd > 0 ? "+" : "−"}${fmtS(Math.abs(r.diffSgd))}</b><div class="muted small">${r.diffSgd > 0 ? "not recorded" : "recorded but not billed"}</div>`}</td>
+      </tr>`).join("") || `<tr><td colspan="4" class="muted small">No card spending.</td></tr>`}</tbody>`;
+  } else {
+    $("#cardMeters").innerHTML = cards.length ? limitGroups().map((g) => {
+      const used = groupSpentSgd(g);
+      const level = cardLevel(used, g.limitSgd);
+      if (level) warnings.push(cardWarning(g, used));
+      const pct = (used / g.limitSgd) * 100;
+      const perCard = g.shared ? `<p class="muted small">${g.cards.map((c) => `${esc(c.name)} ${fmtS(cardSpentSgd(c.id))}`).join(" · ")}</p>` : "";
+      return `<li class="${level}">
+        <div class="cm-head"><b>${esc(g.label)}${g.shared ? ' <span class="tag">shared limit</span>' : ""}</b><span>${fmtS(used)} of ${fmtS(g.limitSgd)}</span></div>
+        <div class="meter ${level}"><span style="width:${Math.min(100, pct)}%"></span></div>
+        <p class="muted small">${used >= g.limitSgd ? `Over the limit by ${fmtS(used - g.limitSgd)}` : `${fmtS(g.limitSgd - used)} left · ${Math.round(pct)}% used`}</p>
+        ${perCard}
+      </li>`;
+    }).join("") : `<li class="muted small">No cards yet. Add one when you record a card payment, or in ⚙️ Settings.</li>`;
+  }
 
+  // Limit warnings only matter while the trip is on.
   const banner = $("#limitBanner");
   banner.hidden = !warnings.length;
   $('[data-fold="paymentsPanel"]').classList.toggle("warn", warnings.length > 0);
   banner.innerHTML = warnings.map((w) => `<p>${esc(w)}</p>`).join("");
 
-  // Cash and card spending per person, in S$.
-  const rows = new Map();
+  // Each person's Suica: what topped it up and what was spent from it.
+  const owners = [];
   for (const i of doc.items) {
-    if (!i.pay) continue;
-    // One row per person, whichever name (settings or device) the expense carries.
-    const who = [...rows.keys()].find((k) => samePerson(k, i.payer)) ?? doc.settle.people.find((p) => samePerson(p, i.payer)) ?? i.payer;
-    const r = rows.get(who) ?? { cash: 0, card: 0, suica: 0 };
-    r[suicaOwner(i) ? "suica" : i.pay] += i.a;
-    rows.set(who, r);
+    const o = suicaOwner(i);
+    if (o && !owners.some((x) => samePerson(x, o))) owners.push(o);
   }
-  const unrecorded = doc.items.filter((i) => !i.pay).reduce((sum, i) => sum + i.a, 0);
-  $("#payers").innerHTML = `
-    <thead><tr><th>Person</th><th class="num">💵 Cash</th><th class="num">💳 Card</th><th class="num">🚃 Suica</th><th class="num">Total</th></tr></thead>
-    <tbody>${[...rows].sort((a, b) => a[0].localeCompare(b[0])).map(([who, r]) => `<tr>
-      <td>${esc(who)}</td><td class="num">${fmtSgd(r.cash)}</td><td class="num">${fmtSgd(r.card)}</td><td class="num">${fmtSgd(r.suica)}</td>
-      <td class="num"><b>${fmtSgd(r.cash + r.card + r.suica)}</b></td>
-    </tr>`).join("")}
-    ${unrecorded ? `<tr><td class="muted">Not recorded</td><td></td><td></td><td></td><td class="num muted">${fmtSgd(unrecorded)}</td></tr>` : ""}</tbody>`;
+  const display = (o) => doc.settle.people.find((p) => samePerson(p, o)) ?? o;
+  $("#suicaList").innerHTML = owners.length ? owners.map((o) => {
+    const spent = doc.items.filter((i) => suicaOwner(i) && samePerson(suicaOwner(i), o)).reduce((s, i) => s + i.a, 0);
+    const f = suicaFunding(o);
+    const from = f === "cash" ? "💵 the pool cash (shared by pool share)" : f.id ? `💳 ${esc(cardLabel(f))} (split evenly, counted on that card)` : "their own money (split evenly)";
+    return `<li><div class="cm-head"><b>🚃 ${esc(display(o))}'s Suica</b><span>${yen.format(spent)}</span></div>
+      <p class="muted small">Topped up with ${from} · ${fmtSgd(spent)} spent</p></li>`;
+  }).join("") : `<li class="muted small">No Suica spending.</li>`;
 }
 
 function renderCards({ total, loggedDays, byDay, days }) {
   $("#sumTotal").textContent = yen.format(total);
   $("#sumTotalSgd").textContent = fmtSgd(total);
-  $("#sumRate").textContent = rateLabel();
+  $("#sumRate").textContent = `${doc.items.length} expense${doc.items.length === 1 ? "" : "s"}`;
 
   const avg = loggedDays ? total / loggedDays : 0;
   $("#sumAvg").textContent = yen.format(Math.round(avg));
@@ -299,6 +327,7 @@ function renderCards({ total, loggedDays, byDay, days }) {
   const { budgetSgd, end, start } = doc.trip;
   const meter = $("#budgetMeter");
   if (budgetSgd > 0) {
+    $("#budgetTitle").textContent = "Budget";
     const budget = budgetSgd * yenPerSgd();
     const left = budget - total;
     const pct = Math.min(100, (total / budget) * 100);
@@ -317,10 +346,13 @@ function renderCards({ total, loggedDays, byDay, days }) {
       ? `${ofBudget} · ${fmtSgd(perDay)} (${yen.format(perDay)})/day for ${remainingDays} day${remainingDays === 1 ? "" : "s"} left`
       : ofBudget;
   } else {
-    $("#sumBudget").textContent = "—";
-    $("#sumBudgetYen").textContent = "";
+    // No budget: this card shows the settle-up instead.
+    const t = settlement().transfers.filter((x) => Math.abs(x.net) >= 1);
+    $("#budgetTitle").textContent = "Settle up";
     meter.hidden = true;
-    $("#sumBudgetNote").textContent = "Set a budget in Settings";
+    $("#sumBudget").textContent = t.length ? yen.format(Math.abs(t[0].net)) : "✅ Square";
+    $("#sumBudgetYen").textContent = t.length ? fmtSgd(Math.abs(t[0].net)) : "";
+    $("#sumBudgetNote").textContent = t.length ? t.map((x) => `${x.from} pays ${x.to}${t.length > 1 ? ` ${yen.format(Math.abs(x.net))}` : ""}`).join(" · ") : "Nobody owes anything";
   }
 
   const maxDay = days.reduce((best, d) => (byDay[d] > (byDay[best] ?? 0) ? d : best), null);
@@ -1129,6 +1161,19 @@ function renderSettle() {
     lines.push(`<b>${esc(t.from)}</b> pays <b>${esc(t.to)}</b> <b>${yen.format(Math.abs(t.net))}</b> (${fmtSgd(Math.abs(t.net))})` +
       (parts.length ? `<div class="muted small">${parts.join(" · ")}</div>` : ""));
   }
+  // A card billed more than was recorded: what it would change if that was trip spending.
+  for (const r of cardStatements()) {
+    if (r.diffSgd === null || Math.abs(r.diffSgd) < 1) continue;
+    const diffYen = r.diffSgd * yenPerSgd();
+    const owner = st.people.find((p) => samePerson(p, r.card.owner)) ?? r.card.owner;
+    const others = st.people.length - 1;
+    const share = Math.round(Math.abs(diffYen) * (others / st.people.length));
+    lines.push(`⚠️ ${esc(owner)}'s ${esc(r.card.name)} statement is ${fmtS(Math.abs(r.diffSgd))} (≈${yen.format(Math.round(Math.abs(diffYen)))}) ${r.diffSgd > 0 ? "more" : "less"} than recorded. ` +
+      (r.diffSgd > 0
+        ? `If that was trip spending, ${esc(owner)} is owed ${yen.format(share)} (${fmtSgd(share)}) more; if it's money still on a Suica, nothing changes.`
+        : `If those expenses weren't really on this card, ${esc(owner)} is owed ${yen.format(share)} less.`));
+  }
+
   // What the holder ends up with once they've paid others out of the leftover cash.
   const paidOut = st.transfers.reduce((sum, t) => sum + (t.net > 0 ? t.net : 0), 0);
   if (st.left > 0 && paidOut > 0 && paidOut <= st.left) {
@@ -1208,6 +1253,7 @@ function renderCardList() {
       <input name="name" value="${esc(c.name)}" maxlength="40" aria-label="Card name" />
       <input name="owner" value="${esc(c.owner)}" maxlength="30" list="people" aria-label="Whose card" />
       <input name="limitSgd" type="number" min="1" step="any" value="${c.limitSgd}" aria-label="Limit in S$" />
+      <input name="billedSgd" type="number" min="0" step="0.01" value="${c.billedSgd ?? ""}" placeholder="Billed S$" title="What the bank billed, in S$ (from the statement)" aria-label="Billed in S$" />
       <select name="shareWith" aria-label="Shares a limit with">
         <option value="">Own limit</option>
         ${cards.filter((o) => o.id !== c.id).map((o) => `<option value="${esc(o.id)}"${c.shareWith === o.id ? " selected" : ""}>Shares limit with ${esc(cardLabel(o))}</option>`).join("")}
