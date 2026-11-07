@@ -16,6 +16,8 @@ let month = localToday().slice(0, 7); // "YYYY-MM"
 let filter = store.get("daily.filter") || ""; // personal screen: a person, or "all"
 let openCell = null; // { date, cat } dropped down in the table; cat null = whole day
 let editing = null; // expense being edited in the dialog
+let gridFrom = null; // earliest day the table shows, when a date further back was picked
+let gridToTop = true; // next table render scrolls back to today
 let cardTouched = false; // the card was picked by hand in the open dialog, so don't suggest one
 
 const sync = createSync({
@@ -135,7 +137,7 @@ function render() {
   renderCards(items);
   renderSettle();
   renderCardList();
-  renderGrid(items);
+  renderGrid();
   renderSummary(items);
   renderLog();
   renderPayments();
@@ -221,36 +223,103 @@ function renderCardList() {
   }).join("");
 }
 
-function renderGrid(items) {
+// The table's expenses: this screen's kind and person filter, any date.
+function gridItems() {
+  return doc.items.filter((i) => i.kind === screen && (screen === "shared" || filter === "all" || i.owner === filter));
+}
+
+const shiftDay = (iso, by) => new Date(Date.parse(iso + "T00:00:00Z") + by * 86400000).toISOString().slice(0, 10);
+
+// Every calendar day from today back to the first expense (at least four weeks, or further
+// if a date was picked), newest first.
+function gridDays(items) {
+  const today = localToday();
+  let from = shiftDay(today, -27);
+  for (const i of items) if (i.date < from) from = i.date;
+  if (gridFrom && gridFrom < from) from = gridFrom;
+  const days = [];
+  for (let d = today; d >= from; d = shiftDay(d, -1)) days.push(d);
+  return days;
+}
+
+// Daily spending: one row per calendar day with today at the top. The table shows a week
+// at a time and scrolls for earlier days; its footer totals the last 7 days.
+function renderGrid() {
   const table = $("#grid");
-  const days = daysOf(month);
-  // Columns: the categories used this month (all of them if none yet), in category order.
-  const used = new Set(items.map((i) => i.cat));
+  const wrap = table.parentElement;
+  const scroll = wrap.scrollTop;
+  const items = gridItems();
+  const days = gridDays(items);
+  const today = localToday();
+  const week = days.slice(0, 7);
+  // Columns: the categories used in these days (all of them if none yet), in category order.
+  const shown = items.filter((i) => i.date >= days.at(-1) && i.date <= today);
+  const used = new Set(shown.map((i) => i.cat));
   const cats = doc.categories.filter((c) => used.has(c.id));
   const cols = cats.length ? cats : doc.categories;
   const sums = {};
-  for (const i of items) (sums[i.date] ??= {})[i.cat] = ((sums[i.date] ??= {})[i.cat] ?? 0) + i.a;
+  for (const i of shown) (sums[i.date] ??= {})[i.cat] = (sums[i.date][i.cat] ?? 0) + i.a;
   const dayTotal = (d) => Object.values(sums[d] ?? {}).reduce((s, v) => s + v, 0);
-  const catTotal = (c) => days.reduce((s, d) => s + (sums[d]?.[c] ?? 0), 0);
-  const today = localToday();
+  const weekCat = (c) => week.reduce((s, d) => s + (sums[d]?.[c] ?? 0), 0);
+  const weekTotal = week.reduce((s, d) => s + dayTotal(d), 0);
+  let lastMonth = null;
 
-  if (!days.length) {
-    table.innerHTML = `<tbody><tr><td class="muted">This month hasn't started yet.</td></tr></tbody>`;
-    return;
-  }
   table.innerHTML = `
     <thead><tr><th scope="col">Day</th>${cols.map((c) => `<th scope="col" title="${esc(c.name)}"><span class="emoji">${esc(c.emoji)}</span><span class="cat-name">${esc(c.name)}</span></th>`).join("")}<th scope="col">Total</th></tr></thead>
-    <tbody>${days.map((d) => `<tr data-date="${d}" class="${d === today ? "today" : ""}">
-      <th scope="row"><span class="day-label">${fmtDay(d)}</span><span class="day-short"><span>${fmtDay(d, { weekday: "short" })}</span><b>${Number(d.slice(8))}</b></span></th>
+    <tbody>${days.map((d) => {
+      // A month's first row (as you scroll back) is labelled with the month.
+      const m = d.slice(0, 7);
+      const newMonth = m !== lastMonth && lastMonth !== null;
+      lastMonth = m;
+      return `${newMonth ? `<tr class="month-row"><th scope="rowgroup" colspan="${cols.length + 2}">${monthName(m)}</th></tr>` : ""}
+      <tr data-date="${d}" class="${d === today ? "today" : ""}">
+      <th scope="row"><span class="day-label">${d === today ? "Today" : fmtDay(d)}${d === today ? ` <span class="muted small">${fmtDay(d, { month: "short", day: "numeric" })}</span>` : ""}</span><span class="day-short"><span>${d === today ? "Today" : fmtDay(d, { weekday: "short" })}</span><b>${Number(d.slice(8))}</b></span></th>
       ${cols.map((c) => {
         const v = sums[d]?.[c.id];
         return `<td><button type="button" class="cell${v ? "" : " empty"}" data-date="${d}" data-cat="${esc(c.id)}"
           aria-label="${esc(c.name)} on ${fmtDay(d)}: ${v ? money(v) : "nothing yet"}">${v ? cell(v) : "–"}</button></td>`;
       }).join("")}
       <td class="total"><button type="button" class="cell day-total" data-date="${d}" ${dayTotal(d) ? "" : "disabled"}>${dayTotal(d) ? cell(dayTotal(d)) : ""}</button></td>
-    </tr>`).join("")}</tbody>
-    <tfoot><tr><th scope="row">Total</th>${cols.map((c) => `<td>${cell(catTotal(c.id))}</td>`).join("")}<td><b>${cell(sum(items))}</b></td></tr></tfoot>`;
+    </tr>`;
+    }).join("")}</tbody>
+    <tfoot>
+      <tr><th scope="row"><span class="n-full">Last 7 days</span><span class="n-short">7 days</span></th>${cols.map((c) => `<td>${cell(weekCat(c.id))}</td>`).join("")}<td><b>${cell(weekTotal)}</b></td></tr>
+      <tr class="avg"><th scope="row">Avg / day</th>${cols.map((c) => `<td>${cell(weekCat(c.id) / 7)}</td>`).join("")}<td>${cell(weekTotal / 7)}</td></tr>
+    </tfoot>`;
   renderDetail();
+  sizeGrid();
+  $("#gridDate").max = today;
+  if (gridToTop) {
+    wrap.scrollTop = 0;
+    gridToTop = false;
+  } else wrap.scrollTop = scroll;
+}
+
+// Fits the scrolling table to a week: the header, 7 days and the footer.
+function sizeGrid() {
+  const table = $("#grid");
+  const rows = [...(table.tBodies[0]?.rows ?? [])].filter((r) => r.dataset.date).slice(0, 7);
+  if (!rows.length) return;
+  // The two footer rows stick to the bottom, the totals row just above the averages.
+  table.style.setProperty("--avg-row-h", `${table.tFoot.rows[1]?.offsetHeight ?? 0}px`);
+  const h = table.tHead.offsetHeight + table.tFoot.offsetHeight + rows.reduce((s, r) => s + r.offsetHeight, 0) + 2;
+  table.parentElement.style.maxHeight = `${h}px`;
+}
+window.addEventListener("resize", () => { if (doc) sizeGrid(); });
+
+// Scrolls the table to a day (adding earlier days if needed) and highlights it.
+function goToDay(d) {
+  const today = localToday();
+  if (!d || d > today) return;
+  if (d < (gridDays(gridItems()).at(-1) ?? today)) gridFrom = d;
+  renderGrid();
+  const table = $("#grid");
+  const row = table.querySelector(`tbody tr[data-date="${d}"]`);
+  if (!row) return;
+  table.parentElement.scrollTop = row.offsetTop - table.tHead.offsetHeight;
+  row.classList.remove("flash");
+  void row.offsetWidth; // restart the highlight
+  row.classList.add("flash");
 }
 
 function itemRow(i) {
@@ -281,7 +350,7 @@ function renderDetail() {
   if (!openCell) return;
   const dayRow = table.querySelector(`tbody tr[data-date="${openCell.date}"]`);
   if (!dayRow) return void (openCell = null);
-  const list = itemsFor(month).filter((i) => i.date === openCell.date && (!openCell.cat || i.cat === openCell.cat)).sort((a, b) => a.t - b.t);
+  const list = gridItems().filter((i) => i.date === openCell.date && (!openCell.cat || i.cat === openCell.cat)).sort((a, b) => a.t - b.t);
   const btn = openCell.cat ? dayRow.querySelector(`button.cell[data-cat="${CSS.escape(openCell.cat)}"]`) : dayRow.querySelector(".day-total");
   btn?.classList.add("open");
   const cat = openCell.cat && catOf(openCell.cat);
@@ -665,6 +734,7 @@ $("#personFilter").addEventListener("change", (e) => {
   filter = e.target.value;
   store.set("daily.filter", filter);
   openCell = null;
+  gridToTop = true;
   render();
 });
 $("#prevMonth").addEventListener("click", () => { month = shiftMonth(month, -1); openCell = null; render(); });
@@ -673,8 +743,18 @@ $("#nextMonth").addEventListener("click", () => { month = shiftMonth(month, 1); 
 function readScreen() {
   screen = location.hash === "#shared" ? "shared" : "personal";
   openCell = null;
+  gridToTop = true;
   render();
 }
+
+$("#gridToday").addEventListener("click", () => {
+  $("#grid").parentElement.scrollTo({ top: 0, behavior: "smooth" });
+});
+$("#gridDate").addEventListener("click", (e) => { try { e.target.showPicker(); } catch { /* opens natively */ } });
+$("#gridDate").addEventListener("change", (e) => {
+  goToDay(e.target.value);
+  e.target.value = "";
+});
 window.addEventListener("hashchange", readScreen);
 
 setInterval(() => { if (doc) renderLog(); }, 60000);

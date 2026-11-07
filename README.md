@@ -77,7 +77,8 @@ A separate tracker for Karstin and Lilin's day-to-day spending in Singapore doll
 - **👤 Personal** (`/daily/#personal`): each of you records your own expenses. Everyone can see them; the filter shows yours, the other person's, or both. Cards show the month's total, average per day, top category and the change from last month.
 - **🤝 Shared** (`/daily/#shared`): expenses you split. Pick who paid and split equally or by custom %. **Settle up** shows who owes whom across all shared expenses and payments, and **💸 Record a payment** logs money paid back.
 - **💳 Cards:** add each card in **⚙️ Settings → Cards** with whose it is and the categories it's for. When you add an expense, the card for that category is picked for you (your own first), and you can change it or pick 💵 Cash / other. Using the other person's card on a **personal** expense means owing them the whole amount, which shows in **Settle up** on both screens. On a **shared** expense, the card's owner counts as the one who paid. The 💳 Cards fold-out shows what each card is for and what went on it this month. A card with expenses on it can't be removed or given to someone else.
-- Browse months with ‹ ›. **⚙️ Settings** renames people (their expenses follow), edits categories, and downloads a CSV or all data. Every change is backed up like the trip data (`daily-v1`).
+- **Daily spending table:** one row per calendar day with **today at the top**, a week at a time. Scroll down within the table for earlier days, across months, back to the first expense. **📅 Go to date** jumps to any day and **⬆ Today** comes back. The footer, which stays in view, totals the last 7 days with the average per day.
+- Browse months with ‹ › (for the cards and summary). **⚙️ Settings** renames people (their expenses follow), edits categories, and downloads a CSV or all data. Every change is backed up like the trip data (`daily-v1`).
 
 ## Food & fitness (`/fitness/`)
 
