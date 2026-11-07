@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Our Expenses</title>
+  <meta name="description" content="Karstin and Lilin's everyday expenses: what each of us spends, and what we split." />
+  <link rel="manifest" href="/daily/manifest.webmanifest" />
+  <meta name="theme-color" content="#bc002d" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23fff'/><circle cx='50' cy='50' r='26' fill='%23bc002d'/></svg>" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body class="daily">
+  <header class="topbar">
+    <div class="brand">
+      <span class="sun" aria-hidden="true"></span>
+      <div>
+        <h1>Our expenses</h1>
+        <p class="muted" id="subtitle">Everyday spending</p>
+      </div>
+    </div>
+    <div class="top-actions">
+      <span id="sync" class="sync" title="Sync status"><i></i><span>Connecting…</span></span>
+      <button id="whoBtn" class="chip" type="button" title="Change your name">👤 <span id="whoName">You</span></button>
+      <button id="settingsBtn" class="btn ghost" type="button">⚙️ Settings</button>
+      <button class="btn add-btn" type="button" data-add>＋ Add expense</button>
+    </div>
+  </header>
+
+  <nav class="screen-tabs" aria-label="Screens">
+    <a href="#personal" data-screen="personal">👤 Personal</a>
+    <a href="#shared" data-screen="shared">🤝 Shared</a>
+  </nav>
+
+  <main>
+    <div class="month-bar">
+      <button type="button" class="icon-btn" id="prevMonth" aria-label="Previous month">‹</button>
+      <h2 id="monthTitle">This month</h2>
+      <button type="button" class="icon-btn" id="nextMonth" aria-label="Next month">›</button>
+    </div>
+
+    <div class="seg person-filter" id="personFilter" role="radiogroup" aria-label="Whose expenses" data-only="personal"></div>
+
+    <section class="cards" aria-label="Summary">
+      <article class="card"><h2 id="c1Label">Spent this month</h2><p class="big" id="c1"></p><p class="muted" id="c1Sub"></p></article>
+      <article class="card"><h2 id="c2Label">Average per day</h2><p class="big" id="c2"></p><p class="muted" id="c2Sub"></p></article>
+      <article class="card"><h2 id="c3Label">Top category</h2><p class="big" id="c3"></p><p class="muted" id="c3Sub"></p></article>
+      <article class="card"><h2 id="c4Label">Last month</h2><p class="big" id="c4"></p><p class="muted" id="c4Sub"></p></article>
+    </section>
+
+    <section class="panel settle-box" id="settleBox">
+      <div>
+        <h2>Settle up</h2>
+        <p class="settle-now" id="settleNow"></p>
+        <p class="muted small">Across every shared expense, borrowed card and payment so far, not only this month.</p>
+      </div>
+      <button class="btn" type="button" id="settleBtn">💸 Record a payment</button>
+    </section>
+
+    <nav class="fold-tabs" aria-label="More details">
+      <button type="button" class="fold-tab" data-fold="summaryPanel" aria-controls="summaryPanel" aria-expanded="false">📊 Summary</button>
+      <button type="button" class="fold-tab" data-fold="paymentsPanel" aria-controls="paymentsPanel" aria-expanded="false">💸 Payments</button>
+      <button type="button" class="fold-tab" data-fold="cardsPanel" aria-controls="cardsPanel" aria-expanded="false">💳 Cards</button>
+      <button type="button" class="fold-tab" data-fold="logPanel" aria-controls="logPanel" aria-expanded="false">🕒 Recent changes</button>
+    </nav>
+
+    <section class="panel summary fold" id="summaryPanel" hidden>
+      <div class="summary-body">
+        <div class="donut-wrap">
+          <svg id="donut" viewBox="0 0 200 200" role="img" aria-labelledby="donutLabel"><title id="donutLabel">Spending by category</title></svg>
+          <div class="donut-center"><b id="donutCenter">S$0</b><span>by category</span></div>
+        </div>
+        <ul class="cat-legend" id="catLegend" aria-label="Spending by category"></ul>
+      </div>
+      <h3 class="daybars-title">Spending per day <span class="muted small">(S$)</span></h3>
+      <div class="daybars" id="dayBars" aria-label="Spending per day"></div>
+      <div class="viz-tip" id="vizTip" role="status" hidden></div>
+    </section>
+
+    <section class="panel fold" id="paymentsPanel" hidden>
+      <h2>Payments between you</h2>
+      <ul class="items-list" id="payments"></ul>
+    </section>
+
+    <section class="panel fold" id="cardsPanel" hidden>
+      <div class="panel-head">
+        <div>
+          <h2>Our cards</h2>
+          <p class="muted small">What each card is for, and how much went on it this month. Using the other person's card on your own expense means paying them back.</p>
+        </div>
+        <div class="head-actions"><button class="btn ghost" type="button" id="manageCards">✏️ Manage cards</button></div>
+      </div>
+      <ul class="card-list" id="cardList"></ul>
+    </section>
+
+    <section class="panel fold" id="logPanel" hidden>
+      <h2>Recent changes</h2>
+      <ol class="log" id="log"></ol>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2 id="tableTitle">Daily spending</h2>
+          <p class="muted small">Tap an amount to see the expenses behind it, or a day's total for everything that day.</p>
+        </div>
+        <div class="head-actions">
+          <button class="btn" type="button" data-add>＋ Add expense</button>
+        </div>
+      </div>
+      <div class="grid-wrap"><table class="grid" id="grid"></table></div>
+    </section>
+  </main>
+
+  <button class="fab" type="button" data-add aria-label="Add expense">＋</button>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <dialog id="addDlg">
+    <form id="addForm">
+      <h2 id="addTitle">Add expense</h2>
+      <label>Date <input name="date" type="date" required /></label>
+      <fieldset class="cat-pick">
+        <legend>Category</legend>
+        <div class="cat-choices" id="catChoices" role="radiogroup" aria-label="Category"></div>
+      </fieldset>
+      <label>Amount (S$) <input name="amount" inputmode="decimal" autocomplete="off" placeholder="0.00" required /></label>
+      <label>Note (optional) <input name="note" maxlength="80" placeholder="e.g. Lunch at the hawker centre" /></label>
+      <fieldset class="cat-pick">
+        <legend>Paid with</legend>
+        <div class="cat-choices" id="cardChoices" role="radiogroup" aria-label="Paid with"></div>
+        <p class="convert" id="cardNote"></p>
+      </fieldset>
+      <fieldset class="cat-pick" data-kind="personal">
+        <legend>Whose expense</legend>
+        <div class="cat-choices" id="ownerChoices" role="radiogroup" aria-label="Whose expense"></div>
+      </fieldset>
+      <fieldset class="cat-pick" data-kind="shared" id="payerPick">
+        <legend>Paid by</legend>
+        <div class="cat-choices" id="payerChoices" role="radiogroup" aria-label="Paid by"></div>
+      </fieldset>
+      <fieldset class="pay-edit" data-kind="shared">
+        <legend>Split</legend>
+        <div class="seg" role="radiogroup" aria-label="How to split">
+          <label><input type="radio" name="split" value="equal" checked /><span>Equally</span></label>
+          <label><input type="radio" name="split" value="custom" /><span>Custom %</span></label>
+        </div>
+        <div class="split-custom" id="splitCustom" hidden></div>
+        <p class="convert" id="splitPreview"></p>
+      </fieldset>
+      <div class="dlg-actions">
+        <button class="btn ghost" type="button" id="addCancel">Cancel</button>
+        <button class="btn" type="submit" id="addSubmit">Add</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="settleDlg">
+    <form id="settleForm">
+      <h2>Record a payment</h2>
+      <p class="muted small">Money one of you paid the other to settle shared expenses.</p>
+      <div class="row">
+        <label>From <select name="from" required></select></label>
+        <label>To <select name="to" required></select></label>
+      </div>
+      <div class="row">
+        <label>Amount (S$) <input name="amount" inputmode="decimal" autocomplete="off" required /></label>
+        <label>Date <input name="date" type="date" required /></label>
+      </div>
+      <label>Note (optional) <input name="note" maxlength="80" placeholder="e.g. PayNow" /></label>
+      <div class="dlg-actions">
+        <button class="btn ghost" type="button" id="settleCancel">Cancel</button>
+        <button class="btn" type="submit">Record payment</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="settingsDlg">
+    <form id="peopleForm">
+      <h2>Settings</h2>
+      <h3>People</h3>
+      <p class="muted small">Renaming someone keeps all their expenses.</p>
+      <div class="row" id="peopleInputs"></div>
+      <div class="dlg-actions"><button class="btn" type="submit">Save names</button></div>
+    </form>
+    <hr />
+    <h3>Categories</h3>
+    <ul class="cat-list" id="catList"></ul>
+    <form id="catForm" class="row cat-add">
+      <input name="emoji" maxlength="8" placeholder="☕" class="emoji-in" aria-label="Emoji" />
+      <input name="name" maxlength="40" placeholder="New category" required aria-label="Category name" />
+      <button class="btn" type="submit">Add</button>
+    </form>
+    <hr />
+    <h3 id="cardsHeading">Cards</h3>
+    <p class="muted small">Add each card, whose it is, and the categories it's for. The card for a category is picked for you when you add an expense.</p>
+    <ul class="card-edit-list" id="cardEditList"></ul>
+    <form id="cardForm" class="card-edit">
+      <div class="row card-add-row">
+        <input name="emoji" maxlength="8" placeholder="💳" class="emoji-in" aria-label="Card emoji" />
+        <input name="name" maxlength="30" placeholder="Card name, e.g. DBS Live Fresh" required aria-label="Card name" />
+        <select name="owner" aria-label="Whose card" required></select>
+      </div>
+      <div class="cat-choices card-cats" aria-label="Used for"></div>
+      <button class="btn" type="submit">Add card</button>
+    </form>
+    <hr />
+    <h3>Your data</h3>
+    <p class="muted small">Every change is backed up on Netlify. You can also download everything.</p>
+    <div class="backup-actions">
+      <button class="btn ghost" type="button" id="csvBtn">⬇️ Download CSV</button>
+      <button class="btn ghost" type="button" id="jsonBtn">⬇️ Download all data</button>
+    </div>
+    <div class="dlg-actions"><button class="btn ghost" type="button" id="closeSettings">Close</button></div>
+  </dialog>
+
+  <dialog id="nameDlg">
+    <form method="dialog" id="nameForm">
+      <h2>Who's this?</h2>
+      <p class="muted">Your name is shown next to the expenses you add.</p>
+      <input id="nameInput" maxlength="30" placeholder="Your name" required autocomplete="nickname" />
+      <div class="dlg-actions"><button class="btn" value="ok">Continue</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="codeDlg">
+    <form method="dialog" id="codeForm">
+      <h2>Passcode</h2>
+      <p class="muted">This tracker is protected. Enter the passcode.</p>
+      <input id="codeInput" type="password" required autocomplete="current-password" />
+      <div class="dlg-actions"><button class="btn" value="ok">Unlock</button></div>
+    </form>
+  </dialog>
+
+  <script src="/daily/daily.js" type="module"></script>
+</body>
+</html>
