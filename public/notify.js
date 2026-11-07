@@ -3,7 +3,7 @@
 // and a switch for phone notifications (Web Push via /sw.js) that work with the app closed.
 // The feed and push sending live in netlify/lib/notify.mjs (/api/notifications).
 
-import { $, esc, store, toast, timeAgo, myName, fetchJson, postJson } from "/common.js";
+import { $, esc, store, toast, timeAgo, myName, setMyName, fetchJson, postJson } from "/common.js";
 
 const POLL_MS = 20000;
 const norm = (s) => String(s ?? "").toLowerCase().replace(/\s+/g, "");
@@ -125,6 +125,20 @@ async function renderPush() {
       : `<p class="muted small">This browser can't show notifications. Try Chrome, or the app installed on your Home Screen.</p>`;
     return;
   }
+  // A Home Screen app keeps its own storage, so it may not know whose phone this is yet.
+  if (!myName()) {
+    box.innerHTML = `<p class="small">Whose phone is this? Notifications come from the other person.</p>
+      <div class="push-who">${(people.length ? people : ["Karstin", "Lilin"]).map((p) => `<button type="button" class="btn ghost" data-who="${esc(p)}">👤 ${esc(p)}</button>`).join("")}</div>`;
+    for (const b of box.querySelectorAll("[data-who]")) {
+      b.addEventListener("click", () => {
+        setMyName(b.dataset.who);
+        renderBadge();
+        renderList();
+        renderPush();
+      });
+    }
+    return;
+  }
   if (Notification.permission === "denied") {
     box.innerHTML = `<p class="muted small">Notifications are blocked for this site. Allow them in your browser's site settings, then come back here.</p>`;
     return;
@@ -140,7 +154,7 @@ async function renderPush() {
 }
 
 async function turnOn() {
-  if (!myName()) return toast("Set your name first (👤 at the top)");
+  if (!myName()) return renderPush(); // asks whose phone this is first
   try {
     if ((await Notification.requestPermission()) !== "granted") return renderPush();
     if (!key) await poll();
