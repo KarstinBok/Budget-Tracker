@@ -961,3 +961,5 @@ dialog.bell-dlg { width: min(480px, calc(100vw - 24px)); padding: 16px; }
 .burn-note[hidden] { display: none; }
 .check-row { display: flex !important; align-items: center; gap: 8px; color: var(--text) !important; }
 .check-row input { width: 18px; height: 18px; accent-color: var(--accent); }
+.week-note { margin: 8px 0 0; padding: 8px 12px; border-radius: 10px; background: color-mix(in srgb, var(--warn) 12%, var(--surface)); font-size: 0.88rem; }
+.week-note[hidden] { display: none; }

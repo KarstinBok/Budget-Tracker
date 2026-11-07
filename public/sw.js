@@ -27,6 +27,7 @@ self.addEventListener("push", (event) => {
   event.waitUntil(self.registration.showNotification(data.title || "Our apps", {
     body: data.body || "Something new was added.",
     tag: data.tag,
+    renotify: !!(data.tag && data.renotify), // buzz again when a notification replaces one
     data: { url: data.url || "/" },
     icon: "/icons/icon-192.png",
     badge: "/icons/icon-192.png",

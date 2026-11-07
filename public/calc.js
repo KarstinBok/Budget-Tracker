@@ -79,3 +79,56 @@ export function fitnessTargets(doc, p, onDay) {
     p: (kcal * m.p) / 100 / 4, c: (kcal * m.c) / 100 / 4, f: (kcal * m.f) / 100 / 9, pct: m,
   };
 }
+
+const addDays = (iso, n) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
+
+// Calories eaten on a day, minus exercise when the person adds it back.
+function netKcal(doc, p, d) {
+  const eaten = doc.foods.reduce((s, f) => s + (f.person === p && f.date === d ? f.kcal : 0), 0);
+  const burned = exerciseAddsBack(doc, p) ? doc.exercises.reduce((s, x) => s + (x.person === p && x.date === d ? x.kcal : 0), 0) : 0;
+  return { eaten, net: eaten - burned };
+}
+
+// How a person's week (Monday to Sunday) stands against their daily goal x 7, as of `day`.
+// Earlier days with food logged count fully (over or under); `day` itself counts only once it
+// is over, as it isn't finished yet. Days with nothing logged are left out.
+//   over      kcal over the goal on `day` (0 if not over)
+//   surplus   kcal over the week's budget so far (negative = under)
+//   daysLeft  days still to come this week that can make up for it
+//   perDay    what to aim for on each of those days to finish the week on budget
+export function weekBalance(doc, p, day) {
+  const dow = (new Date(`${day}T00:00:00Z`).getUTCDay() + 6) % 7; // Monday = 0
+  const start = addDays(day, -dow);
+  const goal = fitnessTargets(doc, p, day).kcal;
+  let surplus = 0;
+  for (let i = 0; i < dow; i++) {
+    const d = addDays(start, i);
+    const { eaten, net } = netKcal(doc, p, d);
+    if (eaten) surplus += net - fitnessTargets(doc, p, d).kcal;
+  }
+  const over = Math.max(0, netKcal(doc, p, day).net - goal);
+  surplus += over;
+  const daysLeft = over ? 6 - dow : 7 - dow; // today still counts while it isn't over
+  const perDay = daysLeft ? Math.round((goal - surplus / daysLeft) / 10) * 10 : null;
+  return { goal, weekly: goal * 7, start, end: addDays(start, 6), over, surplus, daysLeft, perDay };
+}
+
+// The reminder for weekBalance(): "350 kcal over on today. To keep this week at 2,300 a day…".
+// Null when there's nothing to say. `when` is "today" or a day's name.
+export function weekNote(w, when = "today") {
+  const n = (v) => Math.round(v).toLocaleString("en-US");
+  const budget = `${n(w.goal)} a day (${n(w.weekly)} kcal this week)`;
+  const aim = (incToday) => w.daysLeft === 1 ? (incToday ? "today" : "tomorrow")
+    : `a day for the ${incToday ? "rest of the week" : `next ${w.daysLeft} days`}`;
+  if (w.over) {
+    const head = `${n(w.over)} kcal over ${when}'s ${n(w.goal)} kcal.`;
+    if (w.surplus <= 0) return `${head} This week is still ${n(-w.surplus)} kcal under its ${n(w.weekly)} kcal budget, so no need to cut back.`;
+    const week = w.surplus !== w.over ? ` That's ${n(w.surplus)} kcal over for the week so far.` : "";
+    if (!w.daysLeft) return `${head} That ends the week ${n(w.surplus)} kcal over its ${n(w.weekly)} kcal budget.`;
+    return `${head}${week} To keep to ${budget}, aim for about ${n(w.perDay)} kcal ${aim(false)}.`;
+  }
+  if (w.surplus > 0 && w.daysLeft) {
+    return `This week is ${n(w.surplus)} kcal over its budget so far. To keep to ${budget}, aim for about ${n(w.perDay)} kcal ${aim(true)}.`;
+  }
+  return null;
+}

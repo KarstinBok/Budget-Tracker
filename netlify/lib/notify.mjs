@@ -12,6 +12,7 @@
 import { randomUUID } from "node:crypto";
 import { getStore } from "@netlify/blobs";
 import { generateVAPIDKeys, sendNotification } from "web-push";
+import { weekBalance, weekNote } from "../../public/calc.js";
 
 const MAX_FEED = 200;
 const SITE = "https://japan-trip-budget.netlify.app";
@@ -99,6 +100,19 @@ const describers = {
   },
 };
 
+// After food is added: a reminder for the person whose diary it is, if that put them over
+// their calories for the day and they asked for one in Goals. Goes only to their own phones.
+export function overAlert(doc, body) {
+  if (body.op !== "addFoods") return null;
+  const f = doc.foods.at(-1);
+  if (!f || !doc.profiles?.[f.person]?.overAlert) return null;
+  const w = weekBalance(doc, f.person, f.date);
+  if (!w.over) return null;
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" }); // where we live
+  const when = f.date === today ? "today" : new Date(`${f.date}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" });
+  return { person: f.person, text: weekNote(w, when), tag: `over-${f.person}-${f.date}` };
+}
+
 // ---------------------------------------------------------------- feed and push
 
 async function vapidKeys(store) {
@@ -149,26 +163,37 @@ export async function readFeed() {
 export async function notifyChange(key, body, by, doc) {
   try {
     const d = describers[key]?.(doc, body, by);
-    if (!d) return;
+    const alert = key === "fitness-v1" ? overAlert(doc, body) : null;
+    if (!d && !alert) return;
     const store = notifyStore();
     const app = key === "daily-v1" ? "expenses" : "fitness";
-    const item = { id: randomUUID(), t: Date.now(), app, actor: d.a.person ?? d.a.label, text: d.a.via ? `${d.text} (via ${d.a.via})` : d.text, url: d.url };
-    await updateJSON(store, "feed", () => ({ items: [] }), (v) => {
-      v.items = [item, ...v.items].slice(0, MAX_FEED);
-    });
-
+    const title = app === "expenses" ? "💸 Our expenses" : "🥗 Food & fitness";
+    const sends = []; // [subscription, payload]
     const { subs } = (await store.get("subs", { type: "json" })) ?? { subs: [] };
-    const to = subs.filter((s) => !d.a.person || personFor(doc.people, s.name) !== d.a.person);
-    if (!to.length) return;
+
+    if (d) {
+      const item = { id: randomUUID(), t: Date.now(), app, actor: d.a.person ?? d.a.label, text: d.a.via ? `${d.text} (via ${d.a.via})` : d.text, url: d.url };
+      await updateJSON(store, "feed", () => ({ items: [] }), (v) => {
+        v.items = [item, ...v.items].slice(0, MAX_FEED);
+      });
+      const payload = JSON.stringify({ title, body: item.text, url: item.url, tag: item.id });
+      for (const s of subs) if (!d.a.person || personFor(doc.people, s.name) !== d.a.person) sends.push([s, payload]);
+    }
+    if (alert) {
+      // Replaces the last one for the same day, so the phone shows only the latest total.
+      const payload = JSON.stringify({ title: "⚠️ Over your calories", body: alert.text, url: "/fitness/#diary", tag: alert.tag, renotify: true });
+      for (const s of subs) if (personFor(doc.people, s.name) === alert.person) sends.push([s, payload]);
+    }
+    if (!sends.length) return;
+
     const keys = await vapidKeys(store);
-    const payload = JSON.stringify({ title: app === "expenses" ? "💸 Our expenses" : "🥗 Food & fitness", body: item.text, url: item.url, tag: item.id });
-    const gone = [];
-    await Promise.all(to.map((s) => sendNotification({ endpoint: s.endpoint, keys: s.keys }, payload, {
+    const gone = new Set();
+    await Promise.all(sends.map(([s, payload]) => sendNotification({ endpoint: s.endpoint, keys: s.keys }, payload, {
       vapidDetails: { subject: SITE, publicKey: keys.publicKey, privateKey: keys.privateKey },
       TTL: 24 * 3600,
       timeout: 8000,
     }).catch((err) => {
-      if (err?.statusCode === 404 || err?.statusCode === 410) gone.push(s.endpoint); // unsubscribed or expired
+      if (err?.statusCode === 404 || err?.statusCode === 410) gone.add(s.endpoint); // unsubscribed or expired
       else console.error("Push failed:", err?.statusCode ?? err?.message);
     })));
     for (const endpoint of gone) await removeSubscription(endpoint);
