@@ -105,9 +105,11 @@
       <div class="panel-head">
         <div>
           <h2 id="tableTitle">Daily spending</h2>
-          <p class="muted small">Tap an amount to see the expenses behind it, or a day's total for everything that day.</p>
+          <p class="muted small">Today at the top, a week at a time. Scroll down for earlier days or pick a date. Tap an amount to see the expenses behind it.</p>
         </div>
         <div class="head-actions">
+          <button class="btn ghost" type="button" id="gridToday">⬆ Today</button>
+          <label class="btn ghost date-jump">📅 Go to date<input type="date" id="gridDate" aria-label="Go to date" /></label>
           <button class="btn" type="button" data-add>＋ Add expense</button>
         </div>
       </div>

@@ -753,3 +753,19 @@ dialog.wide-dlg { width: min(560px, calc(100vw - 24px)); }
   .home-tabs { grid-template-columns: 1fr 1fr 1fr; }
   .home-tabs .fold-tab { padding: 9px 4px; font-size: 0.8rem; }
 }
+
+/* Everyday expenses: the daily table scrolls a week at a time, today first. */
+.daily .grid-wrap { overflow: auto; overscroll-behavior: contain; }
+.daily .grid tfoot th, .daily .grid tfoot td { position: sticky; z-index: 1; }
+.daily .grid tfoot tr:first-child th, .daily .grid tfoot tr:first-child td { bottom: var(--avg-row-h, 33px); }
+.daily .grid tfoot tr.avg th, .daily .grid tfoot tr.avg td { bottom: 0; }
+.daily .grid tfoot th:first-child { left: 0; z-index: 2; }
+.daily .grid tr.month-row th {
+  position: sticky; left: 0; text-align: left; padding: 6px 10px; font-size: 0.78rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); background: var(--bg);
+}
+.daily .grid tr.today th[scope="row"] { color: var(--accent); }
+.daily .grid tr.flash > * { animation: row-flash 1.8s ease-out; }
+@keyframes row-flash { 0%, 40% { background: var(--accent-soft); } 100% { background: inherit; } }
+.date-jump { position: relative; cursor: pointer; }
+.date-jump input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
