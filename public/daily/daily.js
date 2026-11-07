@@ -141,6 +141,7 @@ function render() {
   renderCards(items);
   renderFlow(items);
   renderSettle();
+  renderCardGuide();
   renderCardList();
   renderGrid();
   renderSummary(items);
@@ -332,6 +333,47 @@ function renderSettle() {
 }
 
 // The 💳 Cards fold-out: each card, what it's for, and what went on it this month.
+// "Which card for what": the card each person usually uses for each kind of spending.
+function renderCardGuide() {
+  const rows = doc.cardGuide ?? [];
+  const mine = me();
+  $("#cardGuide").innerHTML = rows.length
+    ? `<thead><tr><th scope="col">For</th>${doc.people.map((p) => `<th scope="col"${p === mine ? ' class="me"' : ""}>${esc(p)}</th>`).join("")}</tr></thead>
+       <tbody>${rows.map((r) => `<tr><th scope="row">${esc(r.what)}</th>${doc.people.map((p) => `<td${p === mine ? ' class="me"' : ""}>${esc(r.picks?.[p] || "—")}</td>`).join("")}</tr>`).join("")}</tbody>`
+    : `<tbody><tr><td class="muted small">Nothing yet. Add rows in ⚙️ Settings.</td></tr></tbody>`;
+}
+
+function guideRow(r = { what: "", picks: {} }) {
+  return `<div class="guide-row">
+    <input data-k="what" value="${esc(r.what)}" maxlength="60" placeholder="e.g. 🍜 Dining" aria-label="Kind of spending" />
+    ${doc.people.map((p) => `<input data-p="${esc(p)}" value="${esc(r.picks?.[p] ?? "")}" maxlength="80" placeholder="${esc(p)}'s card" aria-label="${esc(p)}'s card" />`).join("")}
+    <button type="button" class="icon-btn" data-guide-remove title="Remove row" aria-label="Remove row">✕</button>
+  </div>`;
+}
+
+function renderGuideEdit() {
+  if ($("#guideEdit").contains(document.activeElement)) return;
+  $("#guideEdit").innerHTML = (doc.cardGuide ?? []).map(guideRow).join("");
+}
+
+$("#guideAdd").addEventListener("click", () => {
+  $("#guideEdit").insertAdjacentHTML("beforeend", guideRow());
+  $("#guideEdit").lastElementChild.querySelector("input").focus();
+});
+$("#guideEdit").addEventListener("click", (e) => {
+  if (e.target.closest("[data-guide-remove]")) e.target.closest(".guide-row").remove();
+});
+$("#guideSave").addEventListener("click", async () => {
+  const rows = [...$("#guideEdit").querySelectorAll(".guide-row")].map((row) => ({
+    what: row.querySelector('[data-k="what"]').value,
+    picks: Object.fromEntries([...row.querySelectorAll("[data-p]")].map((i) => [i.dataset.p, i.value])),
+  }));
+  if (await sync.runOp({ op: "updateCardGuide", rows }, "Saved which card for what")) {
+    document.activeElement?.blur();
+    renderGuideEdit();
+  }
+});
+
 function renderCardList() {
   if (!doc.cards.length) {
     $("#cardList").innerHTML = `<li class="muted small">No cards yet. Tap ✏️ Manage cards to add yours and Lilin's.</li>`;
@@ -758,6 +800,7 @@ $("#settleForm").addEventListener("submit", async (e) => {
 // ---------------------------------------------------------------- settings
 
 function renderSettings() {
+  renderGuideEdit();
   if ($("#settingsDlg").contains(document.activeElement)) return;
   $("#peopleInputs").innerHTML = doc.people.map((p, n) => `<label>Person ${n + 1} <input name="p${n}" value="${esc(p)}" maxlength="30" required /></label>`).join("");
   $("#catList").innerHTML = doc.categories.map((c) => `<li data-id="${esc(c.id)}">

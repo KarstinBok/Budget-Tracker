@@ -110,6 +110,9 @@
         </div>
         <div class="head-actions"><button class="btn ghost" type="button" id="manageCards">✏️ Manage cards</button></div>
       </div>
+      <h3 class="guide-h">Which card for what</h3>
+      <div class="guide-wrap"><table class="card-guide" id="cardGuide"></table></div>
+      <h3 class="guide-h">Spending this month</h3>
       <ul class="card-list" id="cardList"></ul>
     </section>
 
@@ -233,6 +236,14 @@
       <div class="cat-choices card-cats" aria-label="Used for"></div>
       <button class="btn" type="submit">Add card</button>
     </form>
+    <hr />
+    <h3>Which card for what</h3>
+    <p class="muted small">The card each of you usually uses for each kind of spending. It's shown under 💳 Cards.</p>
+    <div class="guide-edit" id="guideEdit"></div>
+    <div class="dlg-actions">
+      <button class="btn ghost" type="button" id="guideAdd">＋ Add row</button>
+      <button class="btn" type="button" id="guideSave">Save</button>
+    </div>
     <hr />
     <h3>Your data</h3>
     <p class="muted small">Every change is backed up on Netlify. You can also download everything.</p>

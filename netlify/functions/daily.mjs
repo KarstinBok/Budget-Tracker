@@ -39,6 +39,8 @@ function defaultDoc() {
     items: [],
     // { id, name, emoji, owner, cats: [category ids it's meant for] }
     cards: [],
+    // Which card each person usually uses for what: [{ what, picks: { person: card } }]
+    cardGuide: structuredClone(DEFAULT_GUIDE),
     // Money paid back: { id, date, from, to, a: cents, note, by, t }
     settlements: [],
     log: [],
@@ -48,8 +50,20 @@ function defaultDoc() {
 const MAX_CARDS = 20;
 
 // Older documents had no cards.
+// Which card each of us usually uses for what (shown under 💳 Cards, edited in Settings).
+const pick = (karstin, lilin = karstin) => ({ Karstin: karstin, Lilin: lilin });
+const DEFAULT_GUIDE = [
+  { what: "🍜 Dining", picks: pick("UOB Lady's Card (Food)") },
+  { what: "✈️ Flights + accommodation", picks: pick("UOB Lady's Card (Travels)") },
+  { what: "🚇 Daily contactless + public transport", picks: pick("UOB PPV") },
+  { what: "🌏 Overseas", picks: pick("Amaze + Citi Rewards → PPV", "Amaze + Citi Rewards") },
+  { what: "🛒 Online shopping", picks: pick("UOB PPV") },
+  { what: "💎 Big-ticket items", picks: pick("UOB PRVI (TBC)") },
+];
+
 function normalize(doc) {
   doc.cards ??= [];
+  doc.cardGuide ??= structuredClone(DEFAULT_GUIDE);
   // Imports from other apps (e.g. Spendee): { id, source, by, t, count, total }, so one can be undone.
   doc.imports ??= [];
   return doc;
@@ -133,6 +147,15 @@ function readCard(doc, body) {
 
 function applyOp(doc, body, by) {
   switch (body.op) {
+    case "updateCardGuide": {
+      const rows = (Array.isArray(body.rows) ? body.rows : []).slice(0, 30).map((r) => ({
+        what: str(r?.what, 60),
+        picks: Object.fromEntries(doc.people.map((p) => [p, str(r?.picks?.[p], 80)])),
+      })).filter((r) => r.what || Object.values(r.picks).some(Boolean));
+      doc.cardGuide = rows;
+      return `updated which card to use for what (${rows.length} row${rows.length === 1 ? "" : "s"})`;
+    }
+
     case "importItems": {
       // A batch of personal expenses from another app's export, e.g. Spendee. Rows whose
       // key was imported before are skipped, so importing the same file twice is safe.
@@ -225,6 +248,7 @@ function applyOp(doc, body, by) {
         if (i.shares) i.shares = Object.fromEntries(Object.entries(i.shares).map(([p, f]) => [rename(p), f]));
       }
       for (const s of doc.settlements) Object.assign(s, { from: rename(s.from), to: rename(s.to) });
+      for (const g of doc.cardGuide ?? []) g.picks = Object.fromEntries(Object.entries(g.picks ?? {}).map(([p, v]) => [rename(p), v]));
       for (const c of doc.cards) c.owner = rename(c.owner);
       doc.people = people;
       return `updated the people to ${people.join(" and ")}`;
