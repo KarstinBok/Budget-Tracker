@@ -23,30 +23,57 @@
   </header>
 
   <main>
-    <nav class="home-apps" aria-label="Apps">
-      <a class="home-app" href="/daily/">
-        <span class="home-icon" aria-hidden="true">💸</span>
-        <span class="home-text"><b>Everyday expenses</b><span>What each of us spends, what we split, and who owes whom</span></span>
-        <span class="home-go" aria-hidden="true">›</span>
-      </a>
-      <a class="home-app" href="/fitness/">
-        <span class="home-icon" aria-hidden="true">🥗</span>
-        <span class="home-text"><b>Food &amp; fitness</b><span>Calories, macros, weight goals and exercise</span></span>
-        <span class="home-go" aria-hidden="true">›</span>
-      </a>
-      <a class="home-app" href="/japan/">
-        <span class="home-icon" aria-hidden="true">🗾</span>
-        <span class="home-text"><b>Japan trip</b><span>Budget and journal, 22 Oct – 5 Nov 2026</span></span>
-        <span class="home-go" aria-hidden="true">›</span>
-      </a>
-    </nav>
+    <section aria-labelledby="quickTitle">
+      <h2 class="home-h" id="quickTitle">Quick add</h2>
+      <nav class="quick-grid" aria-label="Quick add">
+        <a class="quick" href="/daily/?add=personal&amp;from=home"><span>💸</span><b>Expense</b></a>
+        <a class="quick" href="/daily/?add=shared&amp;from=home"><span>🤝</span><b>Shared expense</b></a>
+        <a class="quick" href="/fitness/?add=food&amp;from=home"><span>🍽️</span><b>Food</b></a>
+        <a class="quick" href="https://claude.ai/new" target="_blank" rel="noopener"><span>📷</span><b>Food photo</b><small>in Claude</small></a>
+        <a class="quick" href="/fitness/?add=weight&amp;from=home"><span>⚖️</span><b>Weight</b></a>
+        <a class="quick" href="/fitness/?add=exercise&amp;from=home"><span>🏃</span><b>Exercise</b></a>
+      </nav>
+    </section>
+
+    <section aria-labelledby="appsTitle">
+      <h2 class="home-h" id="appsTitle">Our apps</h2>
+      <nav class="fold-tabs home-tabs" aria-label="Apps">
+        <button type="button" class="fold-tab" data-fold="expensesPanel" aria-controls="expensesPanel" aria-expanded="false">💸 Expenses</button>
+        <button type="button" class="fold-tab" data-fold="fitnessPanel" aria-controls="fitnessPanel" aria-expanded="false">🥗 Food &amp; fitness</button>
+        <button type="button" class="fold-tab" data-fold="japanPanel" aria-controls="japanPanel" aria-expanded="false">🗾 Japan trip</button>
+      </nav>
+
+      <section class="panel fold home-panel" id="expensesPanel" hidden>
+        <h3>Everyday expenses</h3>
+        <div class="home-stats" id="expensesStats"><p class="muted small">Loading…</p></div>
+        <div class="home-links">
+          <a class="btn" href="/daily/#personal">👤 Personal</a>
+          <a class="btn ghost" href="/daily/#shared">🤝 Shared</a>
+          <a class="btn ghost" href="/daily/?add=payment&amp;from=home">💸 Record a payment</a>
+        </div>
+      </section>
+
+      <section class="panel fold home-panel" id="fitnessPanel" hidden>
+        <h3>Food &amp; fitness today</h3>
+        <div class="home-stats" id="fitnessStats"><p class="muted small">Loading…</p></div>
+        <div class="home-links">
+          <a class="btn" href="/fitness/#diary">📒 Diary</a>
+          <a class="btn ghost" href="/fitness/#progress">📈 Progress</a>
+        </div>
+      </section>
+
+      <section class="panel fold home-panel" id="japanPanel" hidden>
+        <h3>Japan trip, 22 Oct – 5 Nov 2026</h3>
+        <p class="muted small">Our shared budget and the trip journal.</p>
+        <div class="home-links">
+          <a class="btn" href="/japan/">💴 Budget</a>
+          <a class="btn ghost" href="/journal.html">📒 Journal</a>
+        </div>
+      </section>
+    </section>
   </main>
 
-  <script type="module">
-    // The installed web app's service worker, as on the other pages.
-    if ("serviceWorker" in navigator && typeof window.AndroidBridge === "undefined") {
-      navigator.serviceWorker.register("/sw.js").catch(() => {});
-    }
-  </script>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="/home.js" type="module"></script>
 </body>
 </html>
