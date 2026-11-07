@@ -239,7 +239,9 @@ function cleanCard(input = {}, old = null) {
     billedSgd = input.billedSgd === "" || input.billedSgd === null ? null : Math.round(Number(input.billedSgd) * 100) / 100;
     if (billedSgd !== null && (!Number.isFinite(billedSgd) || billedSgd < 0 || billedSgd > 1_000_000)) fail("Invalid billed amount");
   }
-  return { name, owner, limitSgd: Math.round(limitSgd * 100) / 100, shareWith: str(input.shareWith, 40) || null, billedSgd };
+  // What was found checking the card against its statement (optional, kept if not sent).
+  const statementNote = input.statementNote === undefined ? old?.statementNote ?? "" : str(input.statementNote, 500);
+  return { name, owner, limitSgd: Math.round(limitSgd * 100) / 100, shareWith: str(input.shareWith, 40) || null, billedSgd, statementNote };
 }
 
 // A card can only share a limit with another card that exists.

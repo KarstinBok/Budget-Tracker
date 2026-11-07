@@ -103,26 +103,24 @@
     </section>
 
     <section class="panel fold" id="settlePanel" hidden>
-      <div class="panel-head">
-        <div>
-          <h2>Cash pool &amp; settle up</h2>
-          <p class="muted small">Cash spent from the pool, and the cash left at the end, are shared in proportion to what each person put in. Card spending is split evenly. Change the pool or who's splitting in ⚙️ Settings.</p>
-        </div>
-      </div>
-      <div class="two-col">
-        <div>
-          <h3 id="poolTitle">Shared cash</h3>
-          <table class="breakdown settle" id="poolTable"></table>
-          <p class="muted small" id="poolNote" hidden></p>
-        </div>
-        <div>
-          <h3 id="splitTitle">Who pays what</h3>
-          <p class="small" id="splitSummary"></p>
-          <table class="breakdown settle" id="splitTable"></table>
-          <h3 class="settle-up-title">Settle up</h3>
-          <ul class="settle-lines" id="settleLines"></ul>
-        </div>
-      </div>
+      <h2>Settle up</h2>
+      <div class="su-hero" id="suHero"></div>
+
+      <h3 class="su-h">How it adds up</h3>
+      <ol class="su-steps" id="suSteps"></ol>
+
+      <h3 class="su-h">What the trip cost each of you</h3>
+      <div class="su-people" id="suPeople"></div>
+
+      <div class="su-open" id="suOpen" hidden></div>
+
+      <details class="su-details">
+        <summary>💵 Cash pool details</summary>
+        <h3 id="poolTitle">Shared cash</h3>
+        <table class="breakdown settle" id="poolTable"></table>
+        <p class="muted small" id="poolNote" hidden></p>
+        <p class="muted small">Cash from the pool, and the cash left at the end, are shared by what each person put in. Card and Suica spending is split evenly. Change the pool, Suica top-ups or cash counted in ⚙️ Settings.</p>
+      </details>
     </section>
 
     <section class="panel fold" id="logPanel" hidden>

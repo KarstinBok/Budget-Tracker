@@ -264,7 +264,7 @@ function renderPayments() {
   $("#cardsNote").hidden = !over;
   if (over) {
     const rows = cardStatements();
-    $("#cardsNote").textContent = `Recorded spending (including Suica top-ups paid with the card) against what the bank billed, at S$1 = ¥${sgdFmt.format(yenPerSgd())}. Enter a card's billed amount in ⚙️ Settings.`;
+    $("#cardsNote").textContent = `Recorded spending (including Suica top-ups paid with the card) against what the bank billed, at S$1 = ¥${sgdFmt.format(yenPerSgd())}${doc.trip.autoRate ? " (today's rate; set the rate your cards charged in ⚙️ Settings for an exact match)" : ""}. Enter a card's billed amount in ⚙️ Settings.`;
     $("#statements").innerHTML = `
       <thead><tr><th>Card</th><th class="num">Recorded</th><th class="num">Billed</th><th class="num">Difference</th></tr></thead>
       <tbody>${rows.map((r) => `<tr>
@@ -272,7 +272,7 @@ function renderPayments() {
         <td class="num">${fmtS(r.recorded / yenPerSgd())}<div class="muted small">${yen.format(Math.round(r.recorded))}</div></td>
         <td class="num">${r.billed === null ? `<span class="muted">—</span>` : fmtS(r.billed)}</td>
         <td class="num">${r.diffSgd === null ? "" : Math.abs(r.diffSgd) < 1 ? "✅ matches" : `<b>${r.diffSgd > 0 ? "+" : "−"}${fmtS(Math.abs(r.diffSgd))}</b><div class="muted small">${r.diffSgd > 0 ? "not recorded" : "recorded but not billed"}</div>`}</td>
-      </tr>`).join("") || `<tr><td colspan="4" class="muted small">No card spending.</td></tr>`}</tbody>`;
+      </tr>${r.card.statementNote ? `<tr class="statement-note"><td colspan="4">📝 ${esc(r.card.statementNote)}</td></tr>` : ""}`).join("") || `<tr><td colspan="4" class="muted small">No card spending.</td></tr>`}</tbody>`;
   } else {
     $("#cardMeters").innerHTML = cards.length ? limitGroups().map((g) => {
       const used = groupSpentSgd(g);
@@ -1127,60 +1127,67 @@ function renderSettle() {
   $("#poolNote").textContent = notes.join(" ");
   $("#poolNote").hidden = !notes.length;
 
-  // Each person's cost: their % of the pool cash spent, plus an even share of the cards.
-  const suicaNote = Object.keys(doc.settle.suica ?? {}).length
-    ? ` · Suica: ${Object.entries(doc.settle.suica).map(([who]) => { const f = suicaFunding(who); return `${esc(who)}'s ${f === "cash" ? "from pool cash" : f.id ? `on ${esc(f.name)}` : "own money"}`; }).join(", ")}` : "";
-  $("#splitSummary").innerHTML = `Cash spent <b>${yen.format(st.cashSpent)}</b> is shared by pool share · cards <b>${yen.format(st.cardTotal)}</b> split evenly between ${st.people.length} (${yen.format(Math.round(st.cardShare))} each)${suicaNote}`;
-  $("#splitTable").innerHTML = `
-    <thead><tr><th>Person</th><th class="num">Cash</th><th class="num">Cards &amp; Suica</th><th class="num">Trip cost</th></tr></thead>
-    <tbody>${st.rows.map((r) => `<tr>
-      <td>${esc(r.who)}<div class="muted small">${pctText(r.pct)} of the pool${r.paidCards ? ` · paid ${yen.format(r.paidCards)} on cards &amp; Suica` : ""}</div></td>
-      <td class="num">${money(r.cashCost)}</td><td class="num">${money(r.cardCost)}</td><td class="num"><b>${money(r.total)}</b></td>
-    </tr>`).join("")}
-    <tr class="sum"><td><b>Total</b></td><td class="num">${money(st.cashSpent)}</td><td class="num">${money(st.cardTotal)}</td><td class="num"><b>${money(st.cashSpent + st.cardTotal)}</b></td></tr></tbody>`;
+  // The answer first, then how it adds up, each person's cost, and anything still to check.
+  const short = (y) => yen.format(Math.round(y));
+  const both = (y) => `${short(y)} <span class="su-sgd">${fmtSgd(Math.abs(y))}</span>`;
+  const owing = st.transfers.filter((t) => t.net);
+  const paidOut = st.transfers.reduce((sum, t) => sum + (t.net > 0 ? t.net : 0), 0);
+  const kept = st.left - paidOut;
+  $("#suHero").innerHTML = owing.length
+    ? owing.map((t) => `<p class="su-who"><b>${esc(t.from)}</b> pays <b>${esc(t.to)}</b></p>
+        <p class="su-amount">${short(Math.abs(t.net))}</p><p class="su-amount-sgd">${fmtSgd(Math.abs(t.net))}</p>`).join("")
+      + (st.left > 0 && paidOut > 0 && paidOut <= st.left
+        ? `<p class="su-hint">${esc(st.holder)} can pay this from the ${short(st.left)} cash left, and keeps ${short(kept)} (${fmtSgd(kept)}).</p>` : "")
+    : `<p class="su-amount">✅ All square</p><p class="su-hint">Nobody owes anyone anything.</p>`;
 
-  // Settle up through the holder, showing where each amount comes from.
-  const lines = [];
-  if (st.left > 0) lines.push(`${esc(st.holder)} holds the ${yen.format(st.left)} cash that's left.`);
-  for (const t of st.transfers) {
-    const parts = [];
+  const cardsEach = st.cardShare;
+  $("#suSteps").innerHTML = st.transfers.map((t) => {
+    const steps = [];
     if (Math.round(t.leftShare)) {
-      parts.push(t.leftShare > 0
-        ? `${esc(t.who)}'s ${pctText(t.pct)} of the ${yen.format(st.left)} cash left: ${yen.format(Math.round(t.leftShare))}`
-        : `${esc(t.who)}'s ${pctText(t.pct)} of the ${yen.format(-st.left)} ${esc(st.holder)} topped up: −${yen.format(Math.round(-t.leftShare))}`);
+      steps.push({
+        icon: "💵", title: t.leftShare > 0 ? `${esc(t.who)}'s share of the cash left` : `${esc(t.who)}'s share of the cash ${esc(st.holder)} topped up`,
+        text: `${esc(t.who)} put in ${pctText(t.pct)} of the pool, so gets ${pctText(t.pct)} of the ${short(Math.abs(st.left))} ${st.left > 0 ? `${esc(st.holder)} is holding` : "extra"}.`,
+        a: t.leftShare,
+      });
     }
     if (Math.round(t.cardBalance)) {
-      parts.push(t.cardBalance > 0
-        ? `paid ${yen.format(Math.round(t.cardBalance))} more than an even share on cards &amp; Suica: +${yen.format(Math.round(t.cardBalance))}`
-        : `paid ${yen.format(Math.round(-t.cardBalance))} less than an even share on cards &amp; Suica: −${yen.format(Math.round(-t.cardBalance))}`);
+      steps.push({
+        icon: "💳", title: "Cards & Suica, split evenly",
+        text: `${short(st.cardTotal)} went on cards and Suica, so ${short(cardsEach)} each. ${esc(t.who)} paid ${short(t.paidCards)}, ${t.cardBalance > 0 ? "more" : "less"} than half by ${short(Math.abs(t.cardBalance))}.`,
+        a: t.cardBalance,
+      });
     }
-    if (!t.net) {
-      lines.push(`${esc(t.who)} and ${esc(st.holder)} are even.`);
-      continue;
-    }
-    lines.push(`<b>${esc(t.from)}</b> pays <b>${esc(t.to)}</b> <b>${yen.format(Math.abs(t.net))}</b> (${fmtSgd(Math.abs(t.net))})` +
-      (parts.length ? `<div class="muted small">${parts.join(" · ")}</div>` : ""));
-  }
-  // A card billed more than was recorded: what it would change if that was trip spending.
+    return steps.map((x) => `<li><span class="su-icon" aria-hidden="true">${x.icon}</span>
+        <div class="su-text"><b>${x.title}</b><span>${x.text}</span></div>
+        <span class="su-a ${x.a >= 0 ? "plus" : "minus"}">${x.a >= 0 ? "+" : "−"}${short(Math.abs(x.a))}</span></li>`).join("")
+      + `<li class="su-total"><span class="su-icon" aria-hidden="true">🤝</span>
+        <div class="su-text"><b>${t.net ? `${esc(t.from)} pays ${esc(t.to)}` : `${esc(t.who)} and ${esc(st.holder)} are even`}</b></div>
+        <span class="su-a">${both(Math.abs(t.net))}</span></li>`;
+  }).join("");
+
+  $("#suPeople").innerHTML = st.rows.filter((r) => st.people.some((p) => samePerson(p, r.who))).map((r) => `<article class="su-person">
+      <h4>${esc(r.who)}</h4>
+      <p class="su-cost">${short(r.total)}<span>${fmtSgd(r.total)}</span></p>
+      <dl>
+        <div><dt>💵 Cash (${pctText(r.pct)} of ${short(st.cashSpent)})</dt><dd>${short(r.cashCost)}</dd></div>
+        <div><dt>💳 Cards &amp; Suica (half of ${short(st.cardTotal)})</dt><dd>${short(r.cardCost)}</dd></div>
+        <div class="muted"><dt>Paid on own cards &amp; Suica</dt><dd>${short(r.paidCards)}</dd></div>
+      </dl>
+    </article>`).join("");
+
+  // Open questions: cash that can't be traced, and card bills that don't match.
+  const open = [];
+  if (st.counted !== null && st.gap > 0) open.push(`<b>${short(st.gap)} of pool cash wasn't entered</b> (recorded spending vs the ${short(st.counted)} counted). It's shared by pool share like other cash.`);
+  if (st.unrecorded) open.push(`${short(st.unrecorded)} of expenses have no payment recorded, so they count as pool cash.`);
   for (const r of cardStatements()) {
     if (r.diffSgd === null || Math.abs(r.diffSgd) < 1) continue;
-    const diffYen = r.diffSgd * yenPerSgd();
     const owner = st.people.find((p) => samePerson(p, r.card.owner)) ?? r.card.owner;
-    const others = st.people.length - 1;
-    const share = Math.round(Math.abs(diffYen) * (others / st.people.length));
-    lines.push(`⚠️ ${esc(owner)}'s ${esc(r.card.name)} statement is ${fmtS(Math.abs(r.diffSgd))} (≈${yen.format(Math.round(Math.abs(diffYen)))}) ${r.diffSgd > 0 ? "more" : "less"} than recorded. ` +
-      (r.diffSgd > 0
-        ? `If that was trip spending, ${esc(owner)} is owed ${yen.format(share)} (${fmtSgd(share)}) more; if it's money still on a Suica, nothing changes.`
-        : `If those expenses weren't really on this card, ${esc(owner)} is owed ${yen.format(share)} less.`));
+    const share = Math.round(Math.abs(r.diffSgd * yenPerSgd()) * ((st.people.length - 1) / st.people.length));
+    open.push(`<b>${esc(owner)}'s ${esc(r.card.name)}</b> was billed ${fmtS(Math.abs(r.diffSgd))} ${r.diffSgd > 0 ? "more" : "less"} than recorded. ` +
+      (r.diffSgd > 0 ? `If that was trip spending, ${esc(owner)} is owed ${short(share)} more.` : `If those expenses weren't on this card, ${esc(owner)} is owed ${short(share)} less.`));
   }
-
-  // What the holder ends up with once they've paid others out of the leftover cash.
-  const paidOut = st.transfers.reduce((sum, t) => sum + (t.net > 0 ? t.net : 0), 0);
-  if (st.left > 0 && paidOut > 0 && paidOut <= st.left) {
-    lines.push(`That leaves ${esc(st.holder)} with ${yen.format(st.left - paidOut)} (${fmtSgd(st.left - paidOut)}) of the cash.`);
-  }
-  if (!st.transfers.some((t) => t.net)) lines.push("Nobody owes anyone anything.");
-  $("#settleLines").innerHTML = lines.map((l) => `<li>${l}</li>`).join("");
+  $("#suOpen").hidden = !open.length;
+  $("#suOpen").innerHTML = `<h3>⚠️ Still to check</h3><ul>${open.map((o) => `<li>${o}</li>`).join("")}</ul>`;
 }
 
 function renderSettleForm() {
