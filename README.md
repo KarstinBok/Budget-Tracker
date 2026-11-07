@@ -1,6 +1,16 @@
-# 🇯🇵 Japan Trip Budget Tracker
+# Karstin & Lilin's apps
 
-A shared, live-updating expense tracker for the trip, hosted on Netlify.
+Shared, live-updating apps hosted on Netlify. The home page (https://japan-trip-budget.netlify.app/) has a button for each:
+
+| App | Address |
+|---|---|
+| 💸 Everyday expenses | `/daily/` |
+| 🥗 Food & fitness | `/fitness/` |
+| 🗾 Japan trip budget and journal | `/japan/` (journal at `/journal.html`) |
+
+Each app has a 🏠 button back to the home page. Installed on a phone from the home page, it's called **Our Apps**; installed from `/daily/` it's **Our Expenses**, and from `/japan/` it's **Japan Trip Budget**. The Android APK opens the home page.
+
+## 🇯🇵 Japan trip budget (`/japan/`)
 
 - **Add expense button:** pick the date, category and price (in ¥ or S$) and it's added to that day's total. The SGD (or yen) equivalent is shown as you type. On phones it's the round ＋ button in the corner.
 - **SGD everywhere:** totals, daily averages, budget and each day's total are shown in both ¥ and S$. It follows the live market JPY→SGD rate, which `/api/rate` fetches from Coinbase's exchange-rate feed and refreshes every 5 minutes, so everyone sees the same rate. If Coinbase is unreachable it falls back to the daily ECB reference rate (frankfurter.dev), then open.er-api.com. You can also set a manual rate in Settings. All amounts, past ones included, are converted at the current rate.

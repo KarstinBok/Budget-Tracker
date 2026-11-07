@@ -724,3 +724,19 @@ dialog.wide-dlg { width: min(560px, calc(100vw - 24px)); }
   .row.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .rv-nums input { font-size: 0.9rem; }
 }
+
+/* ---------- home page (/) ---------- */
+.home main { max-width: 640px; }
+.home-apps { display: grid; gap: 14px; margin-top: 8px; }
+.home-app {
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 16px;
+  padding: 20px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface);
+  color: var(--text); text-decoration: none; transition: border-color 0.15s, transform 0.15s;
+}
+.home-app:hover, .home-app:focus-visible { border-color: var(--accent); transform: translateY(-1px); outline: none; }
+.home-icon { width: 56px; height: 56px; border-radius: 14px; background: var(--accent-soft); display: grid; place-items: center; font-size: 1.8rem; }
+.home-text { display: grid; gap: 4px; min-width: 0; }
+.home-text b { font-size: 1.15rem; }
+.home-text span { color: var(--muted); font-size: 0.9rem; }
+.home-go { font-size: 1.8rem; color: var(--muted); }
+.home-app:hover .home-go { color: var(--accent); }

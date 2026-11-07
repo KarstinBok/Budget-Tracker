@@ -23,3 +23,13 @@
   for = "/manifest.webmanifest"
   [headers.values]
     Content-Type = "application/manifest+json"
+
+[[headers]]
+  for = "/japan/manifest.webmanifest"
+  [headers.values]
+    Content-Type = "application/manifest+json"
+
+[[headers]]
+  for = "/daily/manifest.webmanifest"
+  [headers.values]
+    Content-Type = "application/manifest+json"
