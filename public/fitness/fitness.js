@@ -10,7 +10,7 @@ import {
   $, esc, store, localToday, fmtDay, timeAgo, toast, myName, setupIdentity, createSync,
   launchAction, returnHomeAfter,
 } from "/common.js";
-import { fitnessTargets, latestWeightOf, weighInsOf } from "/calc.js";
+import { exerciseAddsBack, fitnessTargets, latestWeightOf, weighInsOf } from "/calc.js";
 
 const MEALS = [
   { id: "breakfast", name: "Breakfast", emoji: "🌅" },
@@ -113,13 +113,16 @@ function renderDiary() {
   const t = targets();
   const eaten = sum(foods, "kcal");
   const burned = sum(ex, "kcal");
-  const left = t.kcal - eaten + burned;
+  const addsBack = exerciseAddsBack(doc, who);
+  const left = t.kcal - eaten + (addsBack ? burned : 0);
   $("#kcalEq").innerHTML = `
     <div><b>${fmt(t.kcal)}</b><span>Goal</span></div><i>−</i>
-    <div><b>${fmt(eaten)}</b><span>Food</span></div><i>+</i>
-    <div><b>${fmt(burned)}</b><span>Exercise</span></div><i>=</i>
+    <div><b>${fmt(eaten)}</b><span>Food</span></div>${addsBack ? "<i>+</i>" : ""}
+    ${addsBack ? `<div><b>${fmt(burned)}</b><span>Exercise</span></div><i>=</i>` : `<i class="eq-gap">=</i>`}
     <div class="left ${left < 0 ? "over" : ""}"><b>${fmt(left)}</b><span>${left < 0 ? "Over" : "Remaining"}</span></div>`;
-  const pct = Math.min(100, (eaten / (t.kcal + burned || 1)) * 100);
+  const pct = Math.min(100, (eaten / (t.kcal + (addsBack ? burned : 0) || 1)) * 100);
+  $("#burnNote").hidden = addsBack || !burned;
+  $("#burnNote").innerHTML = `🏃 <b>${fmt(burned)} kcal</b> burned today from exercise · not added to ${esc(who)}'s calories`;
   $("#kcalMeter").classList.toggle("over", left < 0);
   $("#kcalMeter span").style.width = `${pct}%`;
   $("#macroBars").innerHTML = [["p", "Protein"], ["c", "Carbs"], ["f", "Fat"]].map(([k, name]) => {
@@ -191,7 +194,8 @@ function renderProgress() {
   $("#pKcalSub").textContent = `P ${fmt(t.p)}g · C ${fmt(t.c)}g · F ${fmt(t.f)}g${t.set ? "" : " (standard)"}`;
 
   const last14 = Array.from({ length: 14 }, (_, n) => shiftDay(localToday(), n - 13));
-  const byDay = last14.map((d) => ({ d, kcal: sum(foodsOn(d), "kcal"), burned: sum(exercisesOn(d), "kcal"), goal: targets(who, d).kcal }));
+  const addsBack = exerciseAddsBack(doc, who); // burned below is what counts towards the goal
+  const byDay = last14.map((d) => ({ d, kcal: sum(foodsOn(d), "kcal"), burned: addsBack ? sum(exercisesOn(d), "kcal") : 0, goal: targets(who, d).kcal }));
   const logged7 = byDay.slice(7).filter((x) => x.kcal > 0);
   const avg = logged7.length ? sum(logged7, "kcal") / logged7.length : 0;
   $("#pWeek").textContent = logged7.length ? `${fmt(avg)} kcal` : "—";
@@ -583,6 +587,7 @@ function openGoals() {
   f.weeklyKg.value = String(pr.weeklyKg ?? -0.5);
   f.activity.value = pr.activity ?? "light";
   f.kcalTarget.value = pr.kcalTarget ?? "";
+  f.addExercise.checked = pr.addExercise !== false;
   f.mp.value = pr.macros?.p ?? 30;
   f.mc.value = pr.macros?.c ?? 40;
   f.mf.value = pr.macros?.f ?? 30;
@@ -598,7 +603,7 @@ goalsForm.addEventListener("submit", async (e) => {
   if (kg > 0 && kg !== latest?.kg && !(await sync.runOp({ op: "addWeight", person: who, date: localToday(), kg }))) return;
   if (await sync.runOp({
     op: "saveProfile", person: who, sex: f.sex.value, birthYear: f.birthYear.value, heightCm: f.heightCm.value,
-    goalKg: f.goalKg.value, weeklyKg: f.weeklyKg.value, activity: f.activity.value, kcalTarget: f.kcalTarget.value,
+    goalKg: f.goalKg.value, weeklyKg: f.weeklyKg.value, activity: f.activity.value, kcalTarget: f.kcalTarget.value, addExercise: f.addExercise.checked,
     macros: { p: num(f.mp.value), c: num(f.mc.value), f: num(f.mf.value) },
   }, "Goals saved")) $("#goalsDlg").close();
 });

@@ -955,3 +955,9 @@ dialog.bell-dlg { width: min(480px, calc(100vw - 24px)); padding: 16px; }
 .cl-amt { display: grid; justify-items: end; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .cl-amt small { font-size: 0.75rem; font-weight: 400; color: var(--muted); }
 .cl-amt.zero { color: var(--muted); font-weight: 400; }
+
+/* Food & fitness: exercise shown but not added to the goal */
+.burn-note { margin: 8px 0 0; padding: 8px 12px; border-radius: 10px; background: color-mix(in srgb, var(--good) 12%, var(--surface)); font-size: 0.88rem; }
+.burn-note[hidden] { display: none; }
+.check-row { display: flex !important; align-items: center; gap: 8px; color: var(--text) !important; }
+.check-row input { width: 18px; height: 18px; accent-color: var(--accent); }

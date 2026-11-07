@@ -2,7 +2,7 @@
 // here afterwards), and a tab per app with today's snapshot.
 
 import { $, esc, localToday, toast, fetchJson } from "/common.js";
-import { fitnessTargets, latestWeightOf, settleUp } from "/calc.js";
+import { exerciseAddsBack, fitnessTargets, latestWeightOf, settleUp } from "/calc.js";
 
 const money = (c) => `S$${(c / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmt = (v) => Math.round(v).toLocaleString("en-US");
@@ -70,7 +70,7 @@ async function loadFitness() {
   $("#fitnessStats").innerHTML = doc.people.map((p) => {
     const goal = fitnessTargets(doc, p, today).kcal;
     const eaten = sum(doc.foods.filter((f) => f.person === p && f.date === today), "kcal");
-    const burned = sum(doc.exercises.filter((x) => x.person === p && x.date === today), "kcal");
+    const burned = exerciseAddsBack(doc, p) ? sum(doc.exercises.filter((x) => x.person === p && x.date === today), "kcal") : 0;
     const left = goal - eaten + burned;
     const w = latestWeightOf(doc, p);
     const target = doc.profiles[p]?.goalKg;
