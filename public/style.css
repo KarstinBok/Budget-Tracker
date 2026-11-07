@@ -871,3 +871,40 @@ dialog.bell-dlg { width: min(480px, calc(100vw - 24px)); padding: 16px; }
 .suica-list li { padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; }
 .suica-list p { margin: 4px 0 0; }
 .push-who { display: flex; gap: 8px; flex-wrap: wrap; }
+.statements tr.statement-note td { font-size: 0.8rem; color: var(--muted); padding-top: 0; border-top: 0; text-align: left; white-space: normal; }
+
+/* Japan trip: settle up, made readable */
+#settlePanel { display: grid; gap: 14px; }
+#settlePanel > h2 { margin: 0; }
+.su-hero { text-align: center; padding: 18px 16px; border-radius: 16px; background: var(--accent-soft); }
+.su-hero p { margin: 0; }
+.su-who { font-size: 1.05rem; }
+.su-amount { font-size: 2.2rem; font-weight: 800; color: var(--accent); font-variant-numeric: tabular-nums; line-height: 1.2; margin-top: 4px !important; }
+.su-amount-sgd { font-size: 1.05rem; font-weight: 600; color: var(--text); }
+.su-hint { margin-top: 10px !important; font-size: 0.9rem; color: var(--muted); }
+.su-h { margin: 6px 0 -4px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.su-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.su-steps li { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; padding: 12px 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
+.su-icon { font-size: 1.4rem; }
+.su-text { display: grid; gap: 2px; min-width: 0; }
+.su-text span { font-size: 0.88rem; color: var(--muted); }
+.su-a { font-weight: 700; font-size: 1.05rem; white-space: nowrap; font-variant-numeric: tabular-nums; text-align: right; }
+.su-a.plus { color: var(--good); }
+.su-a.minus { color: var(--accent); }
+.su-sgd { display: block; font-size: 0.8rem; font-weight: 500; color: var(--muted); }
+.su-steps li.su-total { background: var(--surface-2); border-color: transparent; }
+.su-people { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.su-person { padding: 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
+.su-person h4 { margin: 0; font-size: 1rem; }
+.su-cost { margin: 4px 0 8px; font-size: 1.5rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.su-cost span { display: block; font-size: 0.85rem; font-weight: 500; color: var(--muted); }
+.su-person dl { margin: 0; display: grid; gap: 4px; }
+.su-person dl div { display: flex; justify-content: space-between; gap: 10px; font-size: 0.86rem; }
+.su-person dd { margin: 0; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.su-person .muted { color: var(--muted); }
+.su-open { padding: 12px 14px; border-radius: 14px; border: 1px solid color-mix(in srgb, #e0a100 50%, var(--border)); background: color-mix(in srgb, #e0a100 10%, var(--surface)); }
+.su-open h3 { margin: 0 0 6px; font-size: 0.95rem; }
+.su-open ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: 0.88rem; }
+.su-details { border: 1px solid var(--border); border-radius: 14px; padding: 10px 14px; }
+.su-details summary { cursor: pointer; font-weight: 600; }
+.su-details[open] summary { margin-bottom: 8px; }
