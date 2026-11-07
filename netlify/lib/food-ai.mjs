@@ -158,7 +158,7 @@ function offProduct(p) {
 }
 
 // Open Food Facts: by barcode, or a name search. Returns JSON text for Claude.
-async function lookupFood({ barcode, query }) {
+export async function lookupFood({ barcode, query }) {
   const code = String(barcode ?? "").replace(/\D/g, "");
   const headers = { "user-agent": UA };
   const opts = { headers, signal: AbortSignal.timeout(12_000) };
@@ -180,7 +180,7 @@ async function lookupFood({ barcode, query }) {
 // USDA FoodData Central nutrient ids (energy has three ids depending on the data type).
 const FDC = { kcal: [1008, 2047, 2048], protein_g: [1003], carbs_g: [1005], fat_g: [1004], fiber_g: [1079], sugar_g: [2000, 1063], sodium_mg: [1093] };
 
-async function lookupUsda({ query }) {
+export async function lookupUsda({ query }) {
   const q = str(query, 120);
   if (!q) return JSON.stringify({ foods: [], note: "Give an ingredient to search for." });
   const key = process.env.FDC_API_KEY || "DEMO_KEY";

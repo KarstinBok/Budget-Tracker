@@ -5,8 +5,9 @@
 //  - foods: what was eaten, by day and meal (breakfast, lunch, snacks, dinner);
 //  - weights: weigh-ins (one per person per day);
 //  - exercises: workouts and the calories they burned.
-// Food can be added by hand or from a photo or description recognised by Claude
-// (food-scan.mjs), which the page shows for checking before it's logged here.
+// Food can be added on the page (by hand, from foods logged before, or from a description
+// Claude works out via food-scan.mjs), or by Claude in the Claude app through the
+// connector (mcp.mjs), e.g. from a photo of a meal.
 
 import { randomUUID } from "node:crypto";
 import { createDocHandler, fail, str } from "../lib/shared-doc.mjs";
@@ -25,7 +26,7 @@ function defaultProfile() {
   };
 }
 
-function defaultDoc() {
+export function defaultDoc() {
   return {
     version: 0,
     schema: 1,
@@ -44,7 +45,7 @@ function defaultDoc() {
   };
 }
 
-function normalize(doc) {
+export function normalize(doc) {
   for (const p of doc.people) doc.profiles[p] ??= defaultProfile();
   return doc;
 }
@@ -87,7 +88,7 @@ function readFood(body) {
     p: num(body.p ?? 0, { max: 1000, dp: 1, label: "protein" }),
     c: num(body.c ?? 0, { max: 1000, dp: 1, label: "carbs" }),
     f: num(body.f ?? 0, { max: 1000, dp: 1, label: "fat" }),
-    source: ["photo", "describe", "manual", "recent"].includes(body.source) ? body.source : "manual",
+    source: ["claude", "photo", "describe", "manual", "recent"].includes(body.source) ? body.source : "manual",
   };
   for (const [k, max] of [["fiber", 500], ["sugar", 1000], ["sodium", 50000]]) {
     const v = num(body[k], { max, dp: k === "sodium" ? 0 : 1, label: k, optional: true });
@@ -146,7 +147,7 @@ function readProfile(body, old) {
   return p;
 }
 
-function applyOp(doc, body, by) {
+export function applyOp(doc, body, by) {
   switch (body.op) {
     case "addFoods": {
       const who = person(doc, body.person);

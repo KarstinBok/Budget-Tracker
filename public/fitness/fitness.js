@@ -1,9 +1,10 @@
 // Food & fitness – client for /fitness/ (netlify/functions/fitness.mjs, /api/fitness).
 // A diary per person, like the big calorie-counting apps: each day's food in four meals
 // (breakfast, lunch, snacks, dinner), exercise, and calories and macros left against goals
-// worked out from body details and a weight goal. Food can come from a photo or a
-// description that Claude recognises (/api/food-scan), from foods logged before, or be
-// typed in. 📈 Progress shows weight against the goal and recent calories.
+// worked out from body details and a weight goal. Food can come from foods logged before,
+// a description Claude works out (/api/food-scan), or be typed in; photos go through Claude
+// in the Claude app, which logs them via the connector (netlify/functions/mcp.mjs).
+// 📈 Progress shows weight against the goal and recent calories.
 
 import {
   $, esc, store, localToday, fmtDay, timeAgo, toast, myName, setupIdentity, createSync,
@@ -166,7 +167,7 @@ function renderDiary() {
 }
 
 function foodRow(f) {
-  const tag = f.source === "photo" ? "📷 " : f.source === "describe" ? "✨ " : "";
+  const tag = f.source === "claude" ? `<span class="by-claude" title="Logged by Claude">💬</span> ` : f.source === "photo" ? "📷 " : f.source === "describe" ? "✨ " : "";
   return `<li class="food-row" data-edit-food="${esc(f.id)}" tabindex="0" role="button" aria-label="Edit ${esc(f.name)}">
     <div class="item-main">
       <span class="item-note">${tag}<b>${esc(f.name)}</b></span>
@@ -316,11 +317,8 @@ function openFood(meal) {
   scanRun++;
   mealChips("#mealChoices", "meal", meal || (day === localToday() ? mealForNow() : "lunch"));
   $("#foodTitle").textContent = `Add food · ${who} · ${dayLabel(day)}`;
-  const last = store.get("fitness.src") || "photo";
-  foodForm.querySelector(`input[name="src"][value="${last}"]`).checked = true;
-  photos = [];
-  renderPhotos();
-  $("#photoText").value = "";
+  const last = store.get("fitness.src");
+  (foodForm.querySelector(`input[name="src"][value="${last}"]`) ?? foodForm.querySelector('input[name="src"]')).checked = true;
   $("#describeText").value = "";
   $("#recentSearch").value = "";
   for (const id of ["#mName", "#mAmount", "#mKcal", "#mP", "#mC", "#mF"]) $(id).value = "";
@@ -426,14 +424,14 @@ function addToReview(items, source) {
 }
 
 // Recognition: photo and/or words go to Claude in the background; poll for the answer.
-async function recognise({ images = [], text }) {
+async function recognise({ text }) {
   const run = ++scanRun;
   const status = $("#scanStatus");
   const set = (html, cls = "") => { status.hidden = false; status.className = `scan-status ${cls}`; status.innerHTML = html; };
-  set(`<span class="spinner" aria-hidden="true"></span> Claude is identifying the food and estimating each ingredient's weight…`);
-  for (const b of document.querySelectorAll("#photoGo, #describeGo")) b.disabled = true;
+  set(`<span class="spinner" aria-hidden="true"></span> Claude is working out the ingredients and their weights…`);
+  $("#describeGo").disabled = true;
   try {
-    const { id } = await postJson("/api/food-scan", { images, text, meal: mealNow() });
+    const { id } = await postJson("/api/food-scan", { text, meal: mealNow() });
     const started = Date.now();
     let res;
     do {
@@ -445,56 +443,16 @@ async function recognise({ images = [], text }) {
     if (run !== scanRun) return;
     if (res.status !== "done") throw new Error(res.error || "Couldn't recognise the food. Try again.");
     status.hidden = true;
-    addToReview(res.items, images.length ? "photo" : "describe");
+    addToReview(res.items, "describe");
     $("#reviewNote").textContent = res.note || "";
     $("#reviewBox").scrollIntoView({ block: "nearest", behavior: "smooth" });
   } catch (err) {
     if (run === scanRun) set(`⚠️ ${esc(err.message)}`, "error");
   } finally {
-    if (run === scanRun) for (const b of document.querySelectorAll("#photoGo, #describeGo")) b.disabled = false;
+    if (run === scanRun) $("#describeGo").disabled = false;
   }
 }
 
-// Shrinks a photo to at most 1400 px on its longer side, as JPEG, before uploading.
-async function shrinkPhoto(file) {
-  const bitmap = await createImageBitmap(file).catch(() => null);
-  if (!bitmap) throw new Error("That file isn't a photo this browser can read. Try a JPEG or PNG.");
-  const scale = Math.min(1, 1400 / Math.max(bitmap.width, bitmap.height));
-  const canvas = Object.assign(document.createElement("canvas"), { width: Math.round(bitmap.width * scale), height: Math.round(bitmap.height * scale) });
-  canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  return canvas.toDataURL("image/jpeg", 0.85);
-}
-
-// Up to 3 photos per recognition: data URLs, shown as thumbnails that can be removed.
-let photos = [];
-function renderPhotos() {
-  $("#photoStrip").innerHTML = photos.map((p, n) => `<figure><img src="${p}" alt="Photo ${n + 1}" />
-    <button type="button" class="photo-x" data-photo-x="${n}" aria-label="Remove photo ${n + 1}">✕</button></figure>`).join("");
-  for (const b of document.querySelectorAll(".photo-btn")) b.classList.toggle("disabled", photos.length >= 3);
-}
-async function addPhotos(input) {
-  const files = [...input.files];
-  input.value = "";
-  for (const file of files) {
-    if (photos.length >= 3) { toast("Up to 3 photos at a time"); break; }
-    try {
-      photos.push(await shrinkPhoto(file));
-    } catch (err) {
-      toast(err.message);
-    }
-  }
-  renderPhotos();
-}
-$("#cameraInput").addEventListener("change", (e) => addPhotos(e.target));
-$("#galleryInput").addEventListener("change", (e) => addPhotos(e.target));
-$("#photoStrip").addEventListener("click", (e) => {
-  const x = e.target.closest("[data-photo-x]");
-  if (x) { photos.splice(Number(x.dataset.photoX), 1); renderPhotos(); }
-});
-$("#photoGo").addEventListener("click", () => {
-  if (!photos.length) return toast("Take or choose a photo first");
-  recognise({ images: photos.map((p) => ({ data: p.split(",")[1], mediaType: "image/jpeg" })), text: $("#photoText").value.trim() });
-});
 $("#describeGo").addEventListener("click", () => {
   const text = $("#describeText").value.trim();
   if (!text) return toast("Describe what you ate first");
