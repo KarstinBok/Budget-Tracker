@@ -16,7 +16,8 @@ let month = localToday().slice(0, 7); // "YYYY-MM"
 let filter = store.get("daily.filter") || ""; // personal screen: a person, or "all"
 let openCell = null; // { date, cat } dropped down in the table; cat null = whole day
 let editing = null; // expense being edited in the dialog
-let view = "home"; // 🏠 home (spending by day) or 📊 overview (cards, summary, table)
+let view = "home";
+let chartEnd = null; // last month in the 6-month chart, when paged back with ‹ › // 🏠 home (spending by day) or 📊 overview (cards, summary, table)
 let gridFrom = null; // earliest day the table shows, when a date further back was picked
 let gridToTop = true; // next table render scrolls back to today
 let cardTouched = false; // the card was picked by hand in the open dialog, so don't suggest one
@@ -156,6 +157,33 @@ const thisMonth = () => localToday().slice(0, 7);
 // Short amounts for the chart's axis: 950, 1.9k.
 const axis = (c) => (c >= 100000 ? `${+(c / 100000).toFixed(1)}k` : `${Math.round(c / 100)}`);
 
+// Days counted for a month's average: so far this month, or every day of a past month.
+function daysCounted(ym) {
+  const now = thisMonth();
+  if (ym > now) return 0;
+  if (ym === now) return Number(localToday().slice(8));
+  const [y, m] = ym.split("-").map(Number);
+  return new Date(Date.UTC(y, m, 0)).getUTCDate();
+}
+
+// Every month with spending on this screen (newest first), always including this month.
+function dataMonths() {
+  const set = new Set([thisMonth()]);
+  for (const i of doc.items) {
+    if (i.kind === screen && (screen === "shared" || filter === "all" || i.owner === filter)) set.add(i.date.slice(0, 7));
+  }
+  return [...set].filter((m) => m <= thisMonth()).sort().reverse();
+}
+
+// Averages over the complete months with spending (this month left out until it's over).
+function monthlyAverages() {
+  const past = dataMonths().filter((m) => m < thisMonth());
+  const totals = past.map(monthTotal);
+  const days = past.reduce((s, m) => s + daysCounted(m), 0);
+  const total = totals.reduce((s, v) => s + v, 0);
+  return { months: past.length, perMonth: past.length ? total / past.length : 0, perDay: days ? total / days : 0 };
+}
+
 // Total spending a month for the current screen and person filter.
 function monthTotal(ym) {
   return sum(doc.items.filter((i) => i.kind === screen && i.date.startsWith(ym) &&
@@ -181,22 +209,31 @@ function renderFlow(items) {
   const pills = [];
   if (screen === "personal") {
     if (month === now) pills.push(["Today", sum(items.filter((i) => i.date === today))]);
-    const days = month === now ? Number(today.slice(8)) : daysOf(month).length;
+    const days = daysCounted(month);
     pills.push(["Avg / day", days ? total / days : 0]);
+    const avg = monthlyAverages();
+    if (avg.months) pills.push([`Avg / month (${avg.months} mo)`, avg.perMonth]);
   } else {
     pills.push([`${mine}'s share`, items.reduce((s, i) => s + i.a * (i.shares?.[mine] ?? 0), 0)]);
     pills.push([`${mine} paid`, sum(items.filter((i) => i.paidBy === mine))]);
   }
   $("#flowPills").innerHTML = pills.map(([k, v]) => `<span class="flow-pill"><span>${esc(k)}</span><b>${money(v)}</b></span>`).join("");
 
-  // Six months ending this month (or the chosen month, if it's further back).
-  const end = month < shiftMonth(now, -5) ? month : now;
+  // Six months ending this month, the chosen month if it's further back, or where ‹ › paged to.
+  let end = chartEnd ?? (month < shiftMonth(now, -5) ? month : now);
+  if (end > now) end = now;
+  const oldest = dataMonths().at(-1) ?? now;
   const months = Array.from({ length: 6 }, (_, n) => shiftMonth(end, n - 5));
   const totals = months.map(monthTotal);
   const max = Math.max(...totals, 1);
   const mag = 10 ** Math.floor(Math.log10(max));
   const top = [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10].map((m) => m * mag).find((v) => v >= max);
   $("#flowChart").innerHTML = `
+    <div class="flow-pager">
+      <button type="button" class="icon-btn" data-chart-page="-6" aria-label="Earlier months" ${shiftMonth(end, -5) <= oldest ? "disabled" : ""}>‹</button>
+      <span>${monthName(months[0], { month: "short", year: "numeric" })} – ${monthName(months.at(-1), { month: "short", year: "numeric" })}</span>
+      <button type="button" class="icon-btn" data-chart-page="6" aria-label="Later months" ${end >= now ? "disabled" : ""}>›</button>
+    </div>
     <div class="flow-axis">${[top, top / 2, 0].map((t) => `<span>${axis(t)}</span>`).join("")}</div>
     <div class="flow-plot">${[top, top / 2, 0].map((t) => `<i class="db-grid" style="bottom:${(t / top) * 100}%"></i>`).join("")}
       ${months.map((m, n) => `<button type="button" class="flow-col${m === month ? " on" : ""}" data-month="${m}" aria-pressed="${m === month}"
@@ -204,9 +241,12 @@ function renderFlow(items) {
         <span class="flow-mlabel">${monthName(m, { month: "short" })}<br>${m.slice(0, 4)}</span></button>`).join("")}
     </div>`;
 
-  const chips = [shiftMonth(now, -1), now];
-  if (!chips.includes(month)) chips.unshift(month);
-  $("#flowChips").innerHTML = chips.map((m) => `<button type="button" class="flow-chip${m === month ? " on" : ""}" data-month="${m}" role="radio" aria-checked="${m === month}">${m === now ? "This month" : monthName(m)}</button>`).join("");
+  // A chip for every month with spending, newest first, scrolling sideways.
+  const chips = dataMonths();
+  if (!chips.includes(month)) chips.push(month);
+  $("#flowChips").innerHTML = chips.map((m) => `<button type="button" class="flow-chip${m === month ? " on" : ""}" data-month="${m}" role="radio" aria-checked="${m === month}">${m === now ? "This month" : monthName(m, { month: "short", year: "numeric" })}</button>`).join("");
+  $("#flowChips .flow-chip.on")?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  renderMonths();
 
   // Expenses by day, newest first, each day in its own card.
   const byDay = new Map();
@@ -251,10 +291,51 @@ function txRow(i) {
 
 for (const id of ["#flowChart", "#flowChips"]) {
   $(id).addEventListener("click", (e) => {
+    const page = e.target.closest("[data-chart-page]");
+    if (page) {
+      const now = thisMonth();
+      const cur = chartEnd ?? (month < shiftMonth(now, -5) ? month : now);
+      const next = shiftMonth(cur, Number(page.dataset.chartPage));
+      chartEnd = next >= now ? null : next;
+      return render();
+    }
     const b = e.target.closest("[data-month]");
-    if (b) { month = b.dataset.month; openCell = null; render(); }
+    if (b) {
+      month = b.dataset.month;
+      openCell = null;
+      if (b.closest("#flowChips")) chartEnd = null; // the chart follows the chosen month
+      render();
+    }
   });
 }
+
+// 📅 Months (Overview): each month's total, average per day and count, and the averages.
+function renderMonths() {
+  const months = dataMonths();
+  const avg = monthlyAverages();
+  const rows = months.map((m) => {
+    const list = doc.items.filter((i) => i.kind === screen && i.date.startsWith(m) && (screen === "shared" || filter === "all" || i.owner === filter));
+    const total = sum(list);
+    const days = daysCounted(m);
+    const diff = avg.perMonth && m < thisMonth() ? Math.round(((total - avg.perMonth) / avg.perMonth) * 100) : null;
+    return `<tr data-month="${m}" class="${m === month ? "on" : ""}">
+      <th scope="row">${m === thisMonth() ? "This month" : monthName(m, { month: "short", year: "numeric" })}</th>
+      <td>${money(total)}${diff !== null ? `<span class="muted small"> ${diff >= 0 ? "▲" : "▼"} ${Math.abs(diff)}%</span>` : ""}</td>
+      <td>${money(days ? total / days : 0)}</td>
+      <td>${list.length}</td></tr>`;
+  }).join("");
+  $("#monthsTable").innerHTML = `
+    <thead><tr><th scope="col">Month</th><th scope="col">Spent</th><th scope="col">Avg / day</th><th scope="col">Expenses</th></tr></thead>
+    <tbody>${rows}</tbody>
+    ${avg.months ? `<tfoot><tr><th scope="row">Average</th><td>${money(avg.perMonth)}<span class="muted small"> / month</span></td><td>${money(avg.perDay)}</td><td></td></tr></tfoot>` : ""}`;
+  $("#monthsNote").textContent = avg.months
+    ? `Averages over the ${avg.months} complete month${avg.months === 1 ? "" : "s"} with spending${screen === "personal" ? ` (${filter === "all" ? "both of you" : filter})` : " (shared)"}. ▲▼ compare each month with the monthly average. Tap a month to see it.`
+    : "Averages appear once a full month has passed.";
+}
+$("#monthsTable").addEventListener("click", (e) => {
+  const tr = e.target.closest("tr[data-month]");
+  if (tr) { month = tr.dataset.month; chartEnd = null; openCell = null; setView("home"); }
+});
 $("#txList").addEventListener("click", (e) => {
   const tx = e.target.closest("[data-tx]");
   if (tx) openAdd({}, doc.items.find((i) => i.id === tx.dataset.tx));

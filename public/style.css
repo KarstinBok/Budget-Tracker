@@ -927,3 +927,15 @@ dialog.bell-dlg { width: min(480px, calc(100vw - 24px)); padding: 16px; }
   .guide-row [data-k="what"] { grid-column: 1 / 3; }
   .guide-row [data-guide-remove] { grid-row: 1; grid-column: 3; }
 }
+
+/* Everyday expenses: browsing months and averages */
+.flow-pager { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 0.85rem; color: var(--muted); margin-bottom: 4px; }
+.flow-pager .icon-btn { font-size: 1.3rem; padding: 0 12px; }
+.flow-pager .icon-btn:disabled { opacity: 0.3; cursor: default; }
+.flow-chart { grid-template-rows: auto 1fr; height: 196px; }
+.flow-chips { scrollbar-width: none; padding-bottom: 2px; }
+.flow-chips::-webkit-scrollbar { display: none; }
+.months-table td { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.months-table tbody tr { cursor: pointer; }
+.months-table tbody tr:hover, .months-table tbody tr.on { background: var(--surface-2); }
+.months-table tfoot th, .months-table tfoot td { font-weight: 700; border-top: 2px solid var(--border); padding: 10px 12px; }

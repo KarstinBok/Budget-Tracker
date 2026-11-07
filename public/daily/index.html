@@ -81,6 +81,7 @@
       <button type="button" class="fold-tab" data-fold="summaryPanel" aria-controls="summaryPanel" aria-expanded="false">📊 Summary</button>
       <button type="button" class="fold-tab" data-fold="paymentsPanel" aria-controls="paymentsPanel" aria-expanded="false">💸 Payments</button>
       <button type="button" class="fold-tab" data-fold="cardsPanel" aria-controls="cardsPanel" aria-expanded="false">💳 Cards</button>
+      <button type="button" class="fold-tab" data-fold="monthsPanel" aria-controls="monthsPanel" aria-expanded="false">📅 Months</button>
       <button type="button" class="fold-tab" data-fold="logPanel" aria-controls="logPanel" aria-expanded="false">🕒 Recent changes</button>
     </nav>
 
@@ -114,6 +115,12 @@
       <div class="guide-wrap"><table class="card-guide" id="cardGuide"></table></div>
       <h3 class="guide-h">Spending this month</h3>
       <ul class="card-list" id="cardList"></ul>
+    </section>
+
+    <section class="panel fold" id="monthsPanel" data-view="overview" hidden>
+      <h2>Month by month</h2>
+      <p class="muted small" id="monthsNote"></p>
+      <div class="guide-wrap"><table class="card-guide months-table" id="monthsTable"></table></div>
     </section>
 
     <section class="panel fold" id="logPanel" data-view="overview" hidden>
