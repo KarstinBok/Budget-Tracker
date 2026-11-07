@@ -12,6 +12,7 @@ import { json, str, updateDoc, liveStore } from "../lib/shared-doc.mjs";
 import { lookupFood, lookupUsda } from "../lib/food-lookup.mjs";
 import { notifyChange } from "../lib/notify.mjs";
 import { FITNESS_KEY, MEALS, applyOp, defaultDoc, normalize } from "./fitness.mjs";
+import { weekBalance, weekNote } from "../../public/calc.js";
 
 const SERVER = { name: "our-food-diary", version: "1.0.0" };
 const PROTOCOLS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
@@ -192,6 +193,10 @@ function diary(doc, p, d) {
       id: f.id, name: f.name, amount: f.amount, grams: f.grams, kcal: f.kcal, protein_g: f.p, carbs_g: f.c, fat_g: f.f,
     }))])),
     exercise: ex.map((x) => ({ id: x.id, name: x.name, minutes: x.minutes, kcal: x.kcal })),
+    week: (() => {
+      const w = weekBalance(doc, p, d);
+      return { from: w.start, to: w.end, budget_kcal: w.weekly, over_budget_kcal: Math.round(w.surplus), aim_kcal_per_day_for_rest_of_week: w.surplus > 0 ? w.perDay : null, reminder: weekNote(w, new Date(`${d}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" })) };
+    })(),
     weight_kg: latest?.kg ?? null,
     goal_weight_kg: doc.profiles[p]?.goalKg ?? null,
     app: "https://japan-trip-budget.netlify.app/fitness/",
