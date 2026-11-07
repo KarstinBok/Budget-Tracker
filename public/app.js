@@ -50,17 +50,30 @@ const cardLabel = (c) => `${c.owner}'s ${c.name}`;
 // How a person's Suica was topped up (Settings → Cash pool): "cash" from the pool, a card
 // (returned as the card), or "own" money.
 function suicaFunding(person) {
-  const entry = Object.entries(doc.settle?.suica ?? {}).find(([who]) => samePerson(who, person));
+  // Names differ between places ("Lilin" in the settings, "Li Lin Loh" as a card owner).
+  const key = (n) => (n ?? "").toLowerCase().replace(/\s+/g, "");
+  const p = key(person);
+  const entry = Object.entries(doc.settle?.suica ?? {}).find(([who]) => key(who) && (p.startsWith(key(who)) || key(who).startsWith(p)));
   const how = entry?.[1] ?? "own";
   if (how === "cash") return "cash";
   return cardById(how) ?? "own";
 }
 
+// A Suica added as a card (named "Suica"): its spending is a Suica's, not a credit card's.
+const isSuicaCard = (card) => !!card && /suica/i.test(card.name);
+
+// Whose Suica paid for an expense, whether entered as 🚃 Suica or with a "Suica" card.
+function suicaOwner(i) {
+  if (i.pay === "suica") return i.payer;
+  const card = i.pay === "card" && cardById(i.card);
+  return isSuicaCard(card) ? card.owner : null;
+}
+
 // S$ spent on a card so far, at the current rate (optionally leaving one expense out),
-// including Suica fares on a Suica topped up with that card.
+// including Suica spending on a Suica topped up with that card.
 function cardSpentSgd(cardId, exceptItemId = null) {
   return doc.items.filter((i) => i.id !== exceptItemId &&
-    (i.card === cardId || (i.pay === "suica" && suicaFunding(i.payer)?.id === cardId)))
+    (i.card === cardId || (suicaOwner(i) && suicaFunding(suicaOwner(i))?.id === cardId)))
     .reduce((sum, i) => sum + i.a, 0) / yenPerSgd();
 }
 
@@ -72,7 +85,7 @@ function cardLevel(usedSgd, limitSgd) {
 // tracked together: { cards, limitSgd, label, shared }. A shared group's limit is the
 // lowest limit among its cards.
 function limitGroups() {
-  const cards = doc.cards ?? [];
+  const cards = (doc.cards ?? []).filter((c) => !isSuicaCard(c)); // a Suica counts on what topped it up
   const parent = new Map(cards.map((c) => [c.id, c.id]));
   const find = (id) => (parent.get(id) === id ? id : find(parent.get(id)));
   for (const c of cards) {
@@ -115,6 +128,10 @@ function payLabel(i) {
   }
   if (i.pay === "cash") return `💵 ${esc(i.payer)}'s cash`;
   const card = i.pay === "card" && cardById(i.card);
+  if (isSuicaCard(card)) {
+    const f = suicaFunding(card.owner);
+    return `🚃 ${esc(cardLabel(card))}${f === "cash" ? " (pool cash)" : f.id ? ` (${esc(f.name)})` : ""}`;
+  }
   return card ? `💳 ${esc(cardLabel(card))}` : "";
 }
 
@@ -250,9 +267,11 @@ function renderPayments() {
   const rows = new Map();
   for (const i of doc.items) {
     if (!i.pay) continue;
-    const r = rows.get(i.payer) ?? { cash: 0, card: 0, suica: 0 };
-    r[i.pay] += i.a;
-    rows.set(i.payer, r);
+    // One row per person, whichever name (settings or device) the expense carries.
+    const who = [...rows.keys()].find((k) => samePerson(k, i.payer)) ?? doc.settle.people.find((p) => samePerson(p, i.payer)) ?? i.payer;
+    const r = rows.get(who) ?? { cash: 0, card: 0, suica: 0 };
+    r[suicaOwner(i) ? "suica" : i.pay] += i.a;
+    rows.set(who, r);
   }
   const unrecorded = doc.items.filter((i) => !i.pay).reduce((sum, i) => sum + i.a, 0);
   $("#payers").innerHTML = `
@@ -968,7 +987,13 @@ addForm.addEventListener("submit", async (e) => {
 
 // ---------------------------------------------------------------- cash pool and settling up
 
-const samePerson = (a, b) => (a ?? "").trim().toLowerCase() === (b ?? "").trim().toLowerCase();
+// The same person under different names: settings use "Karstin" and "Lilin", while cards
+// and expenses carry each device's name, e.g. "Karstin Bok" and "Li Lin Loh".
+const personKey = (n) => (n ?? "").toLowerCase().replace(/\s+/g, "");
+const samePerson = (a, b) => {
+  const x = personKey(a), y = personKey(b);
+  return x === y || (x.length >= 3 && y.length >= 3 && (x.startsWith(y) || y.startsWith(x)));
+};
 
 // How the trip's costs are shared:
 //  - cash comes from the shared pool, so cash spending, and whatever cash is left at the
@@ -999,10 +1024,11 @@ function settlement() {
   let cashSpent = 0, unrecorded = 0, cardTotal = 0;
   let suicaCash = 0;
   for (const i of items) {
-    const funding = i.pay === "suica" ? suicaFunding(i.payer) : null;
-    const card = (i.pay === "card" && cardById(i.card)) || (funding?.id ? funding : null);
+    const suica = suicaOwner(i);
+    const funding = suica ? suicaFunding(suica) : null;
+    const card = funding ? (funding.id ? funding : null) : i.pay === "card" && cardById(i.card);
     if (card || funding === "own") {
-      const n = nameOf(card ? card.owner : i.payer); // cards and own-money Suica are paid by their owner
+      const n = nameOf(card ? card.owner : suica); // cards and own-money Suica are paid by their owner
       cardPaid.set(n, (cardPaid.get(n) ?? 0) + i.a);
       cardTotal += i.a;
     } else {
