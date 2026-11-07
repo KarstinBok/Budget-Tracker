@@ -8,6 +8,7 @@
     "dev": "netlify dev"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.6.0",
     "@netlify/blobs": "^11.1.6"
   }
 }

@@ -64,6 +64,21 @@ A separate tracker for Karstin and Lilin's day-to-day spending in Singapore doll
 - **💳 Cards:** add each card in **⚙️ Settings → Cards** with whose it is and the categories it's for. When you add an expense, the card for that category is picked for you (your own first), and you can change it or pick 💵 Cash / other. Using the other person's card on a **personal** expense means owing them the whole amount, which shows in **Settle up** on both screens. On a **shared** expense, the card's owner counts as the one who paid. The 💳 Cards fold-out shows what each card is for and what went on it this month. A card with expenses on it can't be removed or given to someone else.
 - Browse months with ‹ ›. **⚙️ Settings** renames people (their expenses follow), edits categories, and downloads a CSV or all data. Every change is backed up like the trip data (`daily-v1`).
 
+## Food & fitness (`/fitness/`)
+
+A calorie and macro diary for Karstin and Lilin, in the same app as the everyday expenses (🥗 Food & fitness tab), built like the big calorie-counting apps. Each person has their own diary; you can switch to see the other's.
+
+- **📒 Diary:** each day in four meals (🌅 Breakfast, 🍱 Lunch, 🍎 Snacks, 🍲 Dinner), plus 🏃 Exercise and ⚖️ Weight. The top shows **Goal − Food + Exercise = Remaining** calories, and protein, carbs and fat against their goals. Tap a food to edit, move or delete it.
+- **Adding food:** pick the meal, then
+  - **📷 Photo:** a photo of the meal, a label or a barcode, with optional words ("half the rice"). Claude identifies each food and its portion, then looks up its nutrition: packaged foods in the [Open Food Facts](https://world.openfoodfacts.org) database (by barcode or name), restaurant and branded items on the web (the brand's own nutrition facts), and everything else from standard nutrition tables (USDA, Singapore HPB). Each item says how sure it is (Exact, Standard values or Rough estimate) and where the numbers came from.
+  - **✍️ Describe:** the same, from words alone ("2 eggs, kaya toast, kopi-o kosong").
+  - **🕒 Recent:** foods you logged before, one tap to add again. **✏️ Manual:** type the numbers in.
+  - Everything lands in a **Check before logging** list first, where you can untick items, change the portion (× 0.5, × 2) or any number.
+- **🎯 Goals:** sex, year of birth, height, current and goal weight, weekly goal (lose or gain up to 1 kg a week) and activity level set the daily calorie goal (Mifflin-St Jeor, never below 1,200 kcal for women or 1,500 for men), or set your own. Macros are a % split of calories (30/40/30 to start).
+- **Exercise:** pick an activity and the minutes; calories burned are worked out from your weight, or enter your watch's number. Exercise calories are added back to the day's goal.
+- **📈 Progress:** current and goal weight with an estimated date, the daily goal, the last 7 days' average, a weight chart with the goal line (1 month, 3 months, 1 year), calories for the last 14 days against the goal, and every weigh-in.
+- Photo and description recognition needs `ANTHROPIC_API_KEY` on Netlify (optionally `FOOD_MODEL`, default `claude-opus-5-5`). It runs as a background job (`/api/food-scan` and `food-scan-background`), because looking things up can take longer than a normal function may run. Photos aren't kept once they've been read. The diary itself is backed up like the other data (`fitness-v1`).
+
 ## How it works
 
 | Piece | Where |

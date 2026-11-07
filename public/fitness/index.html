@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Food &amp; Fitness</title>
+  <meta name="description" content="Calories, macros, weight goals and exercise for Karstin and Lilin." />
+  <link rel="manifest" href="/daily/manifest.webmanifest" />
+  <meta name="theme-color" content="#bc002d" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23fff'/><circle cx='50' cy='50' r='26' fill='%23bc002d'/></svg>" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body class="daily fitness">
+  <header class="topbar">
+    <div class="brand">
+      <span class="sun" aria-hidden="true"></span>
+      <div>
+        <h1>Food &amp; fitness</h1>
+        <p class="muted" id="subtitle">Calories, macros, weight and exercise</p>
+      </div>
+    </div>
+    <div class="top-actions">
+      <span id="sync" class="sync" title="Sync status"><i></i><span>Connecting…</span></span>
+      <button id="whoBtn" class="chip" type="button" title="Change your name">👤 <span id="whoName">You</span></button>
+      <button id="goalsBtn" class="btn ghost" type="button">🎯 Goals</button>
+      <button class="btn add-btn" type="button" data-add-food>＋ Add food</button>
+    </div>
+  </header>
+
+  <nav class="screen-tabs" aria-label="Screens">
+    <a href="#diary" data-screen="diary">📒 Diary</a>
+    <a href="#progress" data-screen="progress">📈 Progress</a>
+    <a href="/daily/">💸 Expenses</a>
+  </nav>
+
+  <main>
+    <div class="seg person-filter" id="personPick" role="radiogroup" aria-label="Whose diary"></div>
+
+    <!-- 📒 Diary -->
+    <div class="month-bar" data-only="diary">
+      <button type="button" class="icon-btn" id="prevDay" aria-label="Previous day">‹</button>
+      <h2><label class="day-pick"><span id="dayTitle">Today</span><input type="date" id="dayInput" aria-label="Pick a day" /></label></h2>
+      <button type="button" class="icon-btn" id="nextDay" aria-label="Next day">›</button>
+    </div>
+
+    <section class="panel kcal-panel" data-only="diary" aria-label="Calories remaining">
+      <h2>Calories remaining</h2>
+      <div class="kcal-eq" id="kcalEq"></div>
+      <div class="meter" id="kcalMeter"><span></span></div>
+      <div class="macro-bars" id="macroBars"></div>
+      <p class="muted small" id="goalHint"></p>
+    </section>
+
+    <section class="panel meal" data-only="diary" data-meal="breakfast"></section>
+    <section class="panel meal" data-only="diary" data-meal="lunch"></section>
+    <section class="panel meal" data-only="diary" data-meal="snacks"></section>
+    <section class="panel meal" data-only="diary" data-meal="dinner"></section>
+
+    <section class="panel" data-only="diary" id="exercisePanel">
+      <div class="meal-head">
+        <h2>🏃 Exercise</h2>
+        <span class="meal-kcal" id="exerciseKcal"></span>
+      </div>
+      <ul class="items-list food-list" id="exerciseList"></ul>
+      <button type="button" class="btn ghost meal-add" id="addExercise">＋ Add exercise</button>
+    </section>
+
+    <section class="panel weigh-box" data-only="diary">
+      <div>
+        <h2>⚖️ Weight</h2>
+        <p class="settle-now" id="weighNow"></p>
+      </div>
+      <button type="button" class="btn ghost" id="addWeight">＋ Log weight</button>
+    </section>
+
+    <!-- 📈 Progress -->
+    <section class="cards" data-only="progress" aria-label="Progress">
+      <article class="card"><h2>Current weight</h2><p class="big" id="pCurrent">—</p><p class="muted" id="pCurrentSub"></p></article>
+      <article class="card"><h2>Goal weight</h2><p class="big" id="pGoal">—</p><p class="muted" id="pGoalSub"></p></article>
+      <article class="card"><h2>Daily calorie goal</h2><p class="big" id="pKcal">—</p><p class="muted" id="pKcalSub"></p></article>
+      <article class="card"><h2>Last 7 days</h2><p class="big" id="pWeek">—</p><p class="muted" id="pWeekSub"></p></article>
+    </section>
+
+    <section class="panel" data-only="progress">
+      <div class="panel-head">
+        <div><h2>Weight</h2><p class="muted small" id="weightRange"></p></div>
+        <div class="head-actions">
+          <div class="seg" id="rangePick" role="radiogroup" aria-label="Period">
+            <label><input type="radio" name="range" value="30" /><span>1 mo</span></label>
+            <label><input type="radio" name="range" value="90" checked /><span>3 mo</span></label>
+            <label><input type="radio" name="range" value="365" /><span>1 yr</span></label>
+          </div>
+        </div>
+      </div>
+      <div class="chart-wrap"><svg id="weightChart" viewBox="0 0 600 240" role="img" aria-labelledby="weightChartTitle"><title id="weightChartTitle">Weight over time</title></svg></div>
+    </section>
+
+    <section class="panel" data-only="progress">
+      <h2>Calories, last 14 days</h2>
+      <div class="daybars" id="kcalBars" aria-label="Calories per day"></div>
+      <div class="viz-tip" id="vizTip" role="status" hidden></div>
+      <p class="muted small" id="macroAvg"></p>
+    </section>
+
+    <section class="panel" data-only="progress">
+      <h2>Weigh-ins</h2>
+      <ul class="items-list food-list" id="weightList"></ul>
+    </section>
+
+    <nav class="fold-tabs" aria-label="More details">
+      <button type="button" class="fold-tab" data-fold="logPanel" aria-controls="logPanel" aria-expanded="false">🕒 Recent changes</button>
+    </nav>
+    <section class="panel fold" id="logPanel" hidden>
+      <h2>Recent changes</h2>
+      <ol class="log" id="log"></ol>
+    </section>
+  </main>
+
+  <button class="fab" type="button" data-add-food aria-label="Add food">＋</button>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <!-- Add food: photo, description, manual or recent, then check and log -->
+  <dialog id="foodDlg" class="wide-dlg">
+    <form id="foodForm">
+      <h2 id="foodTitle">Add food</h2>
+      <fieldset class="cat-pick">
+        <legend>Meal</legend>
+        <div class="cat-choices" id="mealChoices" role="radiogroup" aria-label="Meal"></div>
+      </fieldset>
+      <div class="seg src-tabs" role="tablist" aria-label="How to add">
+        <label><input type="radio" name="src" value="photo" checked /><span>📷 Photo</span></label>
+        <label><input type="radio" name="src" value="describe" /><span>✍️ Describe</span></label>
+        <label><input type="radio" name="src" value="recent" /><span>🕒 Recent</span></label>
+        <label><input type="radio" name="src" value="manual" /><span>✏️ Manual</span></label>
+      </div>
+
+      <div class="src-pane" data-src="photo">
+        <label class="photo-drop" id="photoDrop">
+          <input type="file" id="photoInput" accept="image/*" />
+          <img id="photoPreview" alt="" hidden />
+          <span id="photoHint">📷 Take or choose a photo of your food, its label or barcode</span>
+        </label>
+        <label>Anything to add? (optional) <input id="photoText" maxlength="300" placeholder="e.g. half the rice, teh-c siew dai" /></label>
+        <button type="button" class="btn" id="photoGo">✨ Recognise</button>
+      </div>
+
+      <div class="src-pane" data-src="describe" hidden>
+        <label>What did you eat? <textarea id="describeText" rows="3" maxlength="500" placeholder="e.g. 2 eggs, 1 slice wholemeal toast with butter, kopi-o kosong. Or: McSpicy meal with fries and Coke Zero"></textarea></label>
+        <button type="button" class="btn" id="describeGo">✨ Work it out</button>
+      </div>
+
+      <div class="src-pane" data-src="recent" hidden>
+        <input type="search" id="recentSearch" placeholder="Search foods you've logged" aria-label="Search recent foods" />
+        <ul class="items-list food-list recent-list" id="recentList"></ul>
+      </div>
+
+      <div class="src-pane" data-src="manual" hidden>
+        <div class="row">
+          <label>Food <input id="mName" maxlength="80" placeholder="e.g. Banana" /></label>
+          <label>Amount <input id="mAmount" maxlength="60" placeholder="e.g. 1 medium" /></label>
+        </div>
+        <div class="row four">
+          <label>kcal <input id="mKcal" inputmode="decimal" /></label>
+          <label>Protein g <input id="mP" inputmode="decimal" /></label>
+          <label>Carbs g <input id="mC" inputmode="decimal" /></label>
+          <label>Fat g <input id="mF" inputmode="decimal" /></label>
+        </div>
+        <button type="button" class="btn ghost" id="manualAdd">＋ Add to list</button>
+      </div>
+
+      <div class="scan-status" id="scanStatus" hidden></div>
+
+      <div class="review" id="reviewBox" hidden>
+        <h3>Check before logging</h3>
+        <p class="muted small" id="reviewNote"></p>
+        <ul class="review-list" id="reviewList"></ul>
+        <p class="review-total" id="reviewTotal"></p>
+      </div>
+
+      <div class="dlg-actions">
+        <button class="btn ghost" type="button" id="foodCancel">Cancel</button>
+        <button class="btn" type="submit" id="foodSubmit" disabled>Log food</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Edit one logged food -->
+  <dialog id="editDlg">
+    <form id="editForm">
+      <h2>Edit food</h2>
+      <fieldset class="cat-pick">
+        <legend>Meal</legend>
+        <div class="cat-choices" id="editMeals" role="radiogroup" aria-label="Meal"></div>
+      </fieldset>
+      <div class="row">
+        <label>Food <input name="name" maxlength="80" required /></label>
+        <label>Amount <input name="amount" maxlength="60" /></label>
+      </div>
+      <div class="row four">
+        <label>kcal <input name="kcal" inputmode="decimal" required /></label>
+        <label>Protein g <input name="p" inputmode="decimal" /></label>
+        <label>Carbs g <input name="c" inputmode="decimal" /></label>
+        <label>Fat g <input name="f" inputmode="decimal" /></label>
+      </div>
+      <p class="muted small" id="editMeta"></p>
+      <div class="dlg-actions">
+        <button class="btn ghost danger" type="button" id="editDelete">🗑 Delete</button>
+        <button class="btn ghost" type="button" id="editCancel">Cancel</button>
+        <button class="btn" type="submit">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="exDlg">
+    <form id="exForm">
+      <h2>Add exercise</h2>
+      <div class="cat-choices" id="exChoices" role="radiogroup" aria-label="Exercise"></div>
+      <label>Exercise <input name="name" maxlength="60" required placeholder="e.g. Running" /></label>
+      <div class="row">
+        <label>Minutes <input name="minutes" inputmode="numeric" required /></label>
+        <label>Calories burned <input name="kcal" inputmode="numeric" placeholder="Worked out for you" /></label>
+      </div>
+      <label>Note (optional) <input name="note" maxlength="120" placeholder="e.g. 5 km, from Garmin" /></label>
+      <p class="convert" id="exHint"></p>
+      <div class="dlg-actions">
+        <button class="btn ghost" type="button" id="exCancel">Cancel</button>
+        <button class="btn" type="submit">Add</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="weightDlg">
+    <form id="weightForm">
+      <h2>Log weight</h2>
+      <div class="row">
+        <label>Weight (kg) <input name="kg" inputmode="decimal" required /></label>
+        <label>Date <input name="date" type="date" required /></label>
+      </div>
+      <div class="dlg-actions">
+        <button class="btn ghost" type="button" id="weightCancel">Cancel</button>
+        <button class="btn" type="submit">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="goalsDlg">
+    <form id="goalsForm">
+      <h2>🎯 <span id="goalsWho"></span>'s goals</h2>
+      <p class="muted small">These set your daily calorie and macro goals, the same way most calorie apps do (Mifflin-St Jeor, plus your activity and weekly goal).</p>
+      <div class="row">
+        <label>Sex <select name="sex"><option value="">Choose</option><option value="female">Female</option><option value="male">Male</option></select></label>
+        <label>Year of birth <input name="birthYear" inputmode="numeric" placeholder="e.g. 1995" /></label>
+      </div>
+      <div class="row">
+        <label>Height (cm) <input name="heightCm" inputmode="decimal" /></label>
+        <label>Current weight (kg) <input name="currentKg" inputmode="decimal" /></label>
+      </div>
+      <div class="row">
+        <label>Goal weight (kg) <input name="goalKg" inputmode="decimal" /></label>
+        <label>Weekly goal
+          <select name="weeklyKg">
+            <option value="-1">Lose 1 kg a week</option>
+            <option value="-0.75">Lose 0.75 kg a week</option>
+            <option value="-0.5">Lose 0.5 kg a week</option>
+            <option value="-0.25">Lose 0.25 kg a week</option>
+            <option value="0">Keep my weight</option>
+            <option value="0.25">Gain 0.25 kg a week</option>
+            <option value="0.5">Gain 0.5 kg a week</option>
+          </select>
+        </label>
+      </div>
+      <label>Activity level (outside logged exercise)
+        <select name="activity">
+          <option value="sedentary">Not very active (desk job, little walking)</option>
+          <option value="light">Lightly active (on your feet some of the day)</option>
+          <option value="moderate">Active (on your feet most of the day)</option>
+          <option value="active">Very active (physical job)</option>
+          <option value="very">Extremely active</option>
+        </select>
+      </label>
+      <p class="convert" id="goalCalc"></p>
+      <label>Calorie goal override (optional) <input name="kcalTarget" inputmode="numeric" placeholder="Leave blank to use the calculated goal" /></label>
+      <fieldset class="pay-edit">
+        <legend>Macros (% of calories)</legend>
+        <div class="row four">
+          <label>Protein <input name="mp" inputmode="numeric" /></label>
+          <label>Carbs <input name="mc" inputmode="numeric" /></label>
+          <label>Fat <input name="mf" inputmode="numeric" /></label>
+        </div>
+        <p class="muted small" id="macroCalc"></p>
+      </fieldset>
+      <div class="dlg-actions">
+        <button class="btn ghost" type="button" id="goalsCancel">Cancel</button>
+        <button class="btn" type="submit">Save goals</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="nameDlg">
+    <form method="dialog" id="nameForm">
+      <h2>Who's this?</h2>
+      <p class="muted">Your name is shown next to what you add.</p>
+      <input id="nameInput" maxlength="30" placeholder="Your name" required autocomplete="nickname" />
+      <div class="dlg-actions"><button class="btn" value="ok">Continue</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="codeDlg">
+    <form method="dialog" id="codeForm">
+      <h2>Passcode</h2>
+      <p class="muted">This tracker is protected. Enter the passcode.</p>
+      <input id="codeInput" type="password" required autocomplete="current-password" />
+      <div class="dlg-actions"><button class="btn" value="ok">Unlock</button></div>
+    </form>
+  </dialog>
+
+  <script src="/fitness/fitness.js" type="module"></script>
+</body>
+</html>
