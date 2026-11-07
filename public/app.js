@@ -47,9 +47,21 @@ const fmtS = (sgd) => `S$${sgdFmt.format(sgd)}`;
 const cardById = (id) => doc.cards?.find((c) => c.id === id);
 const cardLabel = (c) => `${c.owner}'s ${c.name}`;
 
-// S$ spent on a card so far, at the current rate (optionally leaving one expense out).
+// How a person's Suica was topped up (Settings → Cash pool): "cash" from the pool, a card
+// (returned as the card), or "own" money.
+function suicaFunding(person) {
+  const entry = Object.entries(doc.settle?.suica ?? {}).find(([who]) => samePerson(who, person));
+  const how = entry?.[1] ?? "own";
+  if (how === "cash") return "cash";
+  return cardById(how) ?? "own";
+}
+
+// S$ spent on a card so far, at the current rate (optionally leaving one expense out),
+// including Suica fares on a Suica topped up with that card.
 function cardSpentSgd(cardId, exceptItemId = null) {
-  return doc.items.filter((i) => i.card === cardId && i.id !== exceptItemId).reduce((sum, i) => sum + i.a, 0) / yenPerSgd();
+  return doc.items.filter((i) => i.id !== exceptItemId &&
+    (i.card === cardId || (i.pay === "suica" && suicaFunding(i.payer)?.id === cardId)))
+    .reduce((sum, i) => sum + i.a, 0) / yenPerSgd();
 }
 
 function cardLevel(usedSgd, limitSgd) {
@@ -97,7 +109,10 @@ function cardWarning(group, usedSgd) {
 }
 
 function payLabel(i) {
-  if (i.pay === "suica") return `🚃 ${esc(i.payer)}'s Suica`;
+  if (i.pay === "suica") {
+    const f = suicaFunding(i.payer);
+    return `🚃 ${esc(i.payer)}'s Suica${f === "cash" ? " (pool cash)" : f.id ? ` (${esc(f.name)})` : ""}`;
+  }
   if (i.pay === "cash") return `💵 ${esc(i.payer)}'s cash`;
   const card = i.pay === "card" && cardById(i.card);
   return card ? `💳 ${esc(cardLabel(card))}` : "";
@@ -959,8 +974,11 @@ const samePerson = (a, b) => (a ?? "").trim().toLowerCase() === (b ?? "").trim()
 //  - cash comes from the shared pool, so cash spending, and whatever cash is left at the
 //    end, are shared in proportion to what each person put into the pool;
 //  - card spending is split evenly between the people splitting the trip.
-// Expenses with no payment recorded count as pool cash. Everyone settles with the holder,
-// who has the leftover cash.
+// Suica fares count as whatever topped that Suica up: pool cash, a card, or the owner's
+// own money (treated like a card they paid). Expenses with no payment recorded count as
+// pool cash. If the cash left has been counted, that's what's shared out, and any gap
+// from the recorded spending counts as unrecorded cash spending. Everyone settles with
+// the holder, who has the leftover cash.
 function settlement() {
   const { holder, people, contributions } = doc.settle;
   const names = [];
@@ -979,17 +997,24 @@ function settlement() {
   const total = items.reduce((sum, i) => sum + i.a, 0);
   const cardPaid = new Map();
   let cashSpent = 0, unrecorded = 0, cardTotal = 0;
+  let suicaCash = 0;
   for (const i of items) {
-    const card = i.pay === "card" && cardById(i.card);
-    if (card || i.pay === "suica") {
-      const n = nameOf(card ? card.owner : i.payer); // cards and Suica are paid by their owner
+    const funding = i.pay === "suica" ? suicaFunding(i.payer) : null;
+    const card = (i.pay === "card" && cardById(i.card)) || (funding?.id ? funding : null);
+    if (card || funding === "own") {
+      const n = nameOf(card ? card.owner : i.payer); // cards and own-money Suica are paid by their owner
       cardPaid.set(n, (cardPaid.get(n) ?? 0) + i.a);
       cardTotal += i.a;
     } else {
       cashSpent += i.a;
       if (!i.pay) unrecorded += i.a;
+      if (funding === "cash") suicaCash += i.a;
     }
   }
+  const recordedLeft = pool - cashSpent;
+  const counted = Number.isFinite(doc.settle.cashLeft) && doc.settle.cashLeft !== null ? doc.settle.cashLeft : null;
+  const gap = counted === null ? 0 : recordedLeft - counted; // cash spent but never entered (or, below zero, found)
+  if (counted !== null) cashSpent = pool - counted;
   const left = pool - cashSpent; // below zero: the holder topped the pool up with their own money
 
   const splitting = (n) => people.some((p) => samePerson(p, n));
@@ -1012,7 +1037,7 @@ function settlement() {
     const net = Math.round(r.leftShare + r.cardBalance);
     return { ...r, net, from: net >= 0 ? holderName : r.who, to: net >= 0 ? r.who : holderName };
   });
-  return { holder: holderName, people, pool, cashSpent, left, unrecorded, cardTotal, cardShare, total, rows, transfers, contributions };
+  return { holder: holderName, people, pool, cashSpent, left, unrecorded, cardTotal, cardShare, total, rows, transfers, contributions, counted, gap, recordedSpent: pool - recordedLeft, suicaCash };
 }
 
 function renderSettle() {
@@ -1035,8 +1060,9 @@ function renderSettle() {
         <td class="num">${money(sum)}</td></tr>`;
     }).join("")}
       <tr class="sum"><td><b>Pooled</b></td><td class="num"><b>${money(st.pool)}</b></td></tr>
-      <tr><td>Spent from the pool</td><td class="num">${money(st.cashSpent)}</td></tr>
-      <tr class="sum"><td><b>${st.left >= 0 ? "Cash left now" : `Overspent (topped up by ${esc(st.holder)})`}</b></td><td class="num"><b>${money(Math.abs(st.left))}</b></td></tr>
+      <tr><td>Spent from the pool${st.suicaCash ? `<div class="muted small">incl. ${yen.format(st.suicaCash)} of Suica fares on pool-cash Suica</div>` : ""}</td><td class="num">${money(st.recordedSpent)}</td></tr>
+      ${st.counted !== null && st.gap ? `<tr><td>${st.gap > 0 ? "Spent but not entered" : "More cash than recorded"}<div class="muted small">The difference between the recorded spending and the cash counted</div></td><td class="num">${st.gap > 0 ? "" : "−"}${money(Math.abs(st.gap))}</td></tr>` : ""}
+      <tr class="sum"><td><b>${st.left >= 0 ? (st.counted !== null ? "Cash left (counted)" : "Cash left now") : `Overspent (topped up by ${esc(st.holder)})`}</b></td><td class="num"><b>${money(Math.abs(st.left))}</b></td></tr>
     </tbody>`;
   const notes = [];
   if (st.unrecorded) notes.push(`${yen.format(st.unrecorded)} of expenses have no payment recorded, so they're counted as pool cash.`);
@@ -1044,14 +1070,16 @@ function renderSettle() {
   $("#poolNote").hidden = !notes.length;
 
   // Each person's cost: their % of the pool cash spent, plus an even share of the cards.
-  $("#splitSummary").innerHTML = `Cash spent <b>${yen.format(st.cashSpent)}</b> is shared by pool share · cards &amp; Suica <b>${yen.format(st.cardTotal)}</b> split evenly between ${st.people.length} (${yen.format(Math.round(st.cardShare))} each)`;
+  const suicaNote = Object.keys(doc.settle.suica ?? {}).length
+    ? ` · Suica: ${Object.entries(doc.settle.suica).map(([who]) => { const f = suicaFunding(who); return `${esc(who)}'s ${f === "cash" ? "from pool cash" : f.id ? `on ${esc(f.name)}` : "own money"}`; }).join(", ")}` : "";
+  $("#splitSummary").innerHTML = `Cash spent <b>${yen.format(st.cashSpent)}</b> is shared by pool share · cards <b>${yen.format(st.cardTotal)}</b> split evenly between ${st.people.length} (${yen.format(Math.round(st.cardShare))} each)${suicaNote}`;
   $("#splitTable").innerHTML = `
     <thead><tr><th>Person</th><th class="num">Cash</th><th class="num">Cards &amp; Suica</th><th class="num">Trip cost</th></tr></thead>
     <tbody>${st.rows.map((r) => `<tr>
       <td>${esc(r.who)}<div class="muted small">${pctText(r.pct)} of the pool${r.paidCards ? ` · paid ${yen.format(r.paidCards)} on cards &amp; Suica` : ""}</div></td>
       <td class="num">${money(r.cashCost)}</td><td class="num">${money(r.cardCost)}</td><td class="num"><b>${money(r.total)}</b></td>
     </tr>`).join("")}
-    <tr class="sum"><td><b>Total</b></td><td class="num">${money(st.cashSpent)}</td><td class="num">${money(st.cardTotal)}</td><td class="num"><b>${money(st.total)}</b></td></tr></tbody>`;
+    <tr class="sum"><td><b>Total</b></td><td class="num">${money(st.cashSpent)}</td><td class="num">${money(st.cardTotal)}</td><td class="num"><b>${money(st.cashSpent + st.cardTotal)}</b></td></tr></tbody>`;
 
   // Settle up through the holder, showing where each amount comes from.
   const lines = [];
@@ -1091,6 +1119,10 @@ function renderSettleForm() {
   form.elements.holder.value = holder;
   form.elements.people.value = people.join(", ");
   $("#contribList").replaceChildren(...contributions.map((c) => contribRow(c)));
+  form.elements.cashLeft.value = doc.settle.cashLeft ?? "";
+  const options = (who) => [["cash", "💵 Pool cash"], ...doc.cards.map((c) => [c.id, `💳 ${cardLabel(c)}`]), ["own", "Their own money"]]
+    .map(([v, label]) => `<option value="${esc(v)}" ${(suicaFunding(who) === "cash" ? "cash" : suicaFunding(who)?.id ?? "own") === v ? "selected" : ""}>${esc(label)}</option>`).join("");
+  $("#suicaFunding").innerHTML = people.map((p) => `<label>🚃 ${esc(p)}'s Suica topped up with <select name="suica" data-who="${esc(p)}">${options(p)}</select></label>`).join("");
 }
 
 function contribRow(c = { who: "", a: "", note: "" }) {
@@ -1129,6 +1161,8 @@ $("#settleForm").addEventListener("submit", async (e) => {
       a: li.querySelector('[name="a"]').value,
       note: li.querySelector('[name="note"]').value,
     })),
+    suica: Object.fromEntries([...$("#suicaFunding").querySelectorAll("select")].map((s) => [s.dataset.who, s.value])),
+    cashLeft: f.cashLeft.value.trim(),
   };
   if (await runOp({ op: "updateSettle", settle }, "Cash pool and split saved")) {
     document.activeElement?.blur();

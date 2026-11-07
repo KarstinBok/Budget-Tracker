@@ -86,6 +86,13 @@ function normalize(doc) {
   doc.items ??= [];
   doc.cards ??= [];
   doc.settle ??= defaultSettle();
+  // How each Suica was topped up: Karstin's from the pool cash, Lilin's with her Amaze card.
+  if (doc.settle.suica === undefined) {
+    const amaze = doc.cards.find((c) => /amaze/i.test(c.name) && /lilin/i.test(c.owner));
+    doc.settle.suica = { Karstin: "cash", Lilin: amaze ? amaze.id : "own" };
+  }
+  // The cash counted at the end of the trip: ¥21,000 + 600 + 50 + 25 + 10.
+  if (doc.settle.cashLeft === undefined) doc.settle.cashLeft = 21685;
   // All cash comes from the shared pool, so cash expenses always belong to its holder.
   for (const i of doc.items) if (i.pay === "cash") i.payer = doc.settle.holder;
   splitCombinedItems(doc);
@@ -175,7 +182,19 @@ function defaultSettle() {
   };
 }
 
-function cleanSettle(input = {}) {
+// How a person's Suica was topped up: "cash" (the pool), a card id, or "own" (their money).
+function cleanSuica(doc, input, old = {}) {
+  if (!input || typeof input !== "object") return old;
+  const out = {};
+  for (const [who, how] of Object.entries(input).slice(0, 20)) {
+    const name = str(who, 30);
+    const v = str(how, 60);
+    if (name) out[name] = v === "cash" || doc.cards.some((c) => c.id === v) ? v : "own";
+  }
+  return out;
+}
+
+function cleanSettle(input = {}, doc) {
   const holder = str(input.holder, 30);
   if (!holder) fail("Say who holds the shared cash");
   const people = [...new Set((Array.isArray(input.people) ? input.people : []).map((p) => str(p, 30)).filter(Boolean))];
@@ -189,7 +208,13 @@ function cleanSettle(input = {}) {
     return { id: /^[\w-]{1,40}$/.test(c?.id ?? "") ? c.id : randomUUID(), who, a, note: str(c?.note, 60) };
   });
   if (contributions.length > 100) fail("Too many cash entries");
-  return { holder, people, contributions };
+  // Fields an older page doesn't send keep their saved values.
+  let cashLeft = doc?.settle?.cashLeft ?? null;
+  if (input.cashLeft !== undefined) {
+    cashLeft = input.cashLeft === "" || input.cashLeft === null ? null : Math.round(Number(input.cashLeft));
+    if (cashLeft !== null && (!Number.isFinite(cashLeft) || cashLeft < 0 || cashLeft > MAX_AMOUNT)) fail("Invalid amount of cash left");
+  }
+  return { holder, people, contributions, suica: cleanSuica(doc, input.suica, doc?.settle?.suica ?? {}), cashLeft };
 }
 
 // Mutates doc and returns a human readable log line (or null for no-op).
@@ -316,11 +341,12 @@ function applyOp(doc, body, by) {
       if (used) fail(`${cardLabel(card)} is used by ${used} expense${used === 1 ? "" : "s"}, so it can't be removed`);
       doc.cards = doc.cards.filter((c) => c !== card);
       for (const c of doc.cards) if (c.shareWith === card.id) c.shareWith = null;
+      for (const [who, how] of Object.entries(doc.settle?.suica ?? {})) if (how === card.id) doc.settle.suica[who] = "own";
       return `removed the card ${cardLabel(card)}`;
     }
 
     case "updateSettle": {
-      doc.settle = cleanSettle(body.settle);
+      doc.settle = cleanSettle(body.settle, doc);
       for (const i of doc.items) if (i.pay === "cash") i.payer = doc.settle.holder;
       const total = doc.settle.contributions.reduce((sum, c) => sum + c.a, 0);
       return `updated the cash pool (${yen.format(total)}, held by ${doc.settle.holder}) and the split`;
