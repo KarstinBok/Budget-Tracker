@@ -43,12 +43,16 @@ export function defaultDoc() {
     weights: [],
     // { id, person, date, name, minutes, kcal, note, by, t }
     exercises: [],
+    // Saved foods and recipes, shared by everyone, to add to a diary in one tap:
+    // { id, name, amount, kcal, p, c, f, …same as a food…, recipe?, by, t }
+    library: [],
     log: [],
   };
 }
 
 export function normalize(doc) {
   for (const p of doc.people) doc.profiles[p] ??= defaultProfile();
+  doc.library ??= [];
   return doc;
 }
 
@@ -105,7 +109,7 @@ function readFood(body) {
   if (Array.isArray(body.ingredients) && body.ingredients.length) {
     food.ingredients = body.ingredients.slice(0, 15).map((g) => ({
       name: str(g?.name, 60) || "Ingredient",
-      grams: num(g?.grams ?? 0, { max: 10000, label: "ingredient weight" }),
+      grams: num(g?.grams ?? 0, { max: 10000, dp: 1, label: "ingredient weight" }),
       kcal: num(g?.kcal ?? 0, { max: 10000, label: "ingredient calories" }),
       p: num(g?.p ?? 0, { max: 1000, dp: 1, label: "ingredient protein" }),
       c: num(g?.c ?? 0, { max: 1000, dp: 1, label: "ingredient carbs" }),
@@ -220,6 +224,29 @@ export function applyOp(doc, body, by) {
       if (!x) return null;
       doc.exercises = doc.exercises.filter((e) => e !== x);
       return `removed ${x.person}'s ${x.name} on ${prettyDate(x.date)}`;
+    }
+
+    case "saveLibraryFood": {
+      const food = readFood({ ...body, source: "manual" });
+      delete food.source;
+      const recipe = str(body.recipe, 1500);
+      if (recipe) food.recipe = recipe;
+      const old = body.id && doc.library.find((x) => x.id === body.id);
+      if (old) {
+        for (const k of Object.keys(old)) if (!["id", "by", "t"].includes(k)) delete old[k];
+        Object.assign(old, food, { editedBy: by, editedAt: Date.now() });
+        return `updated ${food.name} in saved foods`;
+      }
+      if (doc.library.length >= 1000) fail("Too many saved foods");
+      doc.library.push({ id: randomUUID(), ...food, by, t: Date.now() });
+      return `saved ${food.name} (${food.kcal} kcal) to saved foods`;
+    }
+
+    case "deleteLibraryFood": {
+      const x = doc.library.find((f) => f.id === body.id);
+      if (!x) return null;
+      doc.library = doc.library.filter((f) => f !== x);
+      return `removed ${x.name} from saved foods`;
     }
 
     case "saveProfile": {

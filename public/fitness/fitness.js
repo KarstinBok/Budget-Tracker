@@ -415,9 +415,21 @@ function addToReview(items, source) {
   renderReview();
 }
 
-// Foods this person logged before, newest first, one per name and amount.
+const recentRow = (f, saved) => `<li data-${saved ? "saved" : "recent"}="${esc(f.id)}" role="button" tabindex="0">
+    <div class="item-main"><span class="item-note">${saved ? "⭐ " : ""}<b>${esc(f.name)}</b></span>
+      <span class="item-meta">${f.amount ? `${esc(f.amount)} · ` : ""}P ${g(f.p)} · C ${g(f.c)} · F ${g(f.f)}</span>
+      ${saved && (f.recipe || f.ingredients?.length) ? `<details class="saved-recipe"><summary>Recipe</summary>
+        ${f.ingredients?.length ? `<ul>${f.ingredients.map((i) => `<li>${esc(i.name)}${i.grams ? ` · ${r1(i.grams)} g` : ""} · ${fmt(i.kcal)} kcal</li>`).join("")}</ul>` : ""}
+        ${f.recipe ? `<p>${esc(f.recipe).replace(/\n/g, "<br>")}</p>` : ""}</details>` : ""}</div>
+    <div class="item-amt">${fmt(f.kcal)}</div>
+    ${saved ? `<button type="button" class="icon-btn" data-del-saved="${esc(f.id)}" title="Remove from saved foods" aria-label="Remove ${esc(f.name)} from saved foods">🗑</button>` : ""}
+    <span class="recent-add" aria-hidden="true">＋</span></li>`;
+
+// Saved foods (shared by everyone) first, then foods this person logged before, newest
+// first, one per name and amount.
 function renderRecent() {
   const q = norm($("#recentSearch").value);
+  const saved = (doc.library ?? []).filter((f) => !q || norm(f.name).includes(q)).sort((a, b) => a.name.localeCompare(b.name));
   const seen = new Set();
   const list = [];
   for (const f of [...doc.foods].filter((x) => x.person === who).sort((a, b) => b.t - a.t)) {
@@ -427,17 +439,26 @@ function renderRecent() {
     list.push(f);
     if (list.length >= 40) break;
   }
-  $("#recentList").innerHTML = list.map((f) => `<li data-recent="${esc(f.id)}" role="button" tabindex="0">
-    <div class="item-main"><span class="item-note"><b>${esc(f.name)}</b></span>
-      <span class="item-meta">${f.amount ? `${esc(f.amount)} · ` : ""}P ${g(f.p)} · C ${g(f.c)} · F ${g(f.f)}</span></div>
-    <div class="item-amt">${fmt(f.kcal)}</div><span class="recent-add" aria-hidden="true">＋</span></li>`).join("")
-    || `<li class="muted small">${q ? "No match." : "Foods you log will show up here, ready to add again."}</li>`;
+  $("#recentList").innerHTML =
+    (saved.length ? `<li class="list-head">Saved foods</li>${saved.map((f) => recentRow(f, true)).join("")}` : "") +
+    (list.length ? `${saved.length ? `<li class="list-head">Logged before</li>` : ""}${list.map((f) => recentRow(f, false)).join("")}` : "") ||
+    `<li class="muted small">${q ? "No match." : "Foods you log will show up here, ready to add again."}</li>`;
 }
 $("#recentSearch").addEventListener("input", renderRecent);
-$("#recentList").addEventListener("click", (e) => {
-  const li = e.target.closest("[data-recent]");
+$("#recentList").addEventListener("click", async (e) => {
+  if (e.target.closest("details")) return; // opening a recipe
+  const del = e.target.closest("[data-del-saved]");
+  if (del) {
+    const f = doc.library.find((x) => x.id === del.dataset.delSaved);
+    if (f && confirm(`Remove ${f.name} from saved foods?`)) {
+      await sync.runOp({ op: "deleteLibraryFood", id: f.id }, `Removed ${f.name}`);
+      renderRecent();
+    }
+    return;
+  }
+  const li = e.target.closest("[data-recent], [data-saved]");
   if (!li) return;
-  const f = doc.foods.find((x) => x.id === li.dataset.recent);
+  const f = li.dataset.saved ? doc.library.find((x) => x.id === li.dataset.saved) : doc.foods.find((x) => x.id === li.dataset.recent);
   if (f) { addToReview([f], "recent"); toast(`Added ${f.name} to the list`); }
 });
 
@@ -498,6 +519,13 @@ $("#editDelete").addEventListener("click", async () => {
   if (await sync.runOp({ op: "deleteFood", id: editing.id }, `Removed ${editing.name}`)) $("#editDlg").close();
 });
 $("#editCancel").addEventListener("click", () => $("#editDlg").close());
+$("#editKeep").addEventListener("click", async () => {
+  const f = editing;
+  const same = (doc.library ?? []).find((x) => norm(x.name) === norm(f.name) && norm(x.amount) === norm(f.amount));
+  if (same) return toast(`${f.name} is already in saved foods`);
+  const keep = ["name", "amount", "kcal", "p", "c", "f", "fiber", "sugar", "sodium", "grams", "ref", "refName", "ingredients", "note"];
+  await sync.runOp({ op: "saveLibraryFood", ...Object.fromEntries(keep.filter((k) => f[k] !== undefined).map((k) => [k, f[k]])) }, `⭐ Saved ${f.name}`);
+});
 
 // ---------------------------------------------------------------- exercise and weight
 
