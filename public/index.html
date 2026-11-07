@@ -3,311 +3,50 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Japan Trip Budget</title>
-  <meta name="description" content="Shared, live-updating expense tracker for our Japan trip." />
+  <title>Karstin &amp; Lilin</title>
+  <meta name="description" content="Our apps: everyday expenses, food & fitness, and the Japan trip." />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23fff'/><circle cx='50' cy='50' r='26' fill='%23bc002d'/></svg>" />
   <link rel="manifest" href="/manifest.webmanifest" />
   <meta name="theme-color" content="#bc002d" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="/style.css" />
 </head>
-<body>
+<body class="home">
   <header class="topbar">
     <div class="brand">
       <span class="sun" aria-hidden="true"></span>
       <div>
-        <h1 id="tripName">Japan Trip</h1>
-        <p id="tripDates" class="muted"></p>
+        <h1>Karstin &amp; Lilin</h1>
+        <p class="muted">Our apps</p>
       </div>
-    </div>
-    <div class="top-actions">
-      <span id="sync" class="sync" title="Sync status"><i></i><span>Connecting…</span></span>
-      <button id="whoBtn" class="chip" type="button" title="Change your name">👤 <span id="whoName">You</span></button>
-      <a class="btn ghost" href="/journal.html">📒 Journal</a>
-      <button id="settingsBtn" class="btn ghost" type="button">⚙️ Settings</button>
-      <button class="btn add-btn" type="button" data-add>＋ Add expense</button>
     </div>
   </header>
 
   <main>
-    <section class="cards" aria-label="Summary">
-      <article class="card">
-        <h2>Total spent</h2>
-        <p class="big" id="sumTotal">¥0</p>
-        <p class="big sgd" id="sumTotalSgd">S$0.00</p>
-        <p class="muted" id="sumRate"></p>
-      </article>
-      <article class="card">
-        <h2>Average per day</h2>
-        <p class="big" id="sumAvg">¥0</p>
-        <p class="big sgd" id="sumAvgSgd">S$0.00</p>
-        <p class="muted" id="sumAvgNote"></p>
-      </article>
-      <article class="card">
-        <h2>Budget</h2>
-        <p class="big" id="sumBudget">—</p>
-        <p class="big sgd" id="sumBudgetYen"></p>
-        <div class="meter" id="budgetMeter" hidden><span></span></div>
-        <p class="muted" id="sumBudgetNote">Set a budget in Settings</p>
-      </article>
-      <article class="card">
-        <h2>Biggest day</h2>
-        <p class="big" id="sumMaxDay">—</p>
-        <p class="big sgd" id="sumMaxDaySgd"></p>
-        <p class="muted" id="sumMaxDayNote"></p>
-      </article>
-    </section>
-
-    <div id="limitBanner" class="limit-banner" role="alert" hidden></div>
-
-    <nav class="fold-tabs" aria-label="More details">
-      <button type="button" class="fold-tab" data-fold="summaryPanel" aria-controls="summaryPanel" aria-expanded="false">📊 Summary</button>
-      <button type="button" class="fold-tab" data-fold="paymentsPanel" aria-controls="paymentsPanel" aria-expanded="false">💳 Payments</button>
-      <button type="button" class="fold-tab" data-fold="settlePanel" aria-controls="settlePanel" aria-expanded="false">🤝 Settle up</button>
-      <button type="button" class="fold-tab" data-fold="logPanel" aria-controls="logPanel" aria-expanded="false">🕒 Recent changes</button>
+    <nav class="home-apps" aria-label="Apps">
+      <a class="home-app" href="/daily/">
+        <span class="home-icon" aria-hidden="true">💸</span>
+        <span class="home-text"><b>Everyday expenses</b><span>What each of us spends, what we split, and who owes whom</span></span>
+        <span class="home-go" aria-hidden="true">›</span>
+      </a>
+      <a class="home-app" href="/fitness/">
+        <span class="home-icon" aria-hidden="true">🥗</span>
+        <span class="home-text"><b>Food &amp; fitness</b><span>Calories, macros, weight goals and exercise</span></span>
+        <span class="home-go" aria-hidden="true">›</span>
+      </a>
+      <a class="home-app" href="/japan/">
+        <span class="home-icon" aria-hidden="true">🗾</span>
+        <span class="home-text"><b>Japan trip</b><span>Budget and journal, 22 Oct – 5 Nov 2026</span></span>
+        <span class="home-go" aria-hidden="true">›</span>
+      </a>
     </nav>
-
-    <section class="panel summary fold" id="summaryPanel" aria-labelledby="summaryTitle" hidden>
-      <h2 id="summaryTitle" class="sr-only">Spending summary</h2>
-      <div class="summary-hero">
-        <p class="hero" id="heroSgd">S$0.00</p>
-        <p class="muted" id="heroSub">Spent so far</p>
-      </div>
-      <div class="summary-body">
-        <div class="donut-wrap">
-          <svg id="donut" viewBox="0 0 200 200" role="img" aria-labelledby="donutLabel"><title id="donutLabel">Spending by category</title></svg>
-          <div class="donut-center"><b id="donutCenter">S$0</b><span id="donutCenterSub">by category</span></div>
-        </div>
-        <ul class="cat-legend" id="catLegend" aria-label="Spending by category"></ul>
-      </div>
-      <h3 class="daybars-title">Spending per day <span class="muted small">(S$)</span></h3>
-      <div class="daybars" id="dayBars" aria-label="Spending per day"></div>
-      <div class="viz-tip" id="vizTip" role="status" hidden></div>
-    </section>
-
-    <section class="panel fold" id="paymentsPanel" hidden>
-      <h2>Payments</h2>
-      <div class="two-col payments">
-        <div>
-          <h3>Card limits</h3>
-          <ul class="card-meters" id="cardMeters"></ul>
-        </div>
-        <div>
-          <h3>Paid by</h3>
-          <table class="breakdown" id="payers"></table>
-        </div>
-      </div>
-    </section>
-
-    <section class="panel fold" id="settlePanel" hidden>
-      <div class="panel-head">
-        <div>
-          <h2>Cash pool &amp; settle up</h2>
-          <p class="muted small">Cash spent from the pool, and the cash left at the end, are shared in proportion to what each person put in. Card spending is split evenly. Change the pool or who's splitting in ⚙️ Settings.</p>
-        </div>
-      </div>
-      <div class="two-col">
-        <div>
-          <h3 id="poolTitle">Shared cash</h3>
-          <table class="breakdown settle" id="poolTable"></table>
-          <p class="muted small" id="poolNote" hidden></p>
-        </div>
-        <div>
-          <h3 id="splitTitle">Who pays what</h3>
-          <p class="small" id="splitSummary"></p>
-          <table class="breakdown settle" id="splitTable"></table>
-          <h3 class="settle-up-title">Settle up</h3>
-          <ul class="settle-lines" id="settleLines"></ul>
-        </div>
-      </div>
-    </section>
-
-    <section class="panel fold" id="logPanel" hidden>
-      <h2>Recent changes</h2>
-      <ol class="log" id="log"></ol>
-    </section>
-
-    <section class="panel">
-      <div class="panel-head">
-        <div>
-          <h2>Daily spending</h2>
-          <p class="muted small">Add spending with <b>＋ Add expense</b>. Click any amount to drop down every expense behind it, or a day's total to see everything spent that day.</p>
-        </div>
-        <div class="head-actions">
-          <button id="csvBtn" class="btn ghost" type="button">⬇️ Export CSV</button>
-          <button class="btn" type="button" data-add>＋ Add expense</button>
-        </div>
-      </div>
-      <div class="grid-wrap">
-        <table class="grid" id="grid"></table>
-      </div>
-    </section>
-
   </main>
 
-  <button class="fab" type="button" data-add aria-label="Add expense">＋</button>
-
-  <div id="toast" class="toast" role="status" aria-live="polite"></div>
-
-  <dialog id="nameDlg">
-    <form method="dialog" id="nameForm">
-      <h2>Who's tracking?</h2>
-      <p class="muted">Your name is shown next to the changes you make so everyone knows who added what.</p>
-      <input id="nameInput" maxlength="30" placeholder="Your name" required autocomplete="nickname" />
-      <div class="dlg-actions"><button class="btn" value="ok">Continue</button></div>
-    </form>
-  </dialog>
-
-  <dialog id="codeDlg">
-    <form method="dialog" id="codeForm">
-      <h2>Trip passcode</h2>
-      <p class="muted">This tracker is protected. Ask the trip organiser for the passcode.</p>
-      <input id="codeInput" type="password" required autocomplete="current-password" />
-      <div class="dlg-actions"><button class="btn" value="ok">Unlock</button></div>
-    </form>
-  </dialog>
-
-  <dialog id="addDlg">
-    <form id="addForm">
-      <h2 id="addTitle">Add expense</h2>
-      <label>Date <select name="date" required></select></label>
-      <fieldset class="cat-pick">
-        <legend>Category</legend>
-        <div class="cat-choices" id="catChoices" role="radiogroup" aria-label="Category"></div>
-      </fieldset>
-      <label>Price
-        <div class="price-row">
-          <input name="amount" inputmode="decimal" autocomplete="off" placeholder="0" required />
-          <div class="seg" role="radiogroup" aria-label="Currency">
-            <label><input type="radio" name="cur" value="JPY" checked /><span>¥ JPY</span></label>
-            <label><input type="radio" name="cur" value="SGD" /><span>S$ SGD</span></label>
-          </div>
-        </div>
-      </label>
-      <p class="convert" id="addConvert">= S$0.00</p>
-      <label>Note (optional) <input name="note" maxlength="60" placeholder="e.g. Ichiran ramen" /></label>
-      <fieldset class="pay-edit">
-        <legend>Paid with</legend>
-        <div class="seg" role="radiogroup" aria-label="Paid with">
-          <label><input type="radio" name="pay" value="cash" checked /><span>💵 Cash</span></label>
-          <label><input type="radio" name="pay" value="card" /><span>💳 Card</span></label>
-          <label><input type="radio" name="pay" value="suica" /><span>🚃 Suica</span></label>
-        </div>
-        <p class="muted small" data-pay="cash" id="cashNote">From the shared cash.</p>
-        <label data-pay="card">Which card <select name="card"></select></label>
-        <div data-pay="suica" class="suica-pick">
-          <p class="muted small" id="suicaHint">Enter the fare for one person. It's added to each Suica ticked below.</p>
-          <div class="suica-people" id="suicaPeople" role="group" aria-label="Whose Suica"></div>
-          <p class="convert" id="suicaTotal"></p>
-        </div>
-        <div data-pay="newcard" class="new-card">
-          <label>Card name <input name="cardName" maxlength="40" placeholder="e.g. DBS Visa" /></label>
-          <label>Whose card <input name="cardOwner" list="people" maxlength="30" autocomplete="off" /></label>
-          <label>Limit (S$) <input name="cardLimit" type="number" min="1" step="any" inputmode="decimal" value="1000" /></label>
-        </div>
-        <p class="limit-status" id="limitStatus" hidden></p>
-      </fieldset>
-      <datalist id="people"></datalist>
-      <div class="dlg-actions">
-        <button class="btn ghost" type="button" id="addCancel">Cancel</button>
-        <button class="btn" type="submit" id="addSubmit">Add</button>
-      </div>
-    </form>
-  </dialog>
-
-  <dialog id="settingsDlg">
-    <form id="tripForm">
-      <h2>Trip settings</h2>
-      <label>Trip name <input name="name" maxlength="60" required /></label>
-      <div class="row">
-        <label>Start date <input name="start" type="date" required /></label>
-        <label>End date <input name="end" type="date" required /></label>
-      </div>
-      <label>Total budget (S$, optional) <input name="budgetSgd" type="number" min="0" step="any" inputmode="decimal" placeholder="e.g. 2000" /></label>
-      <label class="check"><input name="autoRate" type="checkbox" /> Follow the live market JPY → SGD rate (updates every few minutes)</label>
-      <label>Manual rate: ¥ per S$1 (used when live rate is off or unavailable)
-        <input name="rate" type="number" min="0.0001" step="any" required /></label>
-      <div class="dlg-actions">
-        <button class="btn" type="submit">Save trip</button>
-      </div>
-    </form>
-
-    <hr />
-
-    <h3>Categories</h3>
-    <ul class="cat-list" id="catList"></ul>
-    <form id="catForm" class="row cat-add">
-      <input name="emoji" maxlength="8" placeholder="🍡" class="emoji-in" aria-label="Emoji" />
-      <input name="name" maxlength="40" placeholder="New category" required aria-label="Category name" />
-      <button class="btn" type="submit">Add</button>
-    </form>
-
-    <hr />
-
-    <h3>Cash pool &amp; split</h3>
-    <p class="muted small">The cash everyone put together, who's holding it, and who the expenses are split between. Cash expenses under the holder's name come out of the pool.</p>
-    <form id="settleForm" class="settle-form">
-      <div class="row">
-        <label>Holding the cash <input name="holder" maxlength="30" list="people" required /></label>
-        <label>Split between (comma-separated) <input name="people" maxlength="300" required placeholder="Karstin, Lilin" /></label>
-      </div>
-      <ul class="contrib-list" id="contribList"></ul>
-      <div class="dlg-actions">
-        <button type="button" class="btn ghost" id="addContrib">＋ Add cash</button>
-        <button type="submit" class="btn">Save cash pool</button>
-      </div>
-    </form>
-
-    <hr />
-
-    <h3>Cards</h3>
-    <p class="muted small">Each card's limit is in S$. You're warned when spending on a card reaches 80% of its limit.</p>
-    <ul class="card-list" id="cardList"></ul>
-    <form id="cardForm" class="card-add">
-      <input name="name" maxlength="40" placeholder="Card, e.g. DBS Visa" required aria-label="Card name" />
-      <input name="owner" maxlength="30" placeholder="Whose card" list="people" required aria-label="Whose card" />
-      <input name="limitSgd" type="number" min="1" step="any" value="1000" required aria-label="Limit in S$" />
-      <button class="btn" type="submit">Add</button>
-    </form>
-
-    <div id="appSection">
-      <hr />
-      <h3>Install on your phone</h3>
-      <p class="muted small">Put the tracker on your home screen. Either way it's this same live site, so everyone stays in sync.</p>
-      <div class="backup-actions">
-        <button class="btn" id="installBtn" type="button" hidden>📲 Install app</button>
-        <a class="btn ghost" id="apkLink" href="/downloads/japan-trip-budget.apk" download="japan-trip-budget.apk">📱 Android app (APK)</a>
-      </div>
-      <p class="muted small" id="installHelp"></p>
-      <details class="small install-help">
-        <summary>APK download stuck or blocked?</summary>
-        <ol>
-          <li>Chrome holds APK files that aren't from the Play Store until you confirm. Open Chrome's <b>⋮ → Downloads</b>, find <b>japan-trip-budget.apk</b> and tap <b>Download anyway</b> (or <b>Keep</b>).</li>
-          <li>Tap the file to open it. If Android asks, allow Chrome to <b>install unknown apps</b>, then tap <b>Install</b>.</li>
-          <li>Still stuck? Try the <a href="https://github.com/KarstinBok/Budget-Tracker/releases/latest/download/japan-trip-budget.apk">copy on GitHub</a>, or use <b>Install app</b> / <b>Add to Home screen</b> instead, which needs no APK.</li>
-        </ol>
-      </details>
-    </div>
-
-    <hr />
-
-    <h3>Backups</h3>
-    <p class="muted small">Every change to the expenses and the journal is saved as a backup on Netlify, plus one each day. Restore one if something goes missing.</p>
-    <div class="backup-actions">
-      <button class="btn ghost" type="button" id="backupNow">💾 Back up now</button>
-      <button class="btn ghost" type="button" id="downloadAll">⬇️ Download all data</button>
-    </div>
-    <div class="seg backup-doc" role="radiogroup" aria-label="Which backups">
-      <label><input type="radio" name="bdoc" value="trip" checked /><span>Expenses</span></label>
-      <label><input type="radio" name="bdoc" value="journal" /><span>Journal</span></label>
-    </div>
-    <ul class="backup-list" id="backupList"></ul>
-
-    <div class="dlg-actions">
-      <button class="btn ghost" type="button" id="closeSettings">Close</button>
-    </div>
-  </dialog>
-
-  <script src="app.js" type="module"></script>
+  <script type="module">
+    // The installed web app's service worker, as on the other pages.
+    if ("serviceWorker" in navigator && typeof window.AndroidBridge === "undefined") {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    }
+  </script>
 </body>
 </html>
