@@ -92,6 +92,12 @@ function normalize(doc) {
     const amaze = doc.cards.find((c) => /amaze/i.test(c.name) && /^lilin/i.test(c.owner.replace(/\s+/g, "")));
     doc.settle.suica = { Karstin: "cash", Lilin: amaze ? amaze.id : "own" };
   }
+  // The Amaze statements after the trip: Karstin S$825.66, Lilin S$1,141.48.
+  for (const c of doc.cards) {
+    if (c.billedSgd !== undefined) continue;
+    const owner = c.owner.toLowerCase().replace(/\s+/g, "");
+    c.billedSgd = /amaze/i.test(c.name) ? (owner.startsWith("karstin") ? 825.66 : owner.startsWith("lilin") ? 1141.48 : null) : null;
+  }
   // The cash counted at the end of the trip: ¥21,000 + 600 + 50 + 25 + 10.
   if (doc.settle.cashLeft === undefined) doc.settle.cashLeft = 21685;
   // All cash comes from the shared pool, so cash expenses always belong to its holder.
@@ -219,14 +225,21 @@ function cleanSettle(input = {}, doc) {
 }
 
 // Mutates doc and returns a human readable log line (or null for no-op).
-function cleanCard(input = {}) {
+function cleanCard(input = {}, old = null) {
   const name = str(input.name, 40);
   if (!name) fail("Give the card a name, e.g. DBS Visa");
   const owner = str(input.owner, 30);
   if (!owner) fail("Say whose card it is");
   const limitSgd = input.limitSgd === undefined || input.limitSgd === "" ? DEFAULT_CARD_LIMIT_SGD : Number(input.limitSgd);
   if (!Number.isFinite(limitSgd) || limitSgd <= 0 || limitSgd > 1_000_000) fail("Invalid card limit");
-  return { name, owner, limitSgd: Math.round(limitSgd * 100) / 100, shareWith: str(input.shareWith, 40) || null };
+  // What the bank actually billed, in S$, once the statement is in (optional). An older
+  // page that doesn't send it keeps the saved value.
+  let billedSgd = old?.billedSgd ?? null;
+  if (input.billedSgd !== undefined) {
+    billedSgd = input.billedSgd === "" || input.billedSgd === null ? null : Math.round(Number(input.billedSgd) * 100) / 100;
+    if (billedSgd !== null && (!Number.isFinite(billedSgd) || billedSgd < 0 || billedSgd > 1_000_000)) fail("Invalid billed amount");
+  }
+  return { name, owner, limitSgd: Math.round(limitSgd * 100) / 100, shareWith: str(input.shareWith, 40) || null, billedSgd };
 }
 
 // A card can only share a limit with another card that exists.
@@ -329,7 +342,7 @@ function applyOp(doc, body, by) {
     case "editCard": {
       const card = doc.cards.find((c) => c.id === body.id);
       if (!card) fail("That card was removed by someone else", 409);
-      Object.assign(card, cleanCard(body.card));
+      Object.assign(card, cleanCard(body.card, card));
       checkShareWith(doc, card);
       for (const i of doc.items) if (i.card === card.id) i.payer = card.owner;
       return `updated the card ${cardLabel(card)} (limit S$${card.limitSgd})`;

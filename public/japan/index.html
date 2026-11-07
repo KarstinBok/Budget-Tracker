@@ -45,7 +45,7 @@
         <p class="muted" id="sumAvgNote"></p>
       </article>
       <article class="card">
-        <h2>Budget</h2>
+        <h2 id="budgetTitle">Budget</h2>
         <p class="big" id="sumBudget">—</p>
         <p class="big sgd" id="sumBudgetYen"></p>
         <div class="meter" id="budgetMeter" hidden><span></span></div>
@@ -63,7 +63,7 @@
 
     <nav class="fold-tabs" aria-label="More details">
       <button type="button" class="fold-tab" data-fold="summaryPanel" aria-controls="summaryPanel" aria-expanded="false">📊 Summary</button>
-      <button type="button" class="fold-tab" data-fold="paymentsPanel" aria-controls="paymentsPanel" aria-expanded="false">💳 Payments</button>
+      <button type="button" class="fold-tab" data-fold="paymentsPanel" aria-controls="paymentsPanel" aria-expanded="false">💳 Cards &amp; Suica</button>
       <button type="button" class="fold-tab" data-fold="settlePanel" aria-controls="settlePanel" aria-expanded="false">🤝 Settle up</button>
       <button type="button" class="fold-tab" data-fold="logPanel" aria-controls="logPanel" aria-expanded="false">🕒 Recent changes</button>
     </nav>
@@ -87,15 +87,17 @@
     </section>
 
     <section class="panel fold" id="paymentsPanel" hidden>
-      <h2>Payments</h2>
+      <h2>Cards &amp; Suica</h2>
       <div class="two-col payments">
         <div>
-          <h3>Card limits</h3>
+          <h3 id="cardsTitle">Card limits</h3>
+          <p class="muted small" id="cardsNote" hidden></p>
           <ul class="card-meters" id="cardMeters"></ul>
+          <table class="breakdown statements" id="statements" hidden></table>
         </div>
         <div>
-          <h3>Paid by</h3>
-          <table class="breakdown" id="payers"></table>
+          <h3>Suica</h3>
+          <ul class="suica-list" id="suicaList"></ul>
         </div>
       </div>
     </section>

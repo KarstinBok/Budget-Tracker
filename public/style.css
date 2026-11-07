@@ -495,12 +495,14 @@ dialog textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; 
 .settle-form { display: grid; gap: 10px; }
 .contrib-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .contrib-list li { display: grid; grid-template-columns: 1fr 110px 1.2fr auto; gap: 6px; align-items: center; }
-.card-list li { grid-template-columns: 1fr 1fr 80px 1.4fr auto; }
+.card-list li { grid-template-columns: 1fr 1fr 80px 90px 1.4fr auto; }
 @media (max-width: 560px) {
   .contrib-list li { grid-template-columns: 1fr 1fr auto; }
   .contrib-list li [name="note"] { grid-column: 1 / 3; }
-  .card-list li { grid-template-columns: 1fr 1fr 80px; }
-  .card-list li select { grid-column: 1 / 3; }
+  .card-list li { grid-template-columns: 1fr 1fr 72px 36px; }
+  .card-list li [data-remove-card] { grid-row: 1; grid-column: 4; }
+  .card-list li [name="billedSgd"] { grid-column: 1; }
+  .card-list li select { grid-column: 2 / 5; }
 }
 
 /* ---------- summary: donut by category and bars per day ---------- */
@@ -619,11 +621,11 @@ dialog textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; 
 }
 .settle-now .borrow-line { display: block; margin-top: 4px; font-size: 0.85rem; }
 .item-card { display: block; font-size: 0.82rem; color: var(--muted); }
-.card-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.card-list li { display: flex; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; }
-.card-list .item-main { display: grid; gap: 4px; min-width: 0; }
-.card-list .item-amt { text-align: right; white-space: nowrap; font-weight: 600; }
-.card-list .item-amt .muted { display: block; font-weight: 400; }
+.daily .card-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.daily .card-list li { display: flex; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; }
+.daily .card-list .item-main { display: grid; gap: 4px; min-width: 0; }
+.daily .card-list .item-amt { text-align: right; white-space: nowrap; font-weight: 600; }
+.daily .card-list .item-amt .muted { display: block; font-weight: 400; }
 .card-cats-view { display: flex; flex-wrap: wrap; gap: 4px; }
 .card-cats-view .tag { font-size: 0.78rem; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); }
 .card-edit-list { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 10px; }
@@ -862,3 +864,9 @@ dialog.bell-dlg { width: min(480px, calc(100vw - 24px)); padding: 16px; }
 .bell-text { display: grid; gap: 2px; }
 .bell-text time { color: var(--muted); font-size: 0.78rem; font-weight: 400; }
 .bell-empty { padding: 14px 4px; }
+
+/* Japan trip: cards & Suica after the trip */
+.statements td div { font-weight: 400; }
+.suica-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.suica-list li { padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; }
+.suica-list p { margin: 4px 0 0; }
