@@ -50,6 +50,8 @@ const MAX_CARDS = 20;
 // Older documents had no cards.
 function normalize(doc) {
   doc.cards ??= [];
+  // Imports from other apps (e.g. Spendee): { id, source, by, t, count, total }, so one can be undone.
+  doc.imports ??= [];
   return doc;
 }
 
@@ -131,6 +133,46 @@ function readCard(doc, body) {
 
 function applyOp(doc, body, by) {
   switch (body.op) {
+    case "importItems": {
+      // A batch of personal expenses from another app's export, e.g. Spendee. Rows whose
+      // key was imported before are skipped, so importing the same file twice is safe.
+      const source = str(body.source, 30) || "import";
+      const owner = person(doc, body.owner, "whose expenses these are");
+      const rows = Array.isArray(body.items) ? body.items.slice(0, 2000) : [];
+      if (!rows.length) fail("Nothing to import");
+      const seen = new Set(doc.items.map((i) => i.importKey).filter(Boolean));
+      const batch = str(body.batch, 60) || randomUUID();
+      const t = Date.now();
+      let count = 0, total = 0;
+      for (const r of rows) {
+        const key = str(r.key, 200);
+        if (key && seen.has(key)) continue;
+        if (doc.items.length >= MAX_ITEMS) fail("Too many expenses");
+        const cat = doc.categories.find((c) => c.id === r.cat);
+        if (!cat) fail(`Pick a category for ${str(r.from, 40) || "every row"}`);
+        const item = { id: randomUUID(), kind: "personal", owner, date: date(r.date), cat: cat.id, a: cents(r.a), note: str(r.note, 80), by, t, src: source, importBatch: batch };
+        if (key) { item.importKey = key; seen.add(key); }
+        doc.items.push(item);
+        count++;
+        total += item.a;
+      }
+      if (!count) return null;
+      const entry = doc.imports.find((x) => x.id === batch);
+      if (entry) Object.assign(entry, { count: entry.count + count, total: entry.total + total });
+      else doc.imports.push({ id: batch, source, by, owner, t, count, total });
+      doc.imports = doc.imports.slice(-20);
+      return `imported ${count} of ${owner}'s expenses (${money(total)}) from ${source}`;
+    }
+
+    case "undoImport": {
+      const entry = doc.imports.find((x) => x.id === body.id);
+      if (!entry) return null;
+      const before = doc.items.length;
+      doc.items = doc.items.filter((i) => i.importBatch !== entry.id);
+      doc.imports = doc.imports.filter((x) => x !== entry);
+      return `undid the ${entry.source} import (${before - doc.items.length} expenses removed)`;
+    }
+
     case "addItem": {
       if (doc.items.length >= MAX_ITEMS) fail("Too many expenses");
       const { item, cat } = readItem(doc, body);
