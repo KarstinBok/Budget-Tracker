@@ -36,38 +36,55 @@
   </nav>
 
   <main>
-    <div class="month-bar">
+    <div class="seg person-filter" id="personFilter" role="radiogroup" aria-label="Whose expenses" data-only="personal"></div>
+
+    <!-- 🏠 Home: this month's spending, the last 6 months, and every expense by day -->
+    <section class="panel flow" data-view="home" aria-labelledby="flowTotal">
+      <div class="flow-head">
+        <div>
+          <p class="flow-total" id="flowTotal"></p>
+          <p class="muted" id="flowLabel"></p>
+        </div>
+        <div class="flow-pills" id="flowPills"></div>
+      </div>
+      <div class="flow-chart" id="flowChart" role="group" aria-label="Spending per month"></div>
+      <div class="flow-chips" id="flowChips" role="radiogroup" aria-label="Month"></div>
+    </section>
+
+
+    <section class="panel settle-box" id="settleBox">
+      <div>
+        <h2>Settle up</h2>
+        <p class="settle-now" id="settleNow"></p>
+        <p class="muted small settle-note">Across every shared expense, borrowed card and payment so far, not only this month.</p>
+      </div>
+      <button class="btn" type="button" id="settleBtn">💸 Record a payment</button>
+    </section>
+
+    <div class="tx-days" id="txList" data-view="home" aria-live="polite"></div>
+
+    <!-- 📊 Overview: cards, the summary and the daily table -->
+    <div class="month-bar" data-view="overview">
       <button type="button" class="icon-btn" id="prevMonth" aria-label="Previous month">‹</button>
       <h2 id="monthTitle">This month</h2>
       <button type="button" class="icon-btn" id="nextMonth" aria-label="Next month">›</button>
     </div>
 
-    <div class="seg person-filter" id="personFilter" role="radiogroup" aria-label="Whose expenses" data-only="personal"></div>
-
-    <section class="cards" aria-label="Summary">
+    <section class="cards" aria-label="Summary" data-view="overview">
       <article class="card"><h2 id="c1Label">Spent this month</h2><p class="big" id="c1"></p><p class="muted" id="c1Sub"></p></article>
       <article class="card"><h2 id="c2Label">Average per day</h2><p class="big" id="c2"></p><p class="muted" id="c2Sub"></p></article>
       <article class="card"><h2 id="c3Label">Top category</h2><p class="big" id="c3"></p><p class="muted" id="c3Sub"></p></article>
       <article class="card"><h2 id="c4Label">Last month</h2><p class="big" id="c4"></p><p class="muted" id="c4Sub"></p></article>
     </section>
 
-    <section class="panel settle-box" id="settleBox">
-      <div>
-        <h2>Settle up</h2>
-        <p class="settle-now" id="settleNow"></p>
-        <p class="muted small">Across every shared expense, borrowed card and payment so far, not only this month.</p>
-      </div>
-      <button class="btn" type="button" id="settleBtn">💸 Record a payment</button>
-    </section>
-
-    <nav class="fold-tabs" aria-label="More details">
+    <nav class="fold-tabs" aria-label="More details" data-view="overview">
       <button type="button" class="fold-tab" data-fold="summaryPanel" aria-controls="summaryPanel" aria-expanded="false">📊 Summary</button>
       <button type="button" class="fold-tab" data-fold="paymentsPanel" aria-controls="paymentsPanel" aria-expanded="false">💸 Payments</button>
       <button type="button" class="fold-tab" data-fold="cardsPanel" aria-controls="cardsPanel" aria-expanded="false">💳 Cards</button>
       <button type="button" class="fold-tab" data-fold="logPanel" aria-controls="logPanel" aria-expanded="false">🕒 Recent changes</button>
     </nav>
 
-    <section class="panel summary fold" id="summaryPanel" hidden>
+    <section class="panel summary fold" id="summaryPanel" data-view="overview" hidden>
       <div class="summary-body">
         <div class="donut-wrap">
           <svg id="donut" viewBox="0 0 200 200" role="img" aria-labelledby="donutLabel"><title id="donutLabel">Spending by category</title></svg>
@@ -80,12 +97,12 @@
       <div class="viz-tip" id="vizTip" role="status" hidden></div>
     </section>
 
-    <section class="panel fold" id="paymentsPanel" hidden>
+    <section class="panel fold" id="paymentsPanel" data-view="overview" hidden>
       <h2>Payments between you</h2>
       <ul class="items-list" id="payments"></ul>
     </section>
 
-    <section class="panel fold" id="cardsPanel" hidden>
+    <section class="panel fold" id="cardsPanel" data-view="overview" hidden>
       <div class="panel-head">
         <div>
           <h2>Our cards</h2>
@@ -96,12 +113,12 @@
       <ul class="card-list" id="cardList"></ul>
     </section>
 
-    <section class="panel fold" id="logPanel" hidden>
+    <section class="panel fold" id="logPanel" data-view="overview" hidden>
       <h2>Recent changes</h2>
       <ol class="log" id="log"></ol>
     </section>
 
-    <section class="panel">
+    <section class="panel" data-view="overview">
       <div class="panel-head">
         <div>
           <h2 id="tableTitle">Daily spending</h2>
@@ -116,6 +133,13 @@
       <div class="grid-wrap"><table class="grid" id="grid"></table></div>
     </section>
   </main>
+
+  <nav class="bottom-nav" aria-label="Views">
+    <button type="button" data-view-btn="home"><span aria-hidden="true">🏠</span>Home</button>
+    <button type="button" data-view-btn="overview"><span aria-hidden="true">📊</span>Overview</button>
+    <button type="button" data-view-btn="cards"><span aria-hidden="true">💳</span>Cards</button>
+    <button type="button" id="navSettings"><span aria-hidden="true">⚙️</span>Settings</button>
+  </nav>
 
   <button class="fab" type="button" data-add aria-label="Add expense">＋</button>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
@@ -153,6 +177,7 @@
         <p class="convert" id="splitPreview"></p>
       </fieldset>
       <div class="dlg-actions">
+        <button class="btn ghost danger" type="button" id="addDelete" hidden>🗑 Delete</button>
         <button class="btn ghost" type="button" id="addCancel">Cancel</button>
         <button class="btn" type="submit" id="addSubmit">Add</button>
       </div>

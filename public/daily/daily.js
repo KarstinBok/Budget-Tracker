@@ -16,6 +16,7 @@ let month = localToday().slice(0, 7); // "YYYY-MM"
 let filter = store.get("daily.filter") || ""; // personal screen: a person, or "all"
 let openCell = null; // { date, cat } dropped down in the table; cat null = whole day
 let editing = null; // expense being edited in the dialog
+let view = "home"; // 🏠 home (spending by day) or 📊 overview (cards, summary, table)
 let gridFrom = null; // earliest day the table shows, when a date further back was picked
 let gridToTop = true; // next table render scrolls back to today
 let cardTouched = false; // the card was picked by hand in the open dialog, so don't suggest one
@@ -124,6 +125,9 @@ function render() {
     else a.removeAttribute("aria-current");
   }
   if ($(".fold-tab.active")?.hidden) openFold(null);
+  document.body.dataset.view = view;
+  const navOn = view === "home" ? "home" : $(".fold-tab.active")?.dataset.fold === "cardsPanel" ? "cards" : "overview";
+  for (const b of document.querySelectorAll("[data-view-btn]")) b.classList.toggle("active", b.dataset.viewBtn === navOn);
 
   $("#subtitle").textContent = screen === "personal" ? "What each of us spends" : `Split between ${doc.people.join(" and ")}`;
   $("#monthTitle").textContent = monthName(month);
@@ -135,6 +139,7 @@ function render() {
 
   const items = itemsFor(month);
   renderCards(items);
+  renderFlow(items);
   renderSettle();
   renderCardList();
   renderGrid();
@@ -143,6 +148,131 @@ function render() {
   renderPayments();
   if ($("#settingsDlg").open) renderSettings();
 }
+
+// ---------------------------------------------------------------- 🏠 home view
+
+const thisMonth = () => localToday().slice(0, 7);
+// Short amounts for the chart's axis: 950, 1.9k.
+const axis = (c) => (c >= 100000 ? `${+(c / 100000).toFixed(1)}k` : `${Math.round(c / 100)}`);
+
+// Total spending a month for the current screen and person filter.
+function monthTotal(ym) {
+  return sum(doc.items.filter((i) => i.kind === screen && i.date.startsWith(ym) &&
+    (screen === "shared" || filter === "all" || i.owner === filter)));
+}
+
+function dayHeading(d) {
+  const today = localToday();
+  if (d === today) return "Today";
+  if (d === shiftDay(today, -1)) return "Yesterday";
+  return fmtDay(d, d.slice(0, 4) === today.slice(0, 4) ? { weekday: "short", month: "long", day: "numeric" } : { month: "long", day: "numeric", year: "numeric" });
+}
+
+// The opening screen: the month's total, the last 6 months, and each day's expenses.
+function renderFlow(items) {
+  const total = sum(items);
+  const now = thisMonth();
+  const today = localToday();
+  const mine = me() ?? doc.people[0];
+  $("#flowTotal").textContent = `${total ? "−" : ""}${money(total)}`;
+  $("#flowLabel").textContent = `${screen === "shared" ? "Shared spending" : filter === "all" ? "Spent by both of you" : `${filter}'s spending`} · ${month === now ? "This month" : monthName(month)}`;
+
+  const pills = [];
+  if (screen === "personal") {
+    if (month === now) pills.push(["Today", sum(items.filter((i) => i.date === today))]);
+    const days = month === now ? Number(today.slice(8)) : daysOf(month).length;
+    pills.push(["Avg / day", days ? total / days : 0]);
+  } else {
+    pills.push([`${mine}'s share`, items.reduce((s, i) => s + i.a * (i.shares?.[mine] ?? 0), 0)]);
+    pills.push([`${mine} paid`, sum(items.filter((i) => i.paidBy === mine))]);
+  }
+  $("#flowPills").innerHTML = pills.map(([k, v]) => `<span class="flow-pill"><span>${esc(k)}</span><b>${money(v)}</b></span>`).join("");
+
+  // Six months ending this month (or the chosen month, if it's further back).
+  const end = month < shiftMonth(now, -5) ? month : now;
+  const months = Array.from({ length: 6 }, (_, n) => shiftMonth(end, n - 5));
+  const totals = months.map(monthTotal);
+  const max = Math.max(...totals, 1);
+  const mag = 10 ** Math.floor(Math.log10(max));
+  const top = [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10].map((m) => m * mag).find((v) => v >= max);
+  $("#flowChart").innerHTML = `
+    <div class="flow-axis">${[top, top / 2, 0].map((t) => `<span>${axis(t)}</span>`).join("")}</div>
+    <div class="flow-plot">${[top, top / 2, 0].map((t) => `<i class="db-grid" style="bottom:${(t / top) * 100}%"></i>`).join("")}
+      ${months.map((m, n) => `<button type="button" class="flow-col${m === month ? " on" : ""}" data-month="${m}" aria-pressed="${m === month}"
+        aria-label="${monthName(m)}: ${money(totals[n])}"><span class="flow-bar" style="height:${totals[n] ? Math.max((totals[n] / top) * 100, 2) : 0}%"></span>
+        <span class="flow-mlabel">${monthName(m, { month: "short" })}<br>${m.slice(0, 4)}</span></button>`).join("")}
+    </div>`;
+
+  const chips = [shiftMonth(now, -1), now];
+  if (!chips.includes(month)) chips.unshift(month);
+  $("#flowChips").innerHTML = chips.map((m) => `<button type="button" class="flow-chip${m === month ? " on" : ""}" data-month="${m}" role="radio" aria-checked="${m === month}">${m === now ? "This month" : monthName(m)}</button>`).join("");
+
+  // Expenses by day, newest first, each day in its own card.
+  const byDay = new Map();
+  for (const i of [...items].sort((a, b) => b.date.localeCompare(a.date) || b.t - a.t)) {
+    if (!byDay.has(i.date)) byDay.set(i.date, []);
+    byDay.get(i.date).push(i);
+  }
+  $("#txList").innerHTML = byDay.size ? [...byDay].map(([d, list]) => `
+    <section class="tx-day">
+      <h3 class="tx-date"><span>${dayHeading(d)}</span><span>−${money(sum(list))}</span></h3>
+      <ul class="tx-card">${list.map(txRow).join("")}</ul>
+    </section>`).join("")
+    : `<div class="tx-empty"><span aria-hidden="true">🧾</span><p>No ${screen === "shared" ? "shared " : ""}expenses ${month === now ? "this month" : `in ${monthName(month)}`} yet.</p><button type="button" class="btn" data-add>＋ Add expense</button></div>`;
+}
+
+function txRow(i) {
+  const c = catOf(i.cat);
+  const n = Math.max(0, doc.categories.findIndex((x) => x.id === i.cat));
+  const card = cardOf(i.card);
+  const b = borrowed(i);
+  const chips = [];
+  if (i.kind === "personal" && filter === "all") chips.push(esc(i.owner));
+  if (i.kind === "shared") {
+    chips.push(`Paid by ${esc(i.paidBy)}`);
+    const parts = Object.entries(i.shares ?? {}).filter(([, f]) => f > 0);
+    if (parts.some(([, f]) => Math.abs(f - 1 / doc.people.length) > 0.001)) chips.push(parts.map(([, f]) => Math.round(f * 100)).join("/"));
+  }
+  if (card) chips.push(`💳 ${esc(card.name)}${card.owner !== (i.owner ?? i.paidBy) ? ` (${esc(card.owner)}'s)` : ""}`);
+  if (b) chips.push(`${esc(b.from)} owes ${esc(b.to)}`);
+  const mine = me();
+  const share = i.kind === "shared" && mine ? i.a * (i.shares?.[mine] ?? 0) : null;
+  return `<li><button type="button" class="tx" data-tx="${esc(i.id)}" aria-label="Edit ${esc(c.name)} ${money(i.a)}">
+    <span class="tx-icon" style="--c:${catColor(n)}"><span>${esc(c.emoji)}</span></span>
+    <span class="tx-main">
+      <b>${esc(c.name)}</b>
+      ${chips.length ? `<span class="tx-chips">${chips.map((x) => `<span class="tx-chip">${x}</span>`).join("")}</span>` : ""}
+      ${i.note ? `<span class="tx-note">${esc(i.note)}</span>` : ""}
+    </span>
+    <span class="tx-amt"><b>−${money(i.a)}</b>${share !== null ? `<small>${esc(mine)}: ${money(share)}</small>` : ""}</span>
+  </button></li>`;
+}
+
+for (const id of ["#flowChart", "#flowChips"]) {
+  $(id).addEventListener("click", (e) => {
+    const b = e.target.closest("[data-month]");
+    if (b) { month = b.dataset.month; openCell = null; render(); }
+  });
+}
+$("#txList").addEventListener("click", (e) => {
+  const tx = e.target.closest("[data-tx]");
+  if (tx) openAdd({}, doc.items.find((i) => i.id === tx.dataset.tx));
+});
+
+function setView(next, fold) {
+  view = next;
+  if (fold !== undefined) openFold(fold);
+  render();
+  if (fold) $(`#${fold}`)?.scrollIntoView({ block: "start" });
+  else window.scrollTo(0, 0);
+}
+$(".bottom-nav").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-view-btn]");
+  if (!b) return;
+  if (b.dataset.viewBtn === "cards") setView("overview", "cardsPanel");
+  else setView(b.dataset.viewBtn);
+});
+$("#navSettings").addEventListener("click", () => $("#settingsBtn").click());
 
 function setCard(n, label, big, sub) {
   $(`#c${n}Label`).textContent = label;
@@ -195,6 +325,7 @@ function renderSettle() {
     const [from, to] = k.split("\u0000");
     return `${esc(from)} used ${esc(to)}'s card for ${money(a)} in ${monthName(month, { month: "long" })}`;
   });
+  $("#settleBox").classList.toggle("square", !t.length);
   $("#settleNow").innerHTML = (t.length
     ? t.map((x) => `<b>${esc(x.from)}</b> owes <b>${esc(x.to)}</b> <b>${money(x.a)}</b>`).join("<br>")
     : "✅ You're all square.") + (lines.length ? `<span class="muted small borrow-line">💳 ${lines.join(" · ")}</span>` : "");
@@ -535,6 +666,7 @@ function updateCardUI() {
 function openAdd(prefill = {}, item = null) {
   if (!doc) return;
   editing = item;
+  $("#addDelete").hidden = !item;
   const kind = item?.kind ?? screen;
   for (const el of form.querySelectorAll("[data-kind]")) el.hidden = el.dataset.kind !== kind;
   const f = form.elements;
@@ -572,7 +704,10 @@ form.addEventListener("input", (e) => {
   updateCardUI();
 });
 $("#addCancel").addEventListener("click", () => $("#addDlg").close());
-for (const b of document.querySelectorAll("[data-add]")) b.addEventListener("click", () => openAdd());
+$("#addDelete").addEventListener("click", async () => {
+  if (editing && (await sync.runOp({ op: "deleteItem", id: editing.id }, `Deleted ${money(editing.a)}`))) $("#addDlg").close();
+});
+document.addEventListener("click", (e) => { if (e.target.closest("[data-add]")) openAdd(); });
 
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -727,7 +862,7 @@ function openFold(id) {
 }
 $(".fold-tabs").addEventListener("click", (e) => {
   const btn = e.target.closest(".fold-tab");
-  if (btn) openFold(btn.classList.contains("active") ? null : btn.dataset.fold);
+  if (btn) { openFold(btn.classList.contains("active") ? null : btn.dataset.fold); render(); }
 });
 
 $("#personFilter").addEventListener("change", (e) => {
