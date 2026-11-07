@@ -455,25 +455,39 @@ $("#guideSave").addEventListener("click", async () => {
   }
 });
 
+// 💳 Cards: each person's cards as rows in one card per person, with this month's spending.
 function renderCardList() {
   if (!doc.cards.length) {
-    $("#cardList").innerHTML = `<li class="muted small">No cards yet. Tap ✏️ Manage cards to add yours and Lilin's.</li>`;
+    $("#cardList").innerHTML = `<p class="muted small">No cards yet. Tap ✏️ Manage cards to add yours and Lilin's.</p>`;
     return;
   }
   const items = doc.items.filter((i) => i.date.startsWith(month));
-  $("#cardList").innerHTML = doc.cards.map((c) => {
+  const owners = [...doc.people, ...doc.cards.map((c) => c.owner).filter((o) => !doc.people.includes(o))];
+  const row = (c) => {
     const on = items.filter((i) => i.card === c.id);
+    const total = sum(on);
     const byOthers = new Map();
     for (const i of on) { const b = borrowed(i); if (b) byOthers.set(b.from, (byOthers.get(b.from) ?? 0) + i.a); }
-    const cats = c.cats.map((id) => catOf(id)).map((k) => `<span class="tag">${esc(k.emoji)} ${esc(k.name)}</span>`).join("");
+    const m = /^(.*?)\s*\((\d{3,4})\)\s*$/.exec(c.name); // "UOB Ladies (5897)" -> name and last digits
+    const name = m ? m[1] : c.name;
+    const sub = [
+      c.cats.length ? c.cats.map((id) => `${catOf(id).emoji} ${esc(catOf(id).name)}`).join(" · ") : "",
+      ...[...byOthers].map(([p, a]) => `${esc(p)} used it: ${money(a)}, owes ${esc(c.owner)}`),
+    ].filter(Boolean);
     return `<li>
-      <div class="item-main">
-        <span class="item-note"><b>${esc(c.emoji)} ${esc(c.name)}</b> · ${esc(c.owner)}'s</span>
-        <span class="card-cats-view">${cats || `<span class="muted small">Any category</span>`}</span>
-        ${byOthers.size ? `<span class="item-meta">${[...byOthers].map(([p, a]) => `${esc(p)} used it for ${money(a)}, owes ${esc(c.owner)}`).join(" · ")}</span>` : ""}
-      </div>
-      <div class="item-amt">${money(sum(on))}<span class="muted small"> this month</span></div>
+      <span class="cl-icon" aria-hidden="true">${esc(c.emoji)}</span>
+      <span class="cl-main"><b>${esc(name)}</b>${m ? `<span class="cl-digits">•• ${m[2]}</span>` : ""}${sub.length ? `<small>${sub.join("<br>")}</small>` : ""}</span>
+      <span class="cl-amt ${total ? "" : "zero"}">${total ? money(total) : "—"}${total ? `<small>${on.length} expense${on.length === 1 ? "" : "s"}</small>` : ""}</span>
     </li>`;
+  };
+  $("#cardList").innerHTML = owners.map((o) => {
+    const cards = doc.cards.filter((c) => c.owner === o);
+    if (!cards.length) return "";
+    const total = sum(items.filter((i) => cards.some((c) => c.id === i.card)));
+    return `<section class="cl-group">
+      <h4><span>${esc(o)}</span><span class="muted">${total ? `${money(total)} this month` : "Nothing this month"}</span></h4>
+      <ul class="cl-list">${cards.map(row).join("")}</ul>
+    </section>`;
   }).join("");
 }
 
