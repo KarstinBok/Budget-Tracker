@@ -9,7 +9,6 @@ import {
   myName, setupIdentity, createSync, launchAction, returnHomeAfter,
 } from "/common.js";
 import { borrowedOf, settleUp } from "/calc.js";
-import { renderImports, setupSpendeeImport } from "/daily/spendee.js";
 
 let doc = null;
 let screen = "personal";
@@ -759,7 +758,6 @@ $("#settleForm").addEventListener("submit", async (e) => {
 // ---------------------------------------------------------------- settings
 
 function renderSettings() {
-  renderImports({ $, esc, money, getDoc: () => doc, timeAgo });
   if ($("#settingsDlg").contains(document.activeElement)) return;
   $("#peopleInputs").innerHTML = doc.people.map((p, n) => `<label>Person ${n + 1} <input name="p${n}" value="${esc(p)}" maxlength="30" required /></label>`).join("");
   $("#catList").innerHTML = doc.categories.map((c) => `<li data-id="${esc(c.id)}">
@@ -838,19 +836,6 @@ $("#catForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   const { name, emoji } = Object.fromEntries(new FormData(e.target));
   if (await sync.runOp({ op: "addCategory", name, emoji }, `Added ${name}`)) e.target.reset();
-});
-
-setupSpendeeImport({ $, esc, toast, money, getDoc: () => doc, me, runOp: sync.runOp, people: () => doc.people });
-$("#importList").addEventListener("click", async (e) => {
-  const b = e.target.closest("[data-undo-import]");
-  if (!b) return;
-  if (!b.classList.contains("confirm")) {
-    b.classList.add("confirm");
-    b.textContent = "Tap again to remove them";
-    return;
-  }
-  b.disabled = true;
-  if (!(await sync.runOp({ op: "undoImport", id: b.dataset.undoImport }, "Import undone"))) b.disabled = false;
 });
 
 $("#csvBtn").addEventListener("click", () => {
