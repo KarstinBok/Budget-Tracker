@@ -59,6 +59,13 @@ const describers = {
       const borrowed = card && card.owner !== i.owner ? ` on ${card.owner}'s ${card.name}` : "";
       return { a, text: `${a.label} added ${what}${a.person === i.owner ? "" : ` for ${i.owner}`}${borrowed}`, url: "/daily/#personal" };
     }
+    if (body.op === "importItems") {
+      if (body.final === false) return null; // a big import is sent in parts: one notification at the end
+      const entry = doc.imports?.at(-1);
+      if (!entry) return null;
+      const a = actorOf(doc, by, entry.owner);
+      return { a, text: `${a.label} imported ${entry.count} expenses (${money(entry.total)}) from ${entry.source}`, url: "/daily/#personal" };
+    }
     if (body.op === "addSettlement") {
       const s = doc.settlements.at(-1);
       const a = actorOf(doc, by, s.from);
