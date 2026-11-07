@@ -88,7 +88,8 @@ function normalize(doc) {
   doc.settle ??= defaultSettle();
   // How each Suica was topped up: Karstin's from the pool cash, Lilin's with her Amaze card.
   if (doc.settle.suica === undefined) {
-    const amaze = doc.cards.find((c) => /amaze/i.test(c.name) && /lilin/i.test(c.owner));
+    // Card owners are saved under each person's device name, e.g. "Li Lin Loh".
+    const amaze = doc.cards.find((c) => /amaze/i.test(c.name) && /^lilin/i.test(c.owner.replace(/\s+/g, "")));
     doc.settle.suica = { Karstin: "cash", Lilin: amaze ? amaze.id : "own" };
   }
   // The cash counted at the end of the trip: ¥21,000 + 600 + 50 + 25 + 10.
