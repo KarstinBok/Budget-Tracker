@@ -7,9 +7,9 @@
 // The secret in the URL is the only key, so it's off until FITNESS_MCP_KEY is set on
 // Netlify, and the URL should be kept private like a password.
 
+import { timingSafeEqual } from "node:crypto";
 import { json, str, updateDoc, liveStore } from "../lib/shared-doc.mjs";
-import { sameSecret } from "../lib/food-scans.mjs";
-import { lookupFood, lookupUsda } from "../lib/food-ai.mjs";
+import { lookupFood, lookupUsda } from "../lib/food-lookup.mjs";
 import { FITNESS_KEY, MEALS, applyOp, defaultDoc, normalize } from "./fitness.mjs";
 
 const SERVER = { name: "our-food-diary", version: "1.0.0" };
@@ -268,6 +268,12 @@ async function callTool(name, args = {}) {
 }
 
 // ---------------------------------------------------------------- JSON-RPC over HTTP
+
+function sameSecret(a, b) {
+  const x = Buffer.from(String(a ?? ""));
+  const y = Buffer.from(String(b ?? ""));
+  return x.length === y.length && timingSafeEqual(x, y);
+}
 
 const rpcResult = (id, result) => ({ jsonrpc: "2.0", id, result });
 const rpcError = (id, code, message) => ({ jsonrpc: "2.0", id: id ?? null, error: { code, message } });

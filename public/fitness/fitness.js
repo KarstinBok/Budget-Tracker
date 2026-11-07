@@ -1,14 +1,13 @@
 // Food & fitness – client for /fitness/ (netlify/functions/fitness.mjs, /api/fitness).
 // A diary per person, like the big calorie-counting apps: each day's food in four meals
 // (breakfast, lunch, snacks, dinner), exercise, and calories and macros left against goals
-// worked out from body details and a weight goal. Food can come from foods logged before,
-// a description Claude works out (/api/food-scan), or be typed in; photos go through Claude
-// in the Claude app, which logs them via the connector (netlify/functions/mcp.mjs).
+// worked out from body details and a weight goal. In the app, food can be added again from
+// foods logged before, or typed in. Photos and descriptions go to Claude in the Claude app,
+// which works out the nutrition and logs it through the connector (netlify/functions/mcp.mjs).
 // 📈 Progress shows weight against the goal and recent calories.
 
 import {
   $, esc, store, localToday, fmtDay, timeAgo, toast, myName, setupIdentity, createSync,
-  fetchJson, postJson,
 } from "/common.js";
 
 const MEALS = [
@@ -31,7 +30,6 @@ let day = localToday();
 let who = store.get("fitness.person") || "";
 let review = []; // foods waiting to be logged in the add dialog
 let editing = null; // food being edited
-let scanRun = 0; // the latest recognise request, so an older answer can be ignored
 
 const sync = createSync({
   path: "/api/fitness",
@@ -167,7 +165,7 @@ function renderDiary() {
 }
 
 function foodRow(f) {
-  const tag = f.source === "claude" ? `<span class="by-claude" title="Logged by Claude">💬</span> ` : f.source === "photo" ? "📷 " : f.source === "describe" ? "✨ " : "";
+  const tag = f.source === "claude" ? `<span class="by-claude" title="Logged by Claude">💬</span> ` : "";
   return `<li class="food-row" data-edit-food="${esc(f.id)}" tabindex="0" role="button" aria-label="Edit ${esc(f.name)}">
     <div class="item-main">
       <span class="item-note">${tag}<b>${esc(f.name)}</b></span>
@@ -314,15 +312,12 @@ function mealChips(container, name, selected) {
 function openFood(meal) {
   if (!doc) return;
   review = [];
-  scanRun++;
   mealChips("#mealChoices", "meal", meal || (day === localToday() ? mealForNow() : "lunch"));
   $("#foodTitle").textContent = `Add food · ${who} · ${dayLabel(day)}`;
   const last = store.get("fitness.src");
   (foodForm.querySelector(`input[name="src"][value="${last}"]`) ?? foodForm.querySelector('input[name="src"]')).checked = true;
-  $("#describeText").value = "";
   $("#recentSearch").value = "";
   for (const id of ["#mName", "#mAmount", "#mKcal", "#mP", "#mC", "#mF"]) $(id).value = "";
-  $("#scanStatus").hidden = true;
   showSrc();
   renderReview();
   $("#foodDlg").showModal();
@@ -337,7 +332,7 @@ foodForm.addEventListener("change", (e) => {
   if (e.target.name === "src") { store.set("fitness.src", src()); showSrc(); }
 });
 
-// Review list: each food scales with its portion (x1 = as recognised). When its weight is
+// Review list: each food scales with its portion (x1 = as first logged). When its weight is
 // known, the portion is set in grams instead.
 function renderReview() {
   $("#reviewBox").hidden = !review.length;
@@ -365,8 +360,7 @@ function renderReview() {
         <label><input data-k="c" inputmode="decimal" value="${r1(r.c * r.x)}" /><span>C g</span></label>
         <label><input data-k="f" inputmode="decimal" value="${r1(r.f * r.x)}" /><span>F g</span></label>
       </div>
-      ${r.confidence ? `<span class="rv-src muted small"><span class="conf conf-${r.confidence}">${r.confidence === "high" ? "Exact" : r.confidence === "medium" ? "Database values" : "Rough estimate"}</span>
-        ${r.ref ? (r.url ? ` <a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.ref)} ↗</a>` : ` ${esc(r.ref)}`) : ""}</span>` : ""}
+      ${r.ref ? `<span class="rv-src muted small">Source: ${r.url ? `<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.ref)} ↗</a>` : esc(r.ref)}</span>` : ""}
       ${r.ingredients?.length ? ingredientList(r.ingredients, r.x, open.has(String(n))) : ""}
     </div>
     <button type="button" class="icon-btn" data-rv-remove title="Remove" aria-label="Remove ${esc(r.name)}">✕</button>
@@ -407,57 +401,20 @@ $("#reviewList").addEventListener("click", (e) => {
 });
 
 function addToReview(items, source) {
-  // source: how it was added (photo, describe, recent, manual); i.source from a scan is where
-  // its numbers came from, shown as `ref`.
+  // source: how it was added here (recent or manual); a recent food keeps its ingredients
+  // and where its numbers came from (ref).
   for (const i of items) {
     review.push({
       on: true, x: 1, source, name: i.name, amount: i.amount ?? "",
       kcal: Number(i.kcal) || 0, p: Number(i.p) || 0, c: Number(i.c) || 0, f: Number(i.f) || 0,
       fiber: i.fiber, sugar: i.sugar, sodium: i.sodium, grams: Number(i.grams) || 0,
       ingredients: i.ingredients ?? [],
-      confidence: i.confidence,
-      ref: source === "photo" || source === "describe" ? i.source : i.refName ?? "",
-      url: source === "photo" || source === "describe" ? i.url : i.ref ?? "",
+      ref: i.refName ?? "",
+      url: i.ref ?? "",
     });
   }
   renderReview();
 }
-
-// Recognition: photo and/or words go to Claude in the background; poll for the answer.
-async function recognise({ text }) {
-  const run = ++scanRun;
-  const status = $("#scanStatus");
-  const set = (html, cls = "") => { status.hidden = false; status.className = `scan-status ${cls}`; status.innerHTML = html; };
-  set(`<span class="spinner" aria-hidden="true"></span> Claude is working out the ingredients and their weights…`);
-  $("#describeGo").disabled = true;
-  try {
-    const { id } = await postJson("/api/food-scan", { text, meal: mealNow() });
-    const started = Date.now();
-    let res;
-    do {
-      await new Promise((r) => setTimeout(r, 2000));
-      if (run !== scanRun) return;
-      res = await fetchJson(`/api/food-scan?id=${encodeURIComponent(id)}`);
-      if (Date.now() - started > 20000 && res.status === "pending") set(`<span class="spinner" aria-hidden="true"></span> Looking up each ingredient in USDA FoodData Central, Open Food Facts and online. This can take a minute or two…`);
-    } while (res.status === "pending" && Date.now() - started < 7 * 60000);
-    if (run !== scanRun) return;
-    if (res.status !== "done") throw new Error(res.error || "Couldn't recognise the food. Try again.");
-    status.hidden = true;
-    addToReview(res.items, "describe");
-    $("#reviewNote").textContent = res.note || "";
-    $("#reviewBox").scrollIntoView({ block: "nearest", behavior: "smooth" });
-  } catch (err) {
-    if (run === scanRun) set(`⚠️ ${esc(err.message)}`, "error");
-  } finally {
-    if (run === scanRun) $("#describeGo").disabled = false;
-  }
-}
-
-$("#describeGo").addEventListener("click", () => {
-  const text = $("#describeText").value.trim();
-  if (!text) return toast("Describe what you ate first");
-  recognise({ text });
-});
 
 // Foods this person logged before, newest first, one per name and amount.
 function renderRecent() {
@@ -515,9 +472,9 @@ foodForm.addEventListener("submit", async (e) => {
   const ok = await sync.runOp({ op: "addFoods", person: who, date: day, meal, foods },
     `Logged ${fmt(sum(foods, "kcal"))} kcal to ${MEALS.find((m) => m.id === meal).name.toLowerCase()}`);
   btn.disabled = false;
-  if (ok) { scanRun++; $("#foodDlg").close(); }
+  if (ok) $("#foodDlg").close();
 });
-$("#foodCancel").addEventListener("click", () => { scanRun++; $("#foodDlg").close(); });
+$("#foodCancel").addEventListener("click", () => $("#foodDlg").close());
 
 // ---------------------------------------------------------------- edit a logged food
 

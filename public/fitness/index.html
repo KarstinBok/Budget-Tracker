@@ -120,7 +120,7 @@
   <button class="fab" type="button" data-add-food aria-label="Add food">＋</button>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <!-- Add food: recent, description or manual, then check and log (photos go through the Claude app) -->
+  <!-- Add food: recent or manual, then check and log (photos and descriptions go through Claude in the Claude app) -->
   <dialog id="foodDlg" class="wide-dlg">
     <form id="foodForm">
       <h2 id="foodTitle">Add food</h2>
@@ -128,16 +128,10 @@
         <legend>Meal</legend>
         <div class="cat-choices" id="mealChoices" role="radiogroup" aria-label="Meal"></div>
       </fieldset>
-      <p class="claude-tip">📷 Got a photo? Send it to Claude in the Claude app and it'll work out the calories and log them here.</p>
+      <p class="claude-tip">📷 Send a photo or description of your food to Claude in the Claude app. It'll work out the calories and log them here.</p>
       <div class="seg src-tabs" role="tablist" aria-label="How to add">
         <label><input type="radio" name="src" value="recent" checked /><span>🕒 Recent</span></label>
-        <label><input type="radio" name="src" value="describe" /><span>✍️ Describe</span></label>
         <label><input type="radio" name="src" value="manual" /><span>✏️ Manual</span></label>
-      </div>
-
-      <div class="src-pane" data-src="describe" hidden>
-        <label>What did you eat? <textarea id="describeText" rows="3" maxlength="500" placeholder="e.g. 2 eggs, 1 slice wholemeal toast with butter, kopi-o kosong. Or: McSpicy meal with fries and Coke Zero"></textarea></label>
-        <button type="button" class="btn" id="describeGo">✨ Work it out</button>
       </div>
 
       <div class="src-pane" data-src="recent">
@@ -159,11 +153,8 @@
         <button type="button" class="btn ghost" id="manualAdd">＋ Add to list</button>
       </div>
 
-      <div class="scan-status" id="scanStatus" hidden></div>
-
       <div class="review" id="reviewBox" hidden>
         <h3>Check before logging</h3>
-        <p class="muted small" id="reviewNote"></p>
         <ul class="review-list" id="reviewList"></ul>
         <p class="review-total" id="reviewTotal"></p>
       </div>

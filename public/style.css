@@ -677,10 +677,6 @@ dialog.wide-dlg { width: min(560px, calc(100vw - 24px)); }
 .src-tabs span { padding: 9px 4px; }
 .src-pane { display: grid; gap: 10px; }
 .claude-tip { margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--accent-soft); font-size: 0.88rem; }
-.scan-status { padding: 10px 12px; border-radius: 10px; background: var(--surface-2); font-size: 0.9rem; display: flex; gap: 10px; align-items: center; }
-.scan-status.error { background: var(--accent-soft); color: var(--text); }
-.spinner { width: 16px; height: 16px; flex: none; border-radius: 50%; border: 2px solid var(--border); border-top-color: var(--accent); animation: spin 0.8s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
 .review h3 { margin-bottom: 2px; }
 .review-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
 .review-list li { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: start; padding: 10px; border: 1px solid var(--border); border-radius: 10px; }
@@ -703,10 +699,6 @@ dialog.wide-dlg { width: min(560px, calc(100vw - 24px)); }
 .rv-nums label { gap: 2px; font-size: 0.72rem; text-align: center; }
 .rv-nums input { text-align: center; padding-left: 4px; padding-right: 4px; font-variant-numeric: tabular-nums; }
 .rv-src { display: block; }
-.conf { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 0.72rem; font-weight: 600; }
-.conf-high { background: color-mix(in srgb, var(--good) 18%, transparent); color: var(--good); }
-.conf-medium { background: var(--surface-2); color: var(--text); }
-.conf-low { background: var(--accent-soft); color: var(--accent); }
 .review-total { font-weight: 600; margin: 8px 0 0; font-variant-numeric: tabular-nums; }
 .recent-list { max-height: 320px; overflow: auto; }
 .recent-list li { cursor: pointer; }
