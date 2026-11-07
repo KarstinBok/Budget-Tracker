@@ -10,6 +10,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { json, str, updateDoc, liveStore } from "../lib/shared-doc.mjs";
 import { lookupFood, lookupUsda } from "../lib/food-lookup.mjs";
+import { notifyChange } from "../lib/notify.mjs";
 import { FITNESS_KEY, MEALS, applyOp, defaultDoc, normalize } from "./fitness.mjs";
 
 const SERVER = { name: "our-food-diary", version: "1.0.0" };
@@ -202,6 +203,7 @@ async function change(body) {
       throw err.status ? new ToolError(err.message) : err; // fail() from applyOp: a message for Claude
     });
   if (!doc) throw new ToolError("The diary is busy, try again.");
+  await notifyChange(FITNESS_KEY, body, "Claude", doc);
   return doc;
 }
 

@@ -253,6 +253,8 @@
         <label>Split between (comma-separated) <input name="people" maxlength="300" required placeholder="Karstin, Lilin" /></label>
       </div>
       <ul class="contrib-list" id="contribList"></ul>
+      <div class="row" id="suicaFunding"></div>
+      <label>Cash counted left (¥, optional) <input name="cashLeft" type="number" min="0" step="1" inputmode="numeric" placeholder="Count the cash to settle up exactly" /></label>
       <div class="dlg-actions">
         <button type="button" class="btn ghost" id="addContrib">＋ Add cash</button>
         <button type="submit" class="btn">Save cash pool</button>
@@ -310,5 +312,6 @@
   </dialog>
 
   <script src="/app.js" type="module"></script>
+  <script src="/notify.js" type="module"></script>
 </body>
 </html>
