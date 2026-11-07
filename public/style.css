@@ -963,3 +963,9 @@ dialog.bell-dlg { width: min(480px, calc(100vw - 24px)); padding: 16px; }
 .check-row input { width: 18px; height: 18px; accent-color: var(--accent); }
 .week-note { margin: 8px 0 0; padding: 8px 12px; border-radius: 10px; background: color-mix(in srgb, var(--warn) 12%, var(--surface)); font-size: 0.88rem; }
 .week-note[hidden] { display: none; }
+.recent-list .list-head { cursor: default; background: none !important; font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); padding-top: 10px; }
+.saved-recipe { margin-top: 4px; font-size: 0.85rem; }
+.saved-recipe summary { color: var(--accent); cursor: pointer; }
+.saved-recipe ul { margin: 4px 0; padding-left: 18px; list-style: disc; }
+.recent-list .saved-recipe li { display: list-item; padding: 1px 0; border: 0; background: none; cursor: default; font-size: 0.85rem; }
+.saved-recipe p { margin: 4px 0; color: var(--muted); }

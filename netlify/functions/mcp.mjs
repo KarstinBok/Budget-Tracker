@@ -21,10 +21,11 @@ const ACTIVITY = { sedentary: 1.2, light: 1.375, moderate: 1.55, active: 1.725, 
 
 const INSTRUCTIONS = `Karstin and Lilin's food & fitness diary (calories, macros, weight, exercise), shown in their app at https://japan-trip-budget.netlify.app/fitness/.
 When someone sends a photo or description of food to log:
+0. Check find_saved_foods first: their saved foods and home recipes have exact numbers per portion.
 1. Identify each dish and break it into ingredients. Estimate each ingredient's weight in grams from the photo's scale cues (a dinner plate is ~26 cm, a hawker plate ~23 cm, a rice bowl ~250 ml, a dessert spoon ~15 cm), counting pieces where you can, and include cooking oil and sauces.
 2. Look up nutrition per 100 g and scale it to each weight: lookup_usda for whole foods and cooked staples; lookup_open_food_facts for packaged products (by barcode if visible); web search for restaurant and chain items (the brand's published nutrition facts) and local dishes (e.g. Singapore HPB). A dish's totals are the sum of its ingredients.
 3. Show the person the breakdown (ingredients, grams, kcal, protein, carbs, fat, sources) and the totals, then log it with log_food to the right person, meal and date. If whose diary or which meal isn't clear, ask or infer from the time of day (Singapore time). Mention calories left for the day from the result.
-Use get_food_diary to answer questions about the day, goals and what's left. Use delete_food to fix a mistake.`;
+Use get_food_diary to answer questions about the day, goals and what's left. Use delete_food to fix a mistake. When they ask to add a food or recipe to the database (without saying they ate it), use save_food.`;
 
 // ---------------------------------------------------------------- tools
 
@@ -109,6 +110,30 @@ const TOOLS = [
       type: "object",
       properties: { person: PERSON, date: DATE, name: { type: "string" }, minutes: num("Minutes."), kcal: num("Calories burned."), note: { type: "string" } },
       required: ["person", "name", "minutes", "kcal"],
+    },
+  },
+  {
+    name: "find_saved_foods",
+    title: "Find saved foods",
+    description: "Search the foods and recipes Karstin and Lilin saved (shared by both), with nutrition per portion. Check here first for home recipes and foods they eat often, then log with log_food using these numbers (scaled to the amount eaten).",
+    annotations: { readOnlyHint: true },
+    inputSchema: { type: "object", properties: { query: { type: "string", description: "Part of the name; leave out to list all." } } },
+  },
+  {
+    name: "save_food",
+    title: "Save a food or recipe",
+    description: "Save a food or home recipe to the shared saved foods, so it can be added to either diary in one tap. Give the nutrition for one portion (say what a portion is in amount); for a recipe, list the ingredients for one portion and put the full recipe (quantities for the whole batch, servings, method) in recipe. Doesn't log it to a diary.",
+    inputSchema: {
+      type: "object",
+      required: ["name", "kcal", "protein_g", "carbs_g", "fat_g"],
+      properties: {
+        name: { type: "string" }, amount: { type: "string", description: "What one portion is, e.g. \"1 serving (8 g)\"." },
+        grams: num("Weight of one portion in grams."), kcal: num("Calories per portion."),
+        protein_g: num("g"), carbs_g: num("g"), fat_g: num("g"), fiber_g: num("g"), sugar_g: num("g"), sodium_mg: num("mg"),
+        source: { type: "string" }, source_url: { type: "string" },
+        recipe: { type: "string", description: "Whole-batch recipe and notes." },
+        ingredients: { type: "array", items: { type: "object", required: ["name", "grams", "kcal"], properties: { name: { type: "string" }, grams: num("g"), kcal: num("kcal"), protein_g: num("g"), carbs_g: num("g"), fat_g: num("g"), source: { type: "string" }, source_url: { type: "string" } } } },
+      },
     },
   },
   {
@@ -266,6 +291,21 @@ async function callTool(name, args = {}) {
       const d = dayOf(args.date);
       const doc = await change({ op: "addExercise", person: p, date: d, name: args.name, minutes: args.minutes, kcal: Math.round(Number(args.kcal) || 0), note: args.note ?? "" });
       return { saved: true, day: diary(doc, p, d) };
+    }
+    case "find_saved_foods": {
+      const doc = await readDoc();
+      const q = String(args.query ?? "").toLowerCase().trim();
+      return (doc.library ?? []).filter((f) => !q || f.name.toLowerCase().includes(q)).map((f) => ({
+        name: f.name, amount: f.amount, grams: f.grams, kcal: f.kcal, protein_g: f.p, carbs_g: f.c, fat_g: f.f,
+        fiber_g: f.fiber, sugar_g: f.sugar, sodium_mg: f.sodium, recipe: f.recipe,
+        ingredients: f.ingredients?.map((g) => ({ name: g.name, grams: g.grams, kcal: g.kcal, protein_g: g.p, carbs_g: g.c, fat_g: g.f })),
+      }));
+    }
+    case "save_food": {
+      const food = foodFromTool(args);
+      delete food.source;
+      await change({ op: "saveLibraryFood", ...food, recipe: args.recipe ?? "" });
+      return { saved: args.name };
     }
     case "lookup_usda":
       return lookup("USDA FoodData Central", () => lookupUsda(args));
