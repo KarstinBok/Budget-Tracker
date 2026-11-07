@@ -870,3 +870,4 @@ dialog.bell-dlg { width: min(480px, calc(100vw - 24px)); padding: 16px; }
 .suica-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .suica-list li { padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; }
 .suica-list p { margin: 4px 0 0; }
+.push-who { display: flex; gap: 8px; flex-wrap: wrap; }

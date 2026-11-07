@@ -103,6 +103,14 @@ const syncs = [];
 
 export const myName = () => me;
 
+// Sets this device's name (e.g. from the notifications panel, on pages without the 👤 button).
+export function setMyName(name) {
+  me = String(name ?? "").trim().slice(0, 30);
+  store.set("trip.name", me);
+  const label = document.getElementById("whoName");
+  if (label) label.textContent = me || "Set name";
+}
+
 function askName() {
   $("#nameInput").value = me;
   $("#nameDlg").showModal();
