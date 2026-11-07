@@ -15,6 +15,7 @@ export const DOCS = {
   trip: { key: "trip-v1", count: (doc) => doc.items?.length ?? 0, noun: "expenses" },
   journal: { key: "journal-v1", count: (doc) => doc.entries?.length ?? 0, noun: "journal entries" },
   daily: { key: "daily-v1", count: (doc) => doc.items?.length ?? 0, noun: "everyday expenses" },
+  fitness: { key: "fitness-v1", count: (doc) => doc.foods?.length ?? 0, noun: "foods logged" },
 };
 
 export const backupStore = () => getStore({ name: STORE, consistency: "strong" });
