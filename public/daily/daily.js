@@ -6,8 +6,9 @@
 
 import {
   $, esc, store, localToday, fmtDay, timeAgo, toast, downloadFile,
-  myName, setupIdentity, createSync,
+  myName, setupIdentity, createSync, launchAction, returnHomeAfter,
 } from "/common.js";
+import { borrowedOf, settleUp } from "/calc.js";
 
 let doc = null;
 let screen = "personal";
@@ -23,8 +24,27 @@ const sync = createSync({
   onDoc(next) {
     doc = next;
     render();
+    quickAction();
   },
 });
+
+// From the home page: /daily/?add=personal|shared|payment opens that dialog straight away.
+function quickAction() {
+  const action = launchAction();
+  if (action === "personal" || action === "shared") {
+    history.replaceState(null, "", `${location.pathname}#${action}`);
+    screen = action;
+    render();
+    openAdd();
+    returnHomeAfter($("#addDlg"));
+  } else if (action === "payment") {
+    history.replaceState(null, "", `${location.pathname}#shared`);
+    screen = "shared";
+    render();
+    $("#settleBtn").click();
+    returnHomeAfter($("#settleDlg"));
+  }
+}
 
 // ---------------------------------------------------------------- formatting
 
@@ -73,10 +93,7 @@ function me() {
 const cardOf = (id) => (id && doc.cards.find((c) => c.id === id)) || null;
 const cardLabel = (c) => `${c.emoji} ${c.owner}'s ${c.name}`;
 // A personal expense paid with someone else's card: who owes whom.
-const borrowed = (i) => {
-  const c = i.kind === "personal" && cardOf(i.card);
-  return c && c.owner !== i.owner ? { from: i.owner, to: c.owner, card: c } : null;
-};
+const borrowed = (i) => borrowedOf(doc, i);
 
 const catOf = (id) => doc.categories.find((c) => c.id === id) ?? { id, name: "Other", emoji: "📦" };
 
@@ -90,39 +107,8 @@ function itemsFor(ym, who = filter) {
 
 const sum = (items) => items.reduce((s, i) => s + i.a, 0);
 
-// Each person's balance over all time, from shared expenses, borrowed cards and payments.
-// Positive = is owed money.
-function balances() {
-  const net = Object.fromEntries(doc.people.map((p) => [p, 0]));
-  for (const i of doc.items) {
-    const b = borrowed(i);
-    if (b && b.from in net && b.to in net) {
-      net[b.to] += i.a;
-      net[b.from] -= i.a;
-    }
-  }
-  for (const i of doc.items.filter((x) => x.kind === "shared")) {
-    if (i.paidBy in net) net[i.paidBy] += i.a;
-    for (const [p, f] of Object.entries(i.shares ?? {})) if (p in net) net[p] -= i.a * f;
-  }
-  for (const s of doc.settlements) {
-    if (s.from in net) net[s.from] += s.a;
-    if (s.to in net) net[s.to] -= s.a;
-  }
-  // Fewest payments to even it out: largest debtor pays largest creditor, repeat.
-  const owe = Object.entries(net).map(([p, v]) => ({ p, v: Math.round(v) }));
-  const transfers = [];
-  for (let guard = 0; guard < 20; guard++) {
-    owe.sort((a, b) => a.v - b.v);
-    const debtor = owe[0], creditor = owe[owe.length - 1];
-    if (!debtor || debtor.v > -1 || creditor.v < 1) break;
-    const a = Math.min(-debtor.v, creditor.v);
-    transfers.push({ from: debtor.p, to: creditor.p, a });
-    debtor.v += a;
-    creditor.v -= a;
-  }
-  return transfers;
-}
+// Who owes whom over all time (shared expenses, borrowed cards and payments).
+const balances = () => settleUp(doc);
 
 // ---------------------------------------------------------------- rendering
 

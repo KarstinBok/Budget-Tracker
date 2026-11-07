@@ -74,6 +74,27 @@ if ("serviceWorker" in navigator && !inAndroidApp()) {
   navigator.serviceWorker.register("/sw.js").catch(() => { /* installing is optional */ });
 }
 
+// ---------------------------------------------------------------- quick actions from the home page
+
+// The home page's quick buttons open an app at e.g. /daily/?add=personal&from=home.
+// launchAction() is that "add" value, once; returnHomeAfter(dialog) goes back to the home
+// page when that dialog closes (the home page shows the last saved message).
+const launch = new URLSearchParams(location.search);
+export const fromHome = launch.get("from") === "home";
+let launchUsed = false;
+
+export function launchAction() {
+  if (launchUsed) return null;
+  launchUsed = true;
+  const action = launch.get("add");
+  if (action) history.replaceState(null, "", location.pathname + location.hash);
+  return action;
+}
+
+export function returnHomeAfter(dialog) {
+  if (fromHome) dialog.addEventListener("close", () => location.assign("/"), { once: true });
+}
+
 // ---------------------------------------------------------------- who's using the page
 
 let me = store.get("trip.name") || "";
@@ -193,7 +214,10 @@ export function createSync({ path, schema, onDoc }) {
       inflight--;
     }
     applyDoc(data.doc, false);
-    if (okMsg) toast(okMsg);
+    if (okMsg) {
+      toast(okMsg);
+      if (fromHome) try { sessionStorage.setItem("home.toast", okMsg); } catch { /* private mode */ }
+    }
     return true;
   }
 

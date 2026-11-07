@@ -8,7 +8,9 @@
 
 import {
   $, esc, store, localToday, fmtDay, timeAgo, toast, myName, setupIdentity, createSync,
+  launchAction, returnHomeAfter,
 } from "/common.js";
+import { fitnessTargets, latestWeightOf, weighInsOf } from "/calc.js";
 
 const MEALS = [
   { id: "breakfast", name: "Breakfast", emoji: "🌅" },
@@ -16,13 +18,11 @@ const MEALS = [
   { id: "snacks", name: "Snacks", emoji: "🍎" },
   { id: "dinner", name: "Dinner", emoji: "🍲" },
 ];
-const ACTIVITY = { sedentary: 1.2, light: 1.375, moderate: 1.55, active: 1.725, very: 1.9 };
 // Rough MET values for working out calories burned when none are given.
 const EXERCISES = [
   ["🚶", "Walking", 3.5], ["🏃", "Running", 9.8], ["🚴", "Cycling", 7.5], ["🏋️", "Gym / weights", 5],
   ["🏊", "Swimming", 7], ["🧘", "Yoga / pilates", 3], ["🏸", "Badminton", 5.5], ["🔥", "HIIT", 8],
 ];
-const KCAL_PER_KG = 7700;
 
 let doc = null;
 let screen = "diary";
@@ -37,8 +37,21 @@ const sync = createSync({
   onDoc(next) {
     doc = next;
     render();
+    quickAction();
   },
 });
+
+// From the home page: /fitness/?add=food|weight|exercise opens that dialog for today.
+function quickAction() {
+  const action = launchAction();
+  const dialogs = { food: ["#foodDlg", () => openFood()], weight: ["#weightDlg", () => $("#addWeight").click()], exercise: ["#exDlg", () => $("#addExercise").click()] };
+  if (!dialogs[action]) return;
+  if (screen !== "diary") { history.replaceState(null, "", `${location.pathname}#diary`); screen = "diary"; }
+  day = localToday();
+  render();
+  dialogs[action][1]();
+  returnHomeAfter($(dialogs[action][0]));
+}
 
 // ---------------------------------------------------------------- helpers
 
@@ -63,30 +76,9 @@ const foodsOn = (d, p = who) => doc.foods.filter((f) => f.person === p && f.date
 const exercisesOn = (d, p = who) => doc.exercises.filter((x) => x.person === p && x.date === d);
 const sum = (list, k) => list.reduce((s, x) => s + (Number(x[k]) || 0), 0);
 
-function weighIns(p = who) {
-  return doc.weights.filter((w) => w.person === p).sort((a, b) => a.date.localeCompare(b.date) || a.t - b.t);
-}
-const latestWeight = (p = who, onOrBefore = "9999") => weighIns(p).filter((w) => w.date <= onOrBefore).at(-1) ?? null;
-
-// Daily targets from the profile: Mifflin-St Jeor BMR x activity, plus the weekly goal.
-function targets(p = who, onDay = day) {
-  const pr = doc.profiles[p] ?? {};
-  const w = latestWeight(p, onDay)?.kg ?? null;
-  const age = pr.birthYear ? new Date().getFullYear() - pr.birthYear : null;
-  let calc = null;
-  if (w && pr.heightCm && age) {
-    const bmr = 10 * w + 6.25 * pr.heightCm - 5 * age + (pr.sex === "male" ? 5 : pr.sex === "female" ? -161 : -78);
-    const tdee = bmr * (ACTIVITY[pr.activity] ?? 1.375);
-    const floor = pr.sex === "male" ? 1500 : 1200;
-    calc = { bmr: r0(bmr), tdee: r0(tdee), kcal: Math.max(floor, Math.round((tdee + ((pr.weeklyKg ?? 0) * KCAL_PER_KG) / 7) / 10) * 10), floor };
-  }
-  const kcal = pr.kcalTarget || calc?.kcal || 2000;
-  const m = pr.macros ?? { p: 30, c: 40, f: 30 };
-  return {
-    kcal, calc, set: !!(pr.kcalTarget || calc),
-    p: (kcal * m.p) / 100 / 4, c: (kcal * m.c) / 100 / 4, f: (kcal * m.f) / 100 / 9, pct: m,
-  };
-}
+const weighIns = (p = who) => weighInsOf(doc, p);
+const latestWeight = (p = who, onOrBefore = "9999") => latestWeightOf(doc, p, onOrBefore);
+const targets = (p = who, onDay = day) => fitnessTargets(doc, p, onDay);
 
 function dayLabel(d) {
   const today = localToday();
