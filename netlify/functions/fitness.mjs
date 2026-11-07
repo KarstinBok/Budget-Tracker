@@ -32,7 +32,9 @@ function defaultDoc() {
     updatedAt: Date.now(),
     people: ["Karstin", "Lilin"],
     profiles: { Karstin: defaultProfile(), Lilin: defaultProfile() },
-    // { id, person, date, meal, name, amount, kcal, p, c, f, fiber?, sugar?, sodium?, source, by, t }
+    // { id, person, date, meal, name, amount, kcal, p, c, f, fiber?, sugar?, sodium?, grams?,
+    //   ref? + refName? (where the numbers came from), ingredients?: [{ name, grams, kcal, p, c, f, url?, source? }],
+    //   source, by, t }
     foods: [],
     // { id, person, date, kg, by, t }
     weights: [],
@@ -93,7 +95,33 @@ function readFood(body) {
   }
   const note = str(body.note, 200);
   if (note) food.note = note;
+  const grams = num(body.grams, { max: 10000, label: "weight", optional: true });
+  if (grams) food.grams = grams;
+  const ref = link(body.ref);
+  if (ref) Object.assign(food, { ref, refName: str(body.refName, 60) });
+  if (Array.isArray(body.ingredients) && body.ingredients.length) {
+    food.ingredients = body.ingredients.slice(0, 15).map((g) => ({
+      name: str(g?.name, 60) || "Ingredient",
+      grams: num(g?.grams ?? 0, { max: 10000, label: "ingredient weight" }),
+      kcal: num(g?.kcal ?? 0, { max: 10000, label: "ingredient calories" }),
+      p: num(g?.p ?? 0, { max: 1000, dp: 1, label: "ingredient protein" }),
+      c: num(g?.c ?? 0, { max: 1000, dp: 1, label: "ingredient carbs" }),
+      f: num(g?.f ?? 0, { max: 1000, dp: 1, label: "ingredient fat" }),
+      ...(link(g?.url) ? { url: link(g.url) } : {}),
+      ...(str(g?.source, 60) ? { source: str(g.source, 60) } : {}),
+    }));
+  }
   return food;
+}
+
+// A source link: plain https only.
+function link(value) {
+  try {
+    const u = new URL(String(value ?? ""));
+    return u.protocol === "https:" ? u.href.slice(0, 300) : "";
+  } catch {
+    return "";
+  }
 }
 
 function meal(value) {
@@ -137,8 +165,8 @@ function applyOp(doc, body, by) {
     case "updateFood": {
       const old = doc.foods.find((f) => f.id === body.id);
       if (!old) fail("This food was deleted by someone else", 409);
-      const next = readFood({ ...body, source: old.source });
-      for (const k of ["fiber", "sugar", "sodium", "note"]) delete old[k];
+      const next = readFood({ grams: old.grams, ref: old.ref, refName: old.refName, ingredients: old.ingredients, ...body, source: old.source });
+      for (const k of ["fiber", "sugar", "sodium", "note", "grams", "ref", "refName", "ingredients"]) delete old[k];
       Object.assign(old, next, { meal: body.meal ? meal(body.meal) : old.meal, editedBy: by, editedAt: Date.now() });
       return `edited ${old.name} (${old.kcal} kcal) in ${old.person}'s ${MEAL_NAMES[old.meal]}`;
     }

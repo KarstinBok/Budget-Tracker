@@ -136,12 +136,13 @@
       </div>
 
       <div class="src-pane" data-src="photo">
-        <label class="photo-drop" id="photoDrop">
-          <input type="file" id="photoInput" accept="image/*" />
-          <img id="photoPreview" alt="" hidden />
-          <span id="photoHint">📷 Take or choose a photo of your food, its label or barcode</span>
-        </label>
-        <label>Anything to add? (optional) <input id="photoText" maxlength="300" placeholder="e.g. half the rice, teh-c siew dai" /></label>
+        <div class="photo-btns">
+          <label class="btn photo-btn"><input type="file" id="cameraInput" accept="image/*" capture="environment" />📸 Take photo</label>
+          <label class="btn ghost photo-btn"><input type="file" id="galleryInput" accept="image/*" multiple />🖼️ Choose photos</label>
+        </div>
+        <div class="photo-strip" id="photoStrip"></div>
+        <p class="muted small" id="photoHint">Up to 3 photos: the whole plate from above works best, plus a close-up, the label or the barcode if there is one. A spoon or chopsticks in the shot helps judge the size.</p>
+        <label>Anything to add? (optional) <input id="photoText" maxlength="300" placeholder="e.g. rice weighed 180 g, ate half the noodles, teh-c siew dai" /></label>
         <button type="button" class="btn" id="photoGo">✨ Recognise</button>
       </div>
 
@@ -203,7 +204,7 @@
         <label>Carbs g <input name="c" inputmode="decimal" /></label>
         <label>Fat g <input name="f" inputmode="decimal" /></label>
       </div>
-      <p class="muted small" id="editMeta"></p>
+      <div class="muted small" id="editMeta"></div>
       <div class="dlg-actions">
         <button class="btn ghost danger" type="button" id="editDelete">🗑 Delete</button>
         <button class="btn ghost" type="button" id="editCancel">Cancel</button>

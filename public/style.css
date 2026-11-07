@@ -676,13 +676,15 @@ dialog.wide-dlg { width: min(560px, calc(100vw - 24px)); }
 .src-tabs label { flex: 1; text-align: center; }
 .src-tabs span { padding: 9px 4px; }
 .src-pane { display: grid; gap: 10px; }
-.photo-drop {
-  display: grid !important; place-items: center; min-height: 150px; border: 2px dashed var(--border); border-radius: 12px;
-  cursor: pointer; text-align: center; padding: 12px; color: var(--muted); overflow: hidden;
-}
-.photo-drop:hover { border-color: var(--accent); }
-.photo-drop input { position: absolute; opacity: 0; width: 1px; height: 1px; }
-.photo-drop img { max-width: 100%; max-height: 260px; border-radius: 8px; }
+.photo-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.photo-btn { position: relative; justify-content: center; cursor: pointer; }
+.photo-btn input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.photo-btn.disabled { opacity: 0.45; pointer-events: none; }
+.photo-strip { display: flex; gap: 8px; flex-wrap: wrap; }
+.photo-strip:empty { display: none; }
+.photo-strip figure { position: relative; margin: 0; }
+.photo-strip img { width: 96px; height: 96px; object-fit: cover; border-radius: 10px; display: block; border: 1px solid var(--border); }
+.photo-x { position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; border-radius: 50%; border: 0; background: rgb(0 0 0 / 0.6); color: #fff; cursor: pointer; font-size: 0.75rem; }
 .scan-status { padding: 10px 12px; border-radius: 10px; background: var(--surface-2); font-size: 0.9rem; display: flex; gap: 10px; align-items: center; }
 .scan-status.error { background: var(--accent-soft); color: var(--text); }
 .spinner { width: 16px; height: 16px; flex: none; border-radius: 50%; border: 2px solid var(--border); border-top-color: var(--accent); animation: spin 0.8s linear infinite; }
@@ -695,7 +697,15 @@ dialog.wide-dlg { width: min(560px, calc(100vw - 24px)); }
 .rv-check input { width: 18px; height: 18px; accent-color: var(--accent); }
 .rv-main { display: grid; gap: 6px; min-width: 0; }
 .rv-name { font-weight: 600; }
-.rv-sub { display: grid; grid-template-columns: 1fr 76px; gap: 6px; }
+.rv-sub { display: grid; grid-template-columns: 1fr 96px; gap: 6px; }
+.rv-src a, #editMeta a, .ingredients a { color: var(--accent); }
+.ingredients { font-size: 0.8rem; }
+.ingredients summary { cursor: pointer; color: var(--accent); font-weight: 600; padding: 2px 0; }
+.ingredients table { width: 100%; border-collapse: collapse; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.ingredients th, .ingredients td { padding: 4px 3px; border-bottom: 1px solid var(--border); text-align: right; white-space: nowrap; }
+.ingredients th:first-child, .ingredients td:first-child { text-align: left; white-space: normal; }
+.ingredients th { color: var(--muted); font-weight: 600; }
+#editMeta .ingredients { margin-top: 8px; color: var(--text); }
 .rv-x { display: flex !important; align-items: center; gap: 4px !important; }
 .rv-nums { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 .rv-nums label { gap: 2px; font-size: 0.72rem; text-align: center; }

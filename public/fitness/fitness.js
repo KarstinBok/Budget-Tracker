@@ -170,7 +170,7 @@ function foodRow(f) {
   return `<li class="food-row" data-edit-food="${esc(f.id)}" tabindex="0" role="button" aria-label="Edit ${esc(f.name)}">
     <div class="item-main">
       <span class="item-note">${tag}<b>${esc(f.name)}</b></span>
-      <span class="item-meta">${f.amount ? `${esc(f.amount)} · ` : ""}P ${g(f.p)} · C ${g(f.c)} · F ${g(f.f)}</span>
+      <span class="item-meta">${[f.amount, f.grams ? `${fmt(f.grams)} g` : ""].filter(Boolean).map(esc).join(" · ")}${f.amount || f.grams ? " · " : ""}P ${g(f.p)} · C ${g(f.c)} · F ${g(f.f)}</span>
     </div>
     <div class="item-amt">${fmt(f.kcal)}</div>
   </li>`;
@@ -318,9 +318,8 @@ function openFood(meal) {
   $("#foodTitle").textContent = `Add food · ${who} · ${dayLabel(day)}`;
   const last = store.get("fitness.src") || "photo";
   foodForm.querySelector(`input[name="src"][value="${last}"]`).checked = true;
-  $("#photoInput").value = "";
-  $("#photoPreview").hidden = true;
-  $("#photoHint").hidden = false;
+  photos = [];
+  renderPhotos();
   $("#photoText").value = "";
   $("#describeText").value = "";
   $("#recentSearch").value = "";
@@ -340,7 +339,8 @@ foodForm.addEventListener("change", (e) => {
   if (e.target.name === "src") { store.set("fitness.src", src()); showSrc(); }
 });
 
-// Review list: each food scales with its portion (x1 = as recognised).
+// Review list: each food scales with its portion (x1 = as recognised). When its weight is
+// known, the portion is set in grams instead.
 function renderReview() {
   $("#reviewBox").hidden = !review.length;
   const on = review.filter((r) => r.on);
@@ -350,13 +350,16 @@ function renderReview() {
   $("#reviewTotal").textContent = on.length > 1
     ? `Total: ${fmt(kcal)} kcal · P ${g(on.reduce((s, r) => s + r.p * r.x, 0))} · C ${g(on.reduce((s, r) => s + r.c * r.x, 0))} · F ${g(on.reduce((s, r) => s + r.f * r.x, 0))}`
     : "";
+  const open = new Set([...$("#reviewList").querySelectorAll("details[open]")].map((d) => d.closest("li").dataset.n));
   $("#reviewList").innerHTML = review.map((r, n) => `<li class="${r.on ? "" : "off"}" data-n="${n}">
     <label class="rv-check"><input type="checkbox" data-k="on" ${r.on ? "checked" : ""} aria-label="Log ${esc(r.name)}" /></label>
     <div class="rv-main">
       <input class="rv-name" data-k="name" value="${esc(r.name)}" maxlength="80" aria-label="Food name" />
       <div class="rv-sub">
         <input class="rv-amount" data-k="amount" value="${esc(r.amount)}" maxlength="60" placeholder="Amount" aria-label="Amount" />
-        <label class="rv-x">× <input data-k="x" inputmode="decimal" value="${r.x}" aria-label="Portions" /></label>
+        ${r.grams
+          ? `<label class="rv-x"><input data-k="grams" inputmode="decimal" value="${r0(r.grams * r.x)}" aria-label="Weight in grams" /> g</label>`
+          : `<label class="rv-x">× <input data-k="x" inputmode="decimal" value="${r.x}" aria-label="Portions" /></label>`}
       </div>
       <div class="rv-nums">
         <label><input data-k="kcal" inputmode="decimal" value="${r0(r.kcal * r.x)}" /><span>kcal</span></label>
@@ -364,10 +367,21 @@ function renderReview() {
         <label><input data-k="c" inputmode="decimal" value="${r1(r.c * r.x)}" /><span>C g</span></label>
         <label><input data-k="f" inputmode="decimal" value="${r1(r.f * r.x)}" /><span>F g</span></label>
       </div>
-      ${r.confidence ? `<span class="rv-src muted small"><span class="conf conf-${r.confidence}">${r.confidence === "high" ? "Exact" : r.confidence === "medium" ? "Standard values" : "Rough estimate"}</span>${r.ref ? ` ${esc(r.ref)}` : ""}${r.grams ? ` · ~${r.grams} g` : ""}</span>` : ""}
+      ${r.confidence ? `<span class="rv-src muted small"><span class="conf conf-${r.confidence}">${r.confidence === "high" ? "Exact" : r.confidence === "medium" ? "Database values" : "Rough estimate"}</span>
+        ${r.ref ? (r.url ? ` <a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.ref)} ↗</a>` : ` ${esc(r.ref)}`) : ""}</span>` : ""}
+      ${r.ingredients?.length ? ingredientList(r.ingredients, r.x, open.has(String(n))) : ""}
     </div>
     <button type="button" class="icon-btn" data-rv-remove title="Remove" aria-label="Remove ${esc(r.name)}">✕</button>
   </li>`).join("");
+}
+
+// How a dish was worked out: each ingredient's estimated weight and nutrition, with its source.
+function ingredientList(list, x = 1, open = false) {
+  return `<details class="ingredients"${open ? " open" : ""}><summary>How it was worked out: ${list.length} ingredient${list.length === 1 ? "" : "s"}</summary>
+    <table><thead><tr><th>Ingredient</th><th>g</th><th>kcal</th><th>P</th><th>C</th><th>F</th></tr></thead><tbody>
+    ${list.map((i) => `<tr><td>${i.url ? `<a href="${esc(i.url)}" target="_blank" rel="noopener" title="${esc(i.source || "Source")}">${esc(i.name)} ↗</a>` : esc(i.name)}</td>
+      <td>${fmt(i.grams * x)}</td><td>${fmt(i.kcal * x)}</td><td>${r1(i.p * x)}</td><td>${r1(i.c * x)}</td><td>${r1(i.f * x)}</td></tr>`).join("")}
+    </tbody></table></details>`;
 }
 
 $("#reviewList").addEventListener("change", (e) => {
@@ -380,6 +394,9 @@ $("#reviewList").addEventListener("change", (e) => {
   else if (k === "x") {
     const x = num(e.target.value);
     if (x > 0 && x <= 20) r.x = x;
+  } else if (k === "grams") {
+    const grams = num(e.target.value);
+    if (grams > 0 && grams <= 20 * r.grams) r.x = grams / r.grams;
   } else {
     const v = num(e.target.value);
     if (v >= 0) r[k] = v / r.x; // typed numbers are for the whole portion
@@ -398,34 +415,37 @@ function addToReview(items, source) {
     review.push({
       on: true, x: 1, source, name: i.name, amount: i.amount ?? "",
       kcal: Number(i.kcal) || 0, p: Number(i.p) || 0, c: Number(i.c) || 0, f: Number(i.f) || 0,
-      fiber: i.fiber, sugar: i.sugar, sodium: i.sodium, grams: i.grams,
-      confidence: i.confidence, ref: source === "photo" || source === "describe" ? i.source : "",
+      fiber: i.fiber, sugar: i.sugar, sodium: i.sodium, grams: Number(i.grams) || 0,
+      ingredients: i.ingredients ?? [],
+      confidence: i.confidence,
+      ref: source === "photo" || source === "describe" ? i.source : i.refName ?? "",
+      url: source === "photo" || source === "describe" ? i.url : i.ref ?? "",
     });
   }
   renderReview();
 }
 
 // Recognition: photo and/or words go to Claude in the background; poll for the answer.
-async function recognise({ image, mediaType, text }) {
+async function recognise({ images = [], text }) {
   const run = ++scanRun;
   const status = $("#scanStatus");
   const set = (html, cls = "") => { status.hidden = false; status.className = `scan-status ${cls}`; status.innerHTML = html; };
-  set(`<span class="spinner" aria-hidden="true"></span> Claude is identifying the food and looking up its nutrition…`);
+  set(`<span class="spinner" aria-hidden="true"></span> Claude is identifying the food and estimating each ingredient's weight…`);
   for (const b of document.querySelectorAll("#photoGo, #describeGo")) b.disabled = true;
   try {
-    const { id } = await postJson("/api/food-scan", { image, mediaType, text, meal: mealNow() });
+    const { id } = await postJson("/api/food-scan", { images, text, meal: mealNow() });
     const started = Date.now();
     let res;
     do {
       await new Promise((r) => setTimeout(r, 2000));
       if (run !== scanRun) return;
       res = await fetchJson(`/api/food-scan?id=${encodeURIComponent(id)}`);
-      if (Date.now() - started > 20000 && res.status === "pending") set(`<span class="spinner" aria-hidden="true"></span> Still looking it up (checking labels and restaurant menus can take a minute)…`);
+      if (Date.now() - started > 20000 && res.status === "pending") set(`<span class="spinner" aria-hidden="true"></span> Looking up each ingredient in USDA FoodData Central, Open Food Facts and online. This can take a minute or two…`);
     } while (res.status === "pending" && Date.now() - started < 7 * 60000);
     if (run !== scanRun) return;
     if (res.status !== "done") throw new Error(res.error || "Couldn't recognise the food. Try again.");
     status.hidden = true;
-    addToReview(res.items, image ? "photo" : "describe");
+    addToReview(res.items, images.length ? "photo" : "describe");
     $("#reviewNote").textContent = res.note || "";
     $("#reviewBox").scrollIntoView({ block: "nearest", behavior: "smooth" });
   } catch (err) {
@@ -435,33 +455,45 @@ async function recognise({ image, mediaType, text }) {
   }
 }
 
-// Shrinks a photo to at most 1600 px on its longer side, as JPEG, before uploading.
+// Shrinks a photo to at most 1400 px on its longer side, as JPEG, before uploading.
 async function shrinkPhoto(file) {
   const bitmap = await createImageBitmap(file).catch(() => null);
   if (!bitmap) throw new Error("That file isn't a photo this browser can read. Try a JPEG or PNG.");
-  const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+  const scale = Math.min(1, 1400 / Math.max(bitmap.width, bitmap.height));
   const canvas = Object.assign(document.createElement("canvas"), { width: Math.round(bitmap.width * scale), height: Math.round(bitmap.height * scale) });
   canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
   return canvas.toDataURL("image/jpeg", 0.85);
 }
 
-let photoData = null;
-$("#photoInput").addEventListener("change", async () => {
-  const file = $("#photoInput").files[0];
-  photoData = null;
-  if (!file) return;
-  try {
-    photoData = await shrinkPhoto(file);
-    $("#photoPreview").src = photoData;
-    $("#photoPreview").hidden = false;
-    $("#photoHint").hidden = true;
-  } catch (err) {
-    toast(err.message);
+// Up to 3 photos per recognition: data URLs, shown as thumbnails that can be removed.
+let photos = [];
+function renderPhotos() {
+  $("#photoStrip").innerHTML = photos.map((p, n) => `<figure><img src="${p}" alt="Photo ${n + 1}" />
+    <button type="button" class="photo-x" data-photo-x="${n}" aria-label="Remove photo ${n + 1}">✕</button></figure>`).join("");
+  for (const b of document.querySelectorAll(".photo-btn")) b.classList.toggle("disabled", photos.length >= 3);
+}
+async function addPhotos(input) {
+  const files = [...input.files];
+  input.value = "";
+  for (const file of files) {
+    if (photos.length >= 3) { toast("Up to 3 photos at a time"); break; }
+    try {
+      photos.push(await shrinkPhoto(file));
+    } catch (err) {
+      toast(err.message);
+    }
   }
+  renderPhotos();
+}
+$("#cameraInput").addEventListener("change", (e) => addPhotos(e.target));
+$("#galleryInput").addEventListener("change", (e) => addPhotos(e.target));
+$("#photoStrip").addEventListener("click", (e) => {
+  const x = e.target.closest("[data-photo-x]");
+  if (x) { photos.splice(Number(x.dataset.photoX), 1); renderPhotos(); }
 });
 $("#photoGo").addEventListener("click", () => {
-  if (!photoData) return toast("Take or choose a photo first");
-  recognise({ image: photoData.split(",")[1], mediaType: "image/jpeg", text: $("#photoText").value.trim() });
+  if (!photos.length) return toast("Take or choose a photo first");
+  recognise({ images: photos.map((p) => ({ data: p.split(",")[1], mediaType: "image/jpeg" })), text: $("#photoText").value.trim() });
 });
 $("#describeGo").addEventListener("click", () => {
   const text = $("#describeText").value.trim();
@@ -508,9 +540,15 @@ foodForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   const foods = review.filter((r) => r.on).map((r) => ({
     name: r.name.trim() || "Food", source: r.source,
-    amount: r.x !== 1 ? `${r.amount.trim() || "1 portion"} × ${r.x}` : r.amount.trim(),
+    amount: r.x !== 1 && !r.grams ? `${r.amount.trim() || "1 portion"} × ${r.x}` : r.amount.trim(),
     kcal: r0(r.kcal * r.x), p: r1(r.p * r.x), c: r1(r.c * r.x), f: r1(r.f * r.x),
     ...(r.fiber ? { fiber: r1(r.fiber * r.x) } : {}), ...(r.sugar ? { sugar: r1(r.sugar * r.x) } : {}), ...(r.sodium ? { sodium: r0(r.sodium * r.x) } : {}),
+    ...(r.grams ? { grams: r0(r.grams * r.x) } : {}),
+    ...(r.url ? { ref: r.url, refName: r.ref } : {}),
+    ...(r.ingredients?.length ? { ingredients: r.ingredients.map((i) => ({
+      name: i.name, grams: r0(i.grams * r.x), kcal: r0(i.kcal * r.x), p: r1(i.p * r.x), c: r1(i.c * r.x), f: r1(i.f * r.x),
+      ...(i.url ? { url: i.url } : {}), ...(i.source ? { source: i.source } : {}),
+    })) } : {}),
   }));
   if (!foods.length) return;
   const meal = mealNow();
@@ -531,7 +569,8 @@ function openEdit(f) {
   mealChips("#editMeals", "editMeal", f.meal);
   for (const k of ["name", "amount", "kcal", "p", "c", "f"]) editForm.elements[k].value = f[k] ?? "";
   const extra = [f.fiber ? `fibre ${g(f.fiber)}` : "", f.sugar ? `sugar ${g(f.sugar)}` : "", f.sodium ? `sodium ${fmt(f.sodium)} mg` : ""].filter(Boolean).join(" · ");
-  $("#editMeta").textContent = `${extra ? `${extra}. ` : ""}Added by ${f.by} ${timeAgo(f.t)}${f.editedBy ? `, edited by ${f.editedBy}` : ""}.`;
+  $("#editMeta").innerHTML = `${f.grams ? `About ${fmt(f.grams)} g. ` : ""}${esc(extra)}${extra ? ". " : ""}${f.ref ? `Source: <a href="${esc(f.ref)}" target="_blank" rel="noopener">${esc(f.refName || "link")} ↗</a>. ` : ""}Added by ${esc(f.by)} ${timeAgo(f.t)}${f.editedBy ? `, edited by ${esc(f.editedBy)}` : ""}.`
+    + (f.ingredients?.length ? ingredientList(f.ingredients) : "");
   $("#editDlg").showModal();
 }
 editForm.addEventListener("submit", async (e) => {

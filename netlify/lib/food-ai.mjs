@@ -1,20 +1,24 @@
-// Recognises food from a photo and/or a description and works out its calories and macros
+// Recognises food from photos and/or a description and works out its calories and macros
 // with Claude. Used by the food-scan background function.
 //
-//   recognizeFood({ image?: { data, mediaType }, text?, meal? })
-//   -> { items: [{ name, amount, grams, kcal, p, c, f, fiber, sugar, sodium, confidence, source }], note }
+//   recognizeFood({ images?: [{ data, mediaType }], text?, meal? })
+//   -> { items: [{ name, amount, grams, kcal, p, c, f, fiber, sugar, sodium, confidence, source, url,
+//                  ingredients: [{ name, grams, kcal, p, c, f, source, url }] }], note }
 //
-// Claude looks the food up before estimating: packaged foods in the Open Food Facts
-// database (by barcode or name), and branded or restaurant items on the web (the
-// brand's or restaurant's own nutrition facts). Plain dishes use standard nutrition
-// tables (e.g. USDA FoodData Central) for the portion it sees.
-// Needs ANTHROPIC_API_KEY. FOOD_MODEL is optional.
+// Claude estimates each dish ingredient by ingredient: what's in it and how many grams of
+// each, judged from the photo (plate and cutlery size, how full the bowl is), then the
+// nutrition per 100 g of each ingredient from a database, scaled to its weight:
+//  - USDA FoodData Central for whole foods and cooked staples (lookup_usda);
+//  - Open Food Facts for packaged products, by barcode or name (lookup_food_database);
+//  - the web for restaurant, chain and branded items (the brand's own nutrition facts).
+// Needs ANTHROPIC_API_KEY. FOOD_MODEL and FDC_API_KEY (a free api.data.gov key; without
+// one the shared, heavily rate-limited DEMO_KEY is used) are optional.
 
 import Anthropic from "@anthropic-ai/sdk";
 import { str } from "./shared-doc.mjs";
 
 const MODEL = process.env.FOOD_MODEL || "claude-opus-5-5";
-const MAX_TURNS = 8;
+const MAX_TURNS = 14;
 const OFF_FIELDS = "code,product_name,brands,serving_size,quantity,nutriments";
 const UA = "OurExpenses-FoodDiary/1.0 (https://japan-trip-budget.netlify.app/fitness/)";
 
@@ -27,6 +31,7 @@ export class FoodError extends Error {
 }
 
 const n = (description) => ({ type: "number", description });
+const URL_FIELD = { type: "string", description: "Link to the database entry or web page the numbers came from, or empty." };
 
 const SAVE_TOOL = {
   name: "save_food_estimate",
@@ -42,7 +47,7 @@ const SAVE_TOOL = {
         items: {
           type: "object",
           additionalProperties: false,
-          required: ["name", "amount", "grams", "kcal", "protein_g", "carbs_g", "fat_g", "fiber_g", "sugar_g", "sodium_mg", "confidence", "source"],
+          required: ["name", "amount", "grams", "kcal", "protein_g", "carbs_g", "fat_g", "fiber_g", "sugar_g", "sodium_mg", "confidence", "source", "url", "ingredients"],
           properties: {
             name: { type: "string", description: "Short food name, with brand or restaurant if known, e.g. \"Chicken rice (roasted)\" or \"Milo Kosong, Kopitiam\"." },
             amount: { type: "string", description: "The portion in everyday words, e.g. \"1 plate\", \"2 slices\", \"1 can (325 ml)\"." },
@@ -55,7 +60,27 @@ const SAVE_TOOL = {
             sugar_g: n("Sugars in grams for this portion (0 if unknown)."),
             sodium_mg: n("Sodium in milligrams for this portion (0 if unknown)."),
             confidence: { type: "string", enum: ["high", "medium", "low"], description: "high = exact product or published nutrition facts; medium = standard values for a clearly identified food; low = guessed dish or portion." },
-            source: { type: "string", description: "Where the numbers come from, e.g. \"Open Food Facts\", \"mcdonalds.com.sg\", \"USDA FoodData Central\", \"Singapore HPB\", \"estimate\"." },
+            source: { type: "string", description: "Where the numbers come from, e.g. \"Open Food Facts\", \"mcdonalds.com.sg\", \"USDA FoodData Central\", \"Singapore HPB\", \"estimate\". For a dish built from ingredients: \"Ingredients\"." },
+            url: URL_FIELD,
+            ingredients: {
+              type: "array",
+              description: "For a dish: its ingredients with estimated weights, each with its own nutrition; the item's totals are their sum. Empty for a single packaged product or published menu item.",
+              items: {
+                type: "object",
+                additionalProperties: false,
+                required: ["name", "grams", "kcal", "protein_g", "carbs_g", "fat_g", "source", "url"],
+                properties: {
+                  name: { type: "string", description: "Ingredient as cooked, e.g. \"White rice, cooked\", \"Chicken thigh, roasted, with skin\", \"Peanut oil\"." },
+                  grams: n("Estimated weight in this portion, in grams."),
+                  kcal: n("Calories for that weight."),
+                  protein_g: n("Protein in grams for that weight."),
+                  carbs_g: n("Carbohydrates in grams for that weight."),
+                  fat_g: n("Fat in grams for that weight."),
+                  source: { type: "string", description: "Database or site, e.g. \"USDA FoodData Central\"." },
+                  url: URL_FIELD,
+                },
+              },
+            },
           },
         },
       },
@@ -79,21 +104,37 @@ const LOOKUP_TOOL = {
   },
 };
 
-const WEB_SEARCH = { type: "web_search_20260209", name: "web_search", max_uses: 4 };
+const USDA_TOOL = {
+  name: "lookup_usda",
+  description: "Search USDA FoodData Central (Foundation and SR Legacy foods) for an ingredient. Returns up to 5 matches with nutrition per 100 g and a link. Use cooked forms for cooked food, e.g. \"rice white cooked\".",
+  strict: true,
+  input_schema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["query"],
+    properties: { query: { type: "string", description: "Ingredient in plain words, e.g. \"chicken thigh roasted skin\"." } },
+  },
+};
 
-function prompt({ text, meal, hasImage }) {
+const WEB_SEARCH = { type: "web_search_20260209", name: "web_search", max_uses: 5 };
+
+function prompt({ text, meal, photos }) {
   return [
     `This is food someone ate${meal ? ` for ${meal}` : ""}, to log in their calorie and macro diary. We live in Singapore.`,
-    hasImage ? "The photo shows the food." : "",
+    photos ? `${photos === 1 ? "The photo shows" : `The ${photos} photos show`} the food (possibly also its label, barcode or a menu).` : "",
     text ? `Their description: <description>${text}</description>` : "",
     "",
-    "Work out each separate food or drink and the nutrition for the amount eaten:",
-    "- Packaged products: use lookup_food_database, by barcode if you can read one, else by name and brand. Use the label's numbers scaled to the amount eaten.",
-    "- Restaurant, chain or branded items (e.g. McDonald's, Starbucks, Subway, Ya Kun): search the web for the brand's published nutrition facts.",
-    "- Home-cooked or hawker dishes: use standard nutrition values (USDA FoodData Central, Singapore HPB food composition data) for the portion you see, counting cooking oil and sauces.",
-    "- If the description gives an amount, use it over what the photo suggests. Estimate portions from plate size and common serving sizes.",
-    "- Keep it quick: look up only what changes the numbers. Don't search for plain foods like rice, eggs or fruit.",
-    "Then call save_food_estimate once with every item. The calories should roughly match 4 kcal/g protein, 4 kcal/g carbs and 9 kcal/g fat.",
+    "Work out every separate food and drink and its nutrition for the amount eaten, as accurately as you can:",
+    "1. Identify each dish and what's in it. Look closely: the cut and cooking of meat, sauces and gravy, oil sheen, toppings, sides.",
+    "2. Estimate the weight of each ingredient. Use the scale cues in the photo: a dinner plate is about 26 cm across, a hawker plate 23 cm, a rice bowl holds about 250 ml, a dessert spoon is 15 cm long; judge how high and how spread the food is. Count pieces where you can (dumplings, slices, wings). Include cooking oil and sauces, which are easy to miss. If the description gives a weight or amount, use it.",
+    "3. Look up each ingredient's nutrition per 100 g and scale it to the weight:",
+    "   - whole foods and cooked staples (rice, noodles, meat, fish, egg, vegetables, oil): lookup_usda;",
+    "   - packaged products and drinks: lookup_food_database, by barcode if you can read one, else by name and brand;",
+    "   - restaurant, chain and branded items (McDonald's, Starbucks, Subway, Ya Kun, Toast Box…): search the web for the brand's published nutrition facts and use those for the whole item, without an ingredient list;",
+    "   - local dishes: you may also search for Singapore HPB or other published values to check your total.",
+    "   Look up several ingredients at once where you can. Keep the url of each source you use.",
+    "4. For a dish, its totals are the sum of its ingredients. Check that calories roughly match 4 kcal/g protein, 4 kcal/g carbs and 9 kcal/g fat.",
+    "Then call save_food_estimate once with every item. In the note, say what you assumed (portion, oil, sauce) and what to double-check.",
   ].filter(Boolean).join("\n");
 }
 
@@ -105,6 +146,7 @@ const per = (nm, key) => {
 function offProduct(p) {
   const nm = p.nutriments ?? {};
   return {
+    url: p.code ? `https://world.openfoodfacts.org/product/${p.code}` : undefined,
     barcode: p.code,
     name: p.product_name,
     brand: p.brands,
@@ -135,6 +177,29 @@ async function lookupFood({ barcode, query }) {
   return JSON.stringify({ products: (data.products ?? []).slice(0, 5).map(offProduct) });
 }
 
+// USDA FoodData Central nutrient ids (energy has three ids depending on the data type).
+const FDC = { kcal: [1008, 2047, 2048], protein_g: [1003], carbs_g: [1005], fat_g: [1004], fiber_g: [1079], sugar_g: [2000, 1063], sodium_mg: [1093] };
+
+async function lookupUsda({ query }) {
+  const q = str(query, 120);
+  if (!q) return JSON.stringify({ foods: [], note: "Give an ingredient to search for." });
+  const key = process.env.FDC_API_KEY || "DEMO_KEY";
+  const url = `https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(q)}&pageSize=5&dataType=Foundation,SR%20Legacy&api_key=${encodeURIComponent(key)}`;
+  const res = await fetch(url, { headers: { "user-agent": UA }, signal: AbortSignal.timeout(12_000) });
+  if (res.status === 429) throw new Error("USDA rate limit reached");
+  if (!res.ok) throw new Error(`USDA answered ${res.status}`);
+  const data = await res.json();
+  const foods = (data.foods ?? []).slice(0, 5).map((f) => {
+    const per100 = {};
+    for (const [k, ids] of Object.entries(FDC)) {
+      const hit = ids.map((id) => f.foodNutrients?.find((x) => x.nutrientId === id)).find((x) => x && typeof x.value === "number");
+      if (hit) per100[k] = Math.round(hit.value * (k === "sodium_mg" ? 1 : 10)) / (k === "sodium_mg" ? 1 : 10);
+    }
+    return { name: f.description, type: f.dataType, per_100g: per100, url: `https://fdc.nal.usda.gov/food-details/${f.fdcId}/nutrients` };
+  });
+  return JSON.stringify({ foods });
+}
+
 const round1 = (v) => Math.max(0, Math.round((Number(v) || 0) * 10) / 10);
 
 function cleanItems(input) {
@@ -151,20 +216,44 @@ function cleanItems(input) {
     sodium: Math.max(0, Math.round(Number(i.sodium_mg) || 0)),
     confidence: ["high", "medium", "low"].includes(i.confidence) ? i.confidence : "low",
     source: str(i.source, 80),
+    url: safeUrl(i.url),
+    ingredients: (i.ingredients ?? []).slice(0, 15).map((g) => ({
+      name: str(g.name, 60) || "Ingredient",
+      grams: Math.max(0, Math.round(Number(g.grams) || 0)),
+      kcal: Math.max(0, Math.round(Number(g.kcal) || 0)),
+      p: round1(g.protein_g),
+      c: round1(g.carbs_g),
+      f: round1(g.fat_g),
+      source: str(g.source, 60),
+      url: safeUrl(g.url),
+    })),
   }));
 }
 
-export async function recognizeFood({ image, text = "", meal = "" }) {
+// Only plain https links reach the page.
+function safeUrl(u) {
+  try {
+    const url = new URL(String(u ?? ""));
+    return url.protocol === "https:" ? url.href.slice(0, 300) : "";
+  } catch {
+    return "";
+  }
+}
+
+const LOOKUPS = { [USDA_TOOL.name]: lookupUsda, [LOOKUP_TOOL.name]: lookupFood };
+
+export async function recognizeFood({ images = [], image, text = "", meal = "" }) {
+  if (image) images = [image, ...images]; // jobs saved before several photos were allowed
   if (!process.env.ANTHROPIC_API_KEY) {
     throw new FoodError("Food recognition isn't set up yet: add ANTHROPIC_API_KEY in Netlify's environment variables, then redeploy.", 503);
   }
   const description = str(text, 500);
-  if (!image && !description) throw new FoodError("Add a photo or describe the food", 400);
+  if (!images.length && !description) throw new FoodError("Add a photo or describe the food", 400);
 
   const client = new Anthropic({ timeout: 120_000, maxRetries: 2 });
   const content = [];
-  if (image) content.push({ type: "image", source: { type: "base64", media_type: image.mediaType, data: image.data } });
-  content.push({ type: "text", text: prompt({ text: description, meal: str(meal, 20), hasImage: !!image }) });
+  for (const img of images.slice(0, 3)) content.push({ type: "image", source: { type: "base64", media_type: img.mediaType, data: img.data } });
+  content.push({ type: "text", text: prompt({ text: description, meal: str(meal, 20), photos: Math.min(images.length, 3) }) });
   const messages = [{ role: "user", content }];
 
   for (let turn = 0; turn < MAX_TURNS; turn++) {
@@ -173,10 +262,10 @@ export async function recognizeFood({ image, text = "", meal = "" }) {
       response = await client.beta.messages.create({
         model: MODEL,
         max_tokens: 16000,
-        output_config: { effort: "medium" },
+        output_config: { effort: "high" },
         betas: ["server-side-fallback-2026-07-01"],
         fallbacks: "default",
-        tools: [SAVE_TOOL, LOOKUP_TOOL, WEB_SEARCH],
+        tools: [SAVE_TOOL, USDA_TOOL, LOOKUP_TOOL, WEB_SEARCH],
         messages,
       });
     } catch (err) {
@@ -198,16 +287,16 @@ export async function recognizeFood({ image, text = "", meal = "" }) {
     messages.push({ role: "assistant", content: response.content });
     if (response.stop_reason === "pause_turn") continue; // web search ran long: let it carry on
 
-    const lookups = response.content.filter((b) => b.type === "tool_use" && b.name === LOOKUP_TOOL.name);
+    const lookups = response.content.filter((b) => b.type === "tool_use" && LOOKUPS[b.name]);
     if (lookups.length) {
-      const results = [];
-      for (const call of lookups) {
+      // All of this turn's lookups at once, answered together in one message.
+      const results = await Promise.all(lookups.map(async (call) => {
         try {
-          results.push({ type: "tool_result", tool_use_id: call.id, content: await lookupFood(call.input) });
+          return { type: "tool_result", tool_use_id: call.id, content: await LOOKUPS[call.name](call.input) };
         } catch (err) {
-          results.push({ type: "tool_result", tool_use_id: call.id, is_error: true, content: `Lookup failed: ${err.message}. Use standard values instead.` });
+          return { type: "tool_result", tool_use_id: call.id, is_error: true, content: `Lookup failed: ${err.message}. Use another source or standard values.` };
         }
-      }
+      }));
       messages.push({ role: "user", content: results });
       continue;
     }

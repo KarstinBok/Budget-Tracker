@@ -1,6 +1,6 @@
 // Food recognition jobs: POST/GET /api/food-scan
 //
-//   POST { image?: <base64 JPEG/PNG/WebP>, mediaType?, text?, meal? } -> { id }
+//   POST { images?: [{ data: <base64 JPEG/PNG/WebP>, mediaType }] (up to 3), text?, meal? } -> { id }
 //   GET  ?id=<id> -> { status: "pending" } | { status: "done", items, note } | { status: "error", error }
 //
 // Asking Claude (with lookups) can take longer than a normal function may run, so the
@@ -11,7 +11,7 @@ import { randomUUID } from "node:crypto";
 import { json, passcodeError } from "../lib/shared-doc.mjs";
 import { scanStore, scanToken } from "../lib/food-scans.mjs";
 
-const MAX_IMAGE = 6_000_000; // base64 characters (~4.5 MB)
+const MAX_IMAGES = 5_000_000; // base64 characters across all photos (~3.7 MB)
 const TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const STALE_MS = 6 * 60_000; // a job that hasn't finished by now has failed
 
@@ -44,15 +44,20 @@ export default async (req) => {
   } catch {
     return json({ error: "Invalid JSON" }, 400);
   }
-  const image = body.image ? String(body.image).replace(/^data:[^,]*,/, "") : "";
-  if (image.length > MAX_IMAGE) return json({ error: "That photo is too large" }, 413);
-  if (image && !/^[A-Za-z0-9+/=]+$/.test(image)) return json({ error: "That photo couldn't be read" }, 400);
+  const raw = Array.isArray(body.images) ? body.images : body.image ? [{ data: body.image, mediaType: body.mediaType }] : [];
+  if (raw.length > 3) return json({ error: "Up to 3 photos at a time" }, 400);
+  const images = raw.map((i) => ({
+    data: String(i?.data ?? "").replace(/^data:[^,]*,/, ""),
+    mediaType: TYPES.includes(i?.mediaType) ? i.mediaType : "image/jpeg",
+  }));
+  if (images.reduce((s, i) => s + i.data.length, 0) > MAX_IMAGES) return json({ error: "Those photos are too large" }, 413);
+  if (images.some((i) => !/^[A-Za-z0-9+/=]+$/.test(i.data))) return json({ error: "A photo couldn't be read" }, 400);
   const text = String(body.text ?? "").trim().slice(0, 500);
-  if (!image && !text) return json({ error: "Add a photo or describe the food" }, 400);
+  if (!images.length && !text) return json({ error: "Add a photo or describe the food" }, 400);
 
   const id = randomUUID();
   const input = {
-    image: image ? { data: image, mediaType: TYPES.includes(body.mediaType) ? body.mediaType : "image/jpeg" } : null,
+    images,
     text,
     meal: String(body.meal ?? "").slice(0, 20),
   };
