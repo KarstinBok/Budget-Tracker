@@ -10,6 +10,7 @@
 
 import { getStore } from "@netlify/blobs";
 import { saveBackup } from "./backups.mjs";
+import { notifyChange } from "./notify.mjs";
 
 const MAX_LOG = 150;
 
@@ -71,6 +72,7 @@ export function createDocHandler({ key, defaultDoc, normalize = (doc) => doc, ap
       const by = str(body.by, 30) || "Someone";
       try {
         const doc = await updateDoc({ key, defaultDoc, normalize, by, mutate: (d) => applyOp(d, body, by) });
+        if (doc) await notifyChange(key, body, by, doc); // 🔔 for anything added
         return doc ? json({ changed: true, doc }) : json({ error: busyMessage ?? "Busy, please try again." }, 409);
       } catch (err) {
         if (err.status) return json({ error: err.message }, err.status);
