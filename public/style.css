@@ -939,3 +939,19 @@ dialog.bell-dlg { width: min(480px, calc(100vw - 24px)); padding: 16px; }
 .months-table tbody tr { cursor: pointer; }
 .months-table tbody tr:hover, .months-table tbody tr.on { background: var(--surface-2); }
 .months-table tfoot th, .months-table tfoot td { font-weight: 700; border-top: 2px solid var(--border); padding: 10px 12px; }
+
+/* Everyday expenses: 💳 cards, grouped by person */
+.cl-groups { display: grid; gap: 14px; }
+.cl-group h4 { display: flex; justify-content: space-between; gap: 8px; margin: 0 4px 6px; font-size: 0.95rem; }
+.cl-group h4 .muted { font-weight: 500; font-size: 0.85rem; }
+.cl-list { list-style: none; margin: 0; padding: 2px 14px; border-radius: 16px; background: var(--surface); border: 1px solid var(--border); }
+.cl-list li { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; padding: 11px 0; }
+.cl-list li + li { border-top: 1px solid var(--border); }
+.cl-icon { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; background: var(--surface-2); font-size: 1.1rem; }
+.cl-main { display: grid; gap: 1px; min-width: 0; }
+.cl-main b { font-weight: 600; }
+.cl-digits { font-size: 0.8rem; color: var(--muted); letter-spacing: 0.04em; }
+.cl-main small { font-size: 0.8rem; color: var(--muted); margin-top: 2px; }
+.cl-amt { display: grid; justify-items: end; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cl-amt small { font-size: 0.75rem; font-weight: 400; color: var(--muted); }
+.cl-amt.zero { color: var(--muted); font-weight: 400; }
