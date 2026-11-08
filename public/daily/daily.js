@@ -6,7 +6,7 @@
 
 import {
   $, esc, store, localToday, fmtDay, timeAgo, toast, downloadFile,
-  myName, setupIdentity, createSync, launchAction, returnHomeAfter,
+  myName, setupIdentity, createSync, launchAction, returnHomeAfter, fetchJson, postJson,
 } from "/common.js";
 import { borrowedOf, settleUp } from "/calc.js";
 
@@ -425,6 +425,25 @@ function splitCardName(full) {
 const CARD_ICONS = [["💳", "navy"], ["🔴", "red"], ["🟣", "purple"], ["🔵", "blue"], ["🟢", "green"], ["🟠", "orange"], ["🟡", "yellow"], ["⚫", "black"], ["⚪", "silver"], ["📲", "teal"], ["💵", "cash"]];
 const cardTone = (emoji) => CARD_ICONS.find(([e]) => e === emoji)?.[1] ?? "red";
 
+// Card pictures (see netlify/functions/card-art.mjs), loaded once and again whenever a
+// card's picture changes.
+let cardArt = {};
+let artKey = "";
+let artLoading = null;
+const artOf = (c) => (c?.art && cardArt[c.id]) || "";
+function ensureArt() {
+  const key = doc.cards.filter((c) => c.art).map((c) => `${c.id}:${c.art}`).join(",");
+  if (key === artKey || artLoading === key) return;
+  if (!key) { artKey = key; cardArt = {}; return; }
+  artLoading = key;
+  fetchJson("/api/card-art").then((r) => {
+    cardArt = r.art ?? {};
+    artKey = key;
+    renderCardList();
+    if ($("#addDlg").open) renderCardChoices(radioValue("card") ?? "", radioValue("owner") ?? doc.people[0]);
+  }).catch(() => {}).finally(() => { artLoading = null; });
+}
+
 // Whose cards the 💳 Cards panel shows: one person or everyone ("all").
 function cardsWho() {
   const saved = store.get("daily.cardsWho");
@@ -475,6 +494,7 @@ $("#guideSave").addEventListener("click", async () => {
 
 // 💳 Cards: each card as a tile with what went on it in the month being viewed.
 function renderCardList() {
+  ensureArt();
   const who = cardsWho();
   $("#cardsWho").innerHTML = [...doc.people, "all"].map((p) => `<label><input type="radio" name="cardsWho" value="${esc(p)}"
     ${p === who ? "checked" : ""} /><span>${p === "all" ? "Both" : esc(p)}</span></label>`).join("");
@@ -488,9 +508,10 @@ function renderCardList() {
     const byOthers = new Map();
     for (const i of on) { const b = borrowed(i); if (b) byOthers.set(b.from, (byOthers.get(b.from) ?? 0) + i.a); }
     const { name, digits } = splitCardName(c.name);
-    return `<button type="button" class="cc cc-${cardTone(c.emoji)}${total ? "" : " idle"}" data-card="${esc(c.id)}" aria-label="Edit ${esc(c.name)}">
+    const art = artOf(c);
+    return `<button type="button" class="cc cc-${cardTone(c.emoji)}${total ? "" : " idle"}${art ? " has-art" : ""}" data-card="${esc(c.id)}" aria-label="Edit ${esc(c.name)}"${art ? ` style="--art:url('${art}')"` : ""}>
       <span class="cc-top"><span class="cc-name">${esc(name)}</span><span class="cc-emoji" aria-hidden="true">${esc(c.emoji)}</span></span>
-      <span class="cc-digits">${digits ? `•••• ${esc(digits)}` : "&nbsp;"}</span>
+      <span class="cc-digits">${art ? `${esc(name)} ` : ""}${digits ? `•••• ${esc(digits)}` : "&nbsp;"}</span>
       <span class="cc-amt">${total ? money(total) : "—"}</span>
       <span class="cc-sub">${total ? `${on.length} expense${on.length === 1 ? "" : "s"}` : `Nothing in ${mon}`}</span>
       ${[...byOthers].map(([p, a]) => `<span class="cc-note">${esc(p)} used it: ${money(a)}</span>`).join("")}
@@ -531,11 +552,47 @@ $("#editGuide").addEventListener("click", () => {
 // ---------------------------------------------------------------- add or edit a card
 
 let editingCard = null;
+let pendingArt = null; // null: unchanged, "": remove, else a new picture (data URL)
 const cardForm = $("#cardForm");
+
+// A picture made card-shaped (cropped to the middle) and small: a JPEG data URL.
+function cardPicture(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const W = 480, H = 302, ratio = W / H;
+      let sw = img.naturalWidth, sh = img.naturalHeight, sx = 0, sy = 0;
+      if (sw / sh > ratio) { sx = (sw - sh * ratio) / 2; sw = sh * ratio; } else { sy = (sh - sw / ratio) / 2; sh = sw / ratio; }
+      const cv = document.createElement("canvas");
+      cv.width = W; cv.height = H;
+      cv.getContext("2d").drawImage(img, sx, sy, sw, sh, 0, 0, W, H);
+      URL.revokeObjectURL(img.src);
+      let q = 0.85, url = cv.toDataURL("image/jpeg", q);
+      while (url.length > 190000 && q > 0.4) url = cv.toDataURL("image/jpeg", (q -= 0.1));
+      resolve(url);
+    };
+    img.onerror = () => reject(new Error("Couldn't read that picture"));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+$("#cardArtInput").addEventListener("change", async (e) => {
+  const file = e.target.files?.[0];
+  e.target.value = "";
+  if (!file) return;
+  try {
+    pendingArt = await cardPicture(file);
+    updateCardPreview();
+  } catch (err) {
+    toast(err.message);
+  }
+});
+$("#cardArtRemove").addEventListener("click", () => { pendingArt = ""; updateCardPreview(); });
 
 function openCard(card, owner) {
   if (!doc) return;
   editingCard = card;
+  pendingArt = null;
   const { name, digits } = card ? splitCardName(card.name) : { name: "", digits: "" };
   cardForm.elements.name.value = name;
   cardForm.elements.digits.value = digits;
@@ -569,7 +626,11 @@ function cardFormValues() {
 function updateCardPreview() {
   const v = cardFormValues();
   const { name, digits } = splitCardName(v.name);
-  $("#cardPreview").className = `cc-preview cc cc-${cardTone(v.emoji)}`;
+  const art = pendingArt ?? artOf(editingCard);
+  $("#cardPreview").className = `cc-preview cc cc-${cardTone(v.emoji)}${art ? " has-art" : ""}`;
+  $("#cardPreview").style.setProperty("--art", art ? `url('${art}')` : "none");
+  $("#cardArtRemove").hidden = !art;
+  $("#cardArtLabel").textContent = art ? "Change picture" : "Add a picture of the card";
   $("#cardPreview").innerHTML = `<span class="cc-top"><span class="cc-name">${esc(name || "Card name")}</span><span class="cc-emoji">${esc(v.emoji)}</span></span>
     <span class="cc-digits">•••• ${esc(digits || "0000")}</span><span class="cc-sub">${esc(v.owner ?? "")}</span>`;
   $("#cardCatsCount").textContent = v.cats.length ? `· ${v.cats.length} categor${v.cats.length === 1 ? "y" : "ies"}` : "· none";
@@ -580,10 +641,31 @@ cardForm.addEventListener("change", updateCardPreview);
 cardForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   const v = cardFormValues();
+  const id = editingCard?.id ?? crypto.randomUUID();
+  const btn = $("#cardSave");
+  btn.disabled = true;
+  try {
+    if (pendingArt) {
+      await postJson("/api/card-art", { op: "set", id, image: pendingArt });
+      cardArt[id] = pendingArt;
+      v.art = Date.now().toString(36);
+    } else if (pendingArt === "" && editingCard?.art) {
+      await postJson("/api/card-art", { op: "remove", id });
+      delete cardArt[id];
+      v.art = "";
+    }
+  } catch (err) {
+    btn.disabled = false;
+    return toast(`Couldn't save the picture: ${err.message}`);
+  }
   const ok = editingCard
-    ? await sync.runOp({ op: "editCard", id: editingCard.id, ...v }, `Saved ${v.name}`)
-    : await sync.runOp({ op: "addCard", ...v }, `Added ${v.name}`);
-  if (ok) $("#cardDlg").close();
+    ? await sync.runOp({ op: "editCard", id, ...v }, `Saved ${v.name}`)
+    : await sync.runOp({ op: "addCard", id, ...v }, `Added ${v.name}`);
+  btn.disabled = false;
+  if (ok) {
+    if (v.art) artKey = doc.cards.filter((c) => c.art).map((c) => `${c.id}:${c.art}`).join(","); // already have it
+    $("#cardDlg").close();
+  }
 });
 $("#cardCancel").addEventListener("click", () => $("#cardDlg").close());
 $("#cardDelete").addEventListener("click", async () => {
@@ -864,7 +946,7 @@ function renderCardChoices(selected, first) {
   const order = [first, ...doc.people.filter((p) => p !== first)];
   $("#cardChoices").innerHTML = `<div class="pay-group">${chip("", "💵 Cash / other")}</div>` + order.map((p) => {
     const cards = doc.cards.filter((c) => c.owner === p).sort((a, b) => a.name.localeCompare(b.name));
-    return cards.length ? `<div class="pay-head">${esc(p)}'s cards</div><div class="pay-group">${cards.map((c) => chip(c.id, `${esc(c.emoji)} ${esc(c.name)}`)).join("")}</div>` : "";
+    return cards.length ? `<div class="pay-head">${esc(p)}'s cards</div><div class="pay-group">${cards.map((c) => chip(c.id, `${artOf(c) ? `<img class="pay-art" src="${artOf(c)}" alt="" />` : esc(c.emoji)} ${esc(c.name)}`)).join("")}</div>` : "";
   }).join("");
 }
 
