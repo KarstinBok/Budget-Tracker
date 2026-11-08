@@ -12,12 +12,11 @@ import { json, str, updateDoc, liveStore } from "../lib/shared-doc.mjs";
 import { lookupFood, lookupUsda } from "../lib/food-lookup.mjs";
 import { notifyChange } from "../lib/notify.mjs";
 import { FITNESS_KEY, MEALS, applyOp, defaultDoc, normalize } from "./fitness.mjs";
-import { weekBalance, weekNote } from "../../public/calc.js";
+import { dayTargets, weekBalance, weekNote } from "../../public/calc.js";
 
 const SERVER = { name: "our-food-diary", version: "1.0.0" };
 const PROTOCOLS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
 const TZ = "Asia/Singapore";
-const ACTIVITY = { sedentary: 1.2, light: 1.375, moderate: 1.55, active: 1.725, very: 1.9 };
 
 const INSTRUCTIONS = `Karstin and Lilin's food & fitness diary (calories, macros, weight, exercise), shown in their app at https://japan-trip-budget.netlify.app/fitness/.
 When someone sends a photo or description of food to log:
@@ -176,20 +175,13 @@ async function readDoc() {
   return stored ? normalize(stored) : defaultDoc();
 }
 
-// Same goals as the page (public/fitness/fitness.js targets()).
+// Same goals as the page (public/calc.js dayTargets(): lowered while making up for going over).
 function targets(doc, p, d) {
-  const pr = doc.profiles[p] ?? {};
-  const w = doc.weights.filter((x) => x.person === p && x.date <= d).sort((a, b) => a.date.localeCompare(b.date)).at(-1)?.kg;
-  const age = pr.birthYear ? new Date().getFullYear() - pr.birthYear : null;
-  let calc = null;
-  if (w && pr.heightCm && age) {
-    const bmr = 10 * w + 6.25 * pr.heightCm - 5 * age + (pr.sex === "male" ? 5 : pr.sex === "female" ? -161 : -78);
-    const tdee = bmr * (ACTIVITY[pr.activity] ?? 1.375);
-    calc = Math.max(pr.sex === "male" ? 1500 : 1200, Math.round((tdee + ((pr.weeklyKg ?? 0) * 7700) / 7) / 10) * 10);
-  }
-  const kcal = pr.kcalTarget || calc || 2000;
-  const m = pr.macros ?? { p: 30, c: 40, f: 30 };
-  return { kcal, protein_g: Math.round((kcal * m.p) / 400), carbs_g: Math.round((kcal * m.c) / 400), fat_g: Math.round((kcal * m.f) / 900), personalised: !!(pr.kcalTarget || calc) };
+  const t = dayTargets(doc, p, d);
+  return {
+    kcal: t.kcal, protein_g: Math.round(t.p), carbs_g: Math.round(t.c), fat_g: Math.round(t.f), personalised: t.set,
+    ...(t.cut ? { usual_kcal: t.base, lowered_by_kcal: t.cut, why: "making up for going over earlier" } : {}),
+  };
 }
 
 const r1 = (v) => Math.round(v * 10) / 10;

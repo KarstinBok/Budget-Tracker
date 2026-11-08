@@ -10,7 +10,7 @@ import {
   $, esc, store, localToday, fmtDay, timeAgo, toast, myName, setupIdentity, createSync,
   launchAction, returnHomeAfter,
 } from "/common.js";
-import { exerciseAddsBack, fitnessTargets, latestWeightOf, weekBalance, weekNote, weighInsOf } from "/calc.js";
+import { dayTargets, exerciseAddsBack, fitnessTargets, latestWeightOf, weekBalance, weekNote, weighInsOf } from "/calc.js";
 
 const MEALS = [
   { id: "breakfast", name: "Breakfast", emoji: "🌅" },
@@ -78,7 +78,8 @@ const sum = (list, k) => list.reduce((s, x) => s + (Number(x[k]) || 0), 0);
 
 const weighIns = (p = who) => weighInsOf(doc, p);
 const latestWeight = (p = who, onOrBefore = "9999") => latestWeightOf(doc, p, onOrBefore);
-const targets = (p = who, onDay = day) => fitnessTargets(doc, p, onDay);
+// The day's goals (lowered while making up for going over, if the person chose that).
+const targets = (p = who, onDay = day) => dayTargets(doc, p, onDay);
 
 function dayLabel(d) {
   const today = localToday();
@@ -116,7 +117,7 @@ function renderDiary() {
   const addsBack = exerciseAddsBack(doc, who);
   const left = t.kcal - eaten + (addsBack ? burned : 0);
   $("#kcalEq").innerHTML = `
-    <div><b>${fmt(t.kcal)}</b><span>Goal</span></div><i>−</i>
+    <div><b>${fmt(t.kcal)}</b><span>Goal${t.cut ? ` <s>${fmt(t.base)}</s>` : ""}</span></div><i>−</i>
     <div><b>${fmt(eaten)}</b><span>Food</span></div>${addsBack ? "<i>+</i>" : ""}
     ${addsBack ? `<div><b>${fmt(burned)}</b><span>Exercise</span></div><i>=</i>` : `<i class="eq-gap">=</i>`}
     <div class="left ${left < 0 ? "over" : ""}"><b>${fmt(left)}</b><span>${left < 0 ? "Over" : "Remaining"}</span></div>`;
@@ -125,7 +126,8 @@ function renderDiary() {
   $("#burnNote").innerHTML = `🏃 <b>${fmt(burned)} kcal</b> burned today from exercise · not added to ${esc(who)}'s calories`;
   const wk = day === localToday() ? weekNote(weekBalance(doc, who, day)) : null;
   $("#weekNote").hidden = !wk;
-  $("#weekNote").textContent = wk ? `⚠️ ${wk}` : "";
+  $("#weekNote").textContent = !wk ? "" : wk.startsWith("🎯") ? wk : `⚠️ ${wk}`;
+  $("#weekNote").classList.toggle("calm", !!wk?.startsWith("🎯"));
   $("#kcalMeter").classList.toggle("over", left < 0);
   $("#kcalMeter span").style.width = `${pct}%`;
   $("#macroBars").innerHTML = [["p", "Protein"], ["c", "Carbs"], ["f", "Fat"]].map(([k, name]) => {
@@ -178,7 +180,7 @@ function foodRow(f) {
 function renderProgress() {
   const ws = weighIns();
   const pr = doc.profiles[who] ?? {};
-  const t = targets(who, localToday());
+  const t = fitnessTargets(doc, who, localToday()); // the usual goal
   const cur = ws.at(-1);
   const first = ws[0];
   $("#pCurrent").textContent = cur ? `${cur.kg} kg` : "—";
@@ -595,7 +597,7 @@ function goalPreview() {
   const saved = { profiles: doc.profiles, weights: doc.weights };
   doc.profiles = { ...doc.profiles, [who]: pr };
   if (kg > 0) doc.weights = [...doc.weights, { person: who, date: "9998-12-31", kg, t: 0 }];
-  const t = targets(who, "9999");
+  const t = fitnessTargets(doc, who, "9999");
   Object.assign(doc, saved);
   $("#goalCalc").textContent = t.calc
     ? `Burns about ${fmt(t.calc.tdee)} kcal a day, so the goal is ${fmt(t.calc.kcal)} kcal a day${t.calc.kcal === t.calc.floor ? " (the safe minimum)" : ""}.${pr.kcalTarget ? ` Using your override of ${fmt(pr.kcalTarget)} instead.` : ""}`
@@ -620,6 +622,7 @@ function openGoals() {
   f.kcalTarget.value = pr.kcalTarget ?? "";
   f.addExercise.checked = pr.addExercise !== false;
   f.overAlert.checked = !!pr.overAlert;
+  f.makeUp.checked = !!pr.makeUp;
   f.mp.value = pr.macros?.p ?? 30;
   f.mc.value = pr.macros?.c ?? 40;
   f.mf.value = pr.macros?.f ?? 30;
@@ -635,7 +638,7 @@ goalsForm.addEventListener("submit", async (e) => {
   if (kg > 0 && kg !== latest?.kg && !(await sync.runOp({ op: "addWeight", person: who, date: localToday(), kg }))) return;
   if (await sync.runOp({
     op: "saveProfile", person: who, sex: f.sex.value, birthYear: f.birthYear.value, heightCm: f.heightCm.value,
-    goalKg: f.goalKg.value, weeklyKg: f.weeklyKg.value, activity: f.activity.value, kcalTarget: f.kcalTarget.value, addExercise: f.addExercise.checked, overAlert: f.overAlert.checked,
+    goalKg: f.goalKg.value, weeklyKg: f.weeklyKg.value, activity: f.activity.value, kcalTarget: f.kcalTarget.value, addExercise: f.addExercise.checked, overAlert: f.overAlert.checked, makeUp: f.makeUp.checked,
     macros: { p: num(f.mp.value), c: num(f.mc.value), f: num(f.mf.value) },
   }, "Goals saved")) $("#goalsDlg").close();
 });
