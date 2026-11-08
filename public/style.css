@@ -1027,17 +1027,21 @@ fieldset.plain legend { padding: 0; margin-bottom: 6px; font-size: 0.85rem; colo
 .pay-head { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin-top: 4px; }
 .pay-group { display: flex; flex-wrap: wrap; gap: 6px; }
 
-/* Card pictures */
-.cc.has-art { background: #222 var(--art) center / cover no-repeat; filter: none; opacity: 1; }
-.cc.has-art::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: linear-gradient(to bottom, rgb(0 0 0 / 0) 35%, rgb(0 0 0 / 0.72)); }
-.cc.has-art > * { position: relative; z-index: 1; }
-.cc.has-art .cc-top { visibility: hidden; } /* the picture already shows the card's name */
-.cc.has-art.idle::after { background: linear-gradient(to bottom, rgb(0 0 0 / 0.1) 30%, rgb(0 0 0 / 0.75)); }
-.cc.has-art .cc-digits { margin-top: auto; }
-.cc.has-art .cc-amt { margin-top: 0; }
-.cc-tiles .cc.has-art { aspect-ratio: 1.586; min-height: 0; }
-.cc-preview.has-art { aspect-ratio: 1.586; min-height: 0; }
-.cc-preview.has-art .cc-top { visibility: hidden; }
+/* Card pictures: the picture on top, what went on the card underneath */
+.cc.cc-photo { padding: 0; gap: 0; min-height: 0; overflow: hidden; color: var(--text); background: var(--surface); border: 1px solid var(--border); }
+.cc-photo.idle { filter: none; opacity: 1; }
+.cc-photo.idle .cc-pic { filter: saturate(0.6); opacity: 0.8; }
+.cc-pic { display: block; aspect-ratio: 1.586; background: #222 center / cover no-repeat; }
+.cc-info { display: grid; gap: 2px; padding: 8px 10px 10px; }
+.cc-line { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; min-width: 0; }
+.cc-line b { font-size: 0.85rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cc-d { font-size: 0.72rem; color: var(--muted); letter-spacing: 0.06em; white-space: nowrap; }
+.cc-photo .cc-amt { font-size: 1.05rem; margin: 0; }
+.cc-photo .cc-sub { opacity: 1; color: var(--muted); white-space: nowrap; }
+.cc-photo.idle .cc-amt { color: var(--muted); font-weight: 500; }
+.cc-photo .cc-note { background: var(--surface-2); }
+.cc-preview.has-art { background: #222 var(--art) center / cover no-repeat; aspect-ratio: 1.586; min-height: 0; }
+.cc-preview.has-art > * { visibility: hidden; }
 .art-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: -4px; }
 .small-btn { padding: 6px 12px; font-size: 0.85rem; cursor: pointer; }
 .art-tip { margin: -6px 0 0; }
