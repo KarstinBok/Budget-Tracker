@@ -47,7 +47,7 @@ function defaultDoc() {
   };
 }
 
-const MAX_CARDS = 20;
+const MAX_CARDS = 60;
 
 // Older documents had no cards.
 // Which card each of us usually uses for what (shown under 💳 Cards, edited in Settings).
@@ -139,7 +139,7 @@ function describe(doc, item, cat) {
 
 // A card from the page: name, emoji, owner and the categories it's for.
 function readCard(doc, body) {
-  const name = str(body.name, 30);
+  const name = str(body.name, 40);
   if (!name) fail("Give the card a name");
   const cats = [...new Set((Array.isArray(body.cats) ? body.cats : []).filter((id) => doc.categories.some((c) => c.id === id)))];
   return { name, emoji: str(body.emoji, 8) || "💳", owner: person(doc, body.owner, "whose card this is"), cats };
