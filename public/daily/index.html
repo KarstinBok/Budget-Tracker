@@ -219,6 +219,11 @@
     <form id="cardForm" class="card-form">
       <h2 id="cardDlgTitle">Add card</h2>
       <div class="cc-preview" id="cardPreview" aria-hidden="true"></div>
+      <div class="art-actions">
+        <label class="btn ghost small-btn"><input type="file" id="cardArtInput" accept="image/*" hidden />📷 <span id="cardArtLabel">Add a picture of the card</span></label>
+        <button type="button" class="btn ghost small-btn" id="cardArtRemove" hidden>Remove picture</button>
+      </div>
+      <p class="muted small art-tip">Use the card's picture from the bank's website or app, or a photo of the front with the card number covered.</p>
       <label>Card name <input name="name" maxlength="24" placeholder="e.g. DBS Live Fresh" required autocomplete="off" /></label>
       <label>Last 4 digits, optional <input name="digits" inputmode="numeric" maxlength="4" pattern="\d{4}" placeholder="1234" autocomplete="off" /></label>
       <fieldset class="plain"><legend>Whose card</legend><div class="seg" id="cardOwner"></div></fieldset>

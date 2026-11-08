@@ -286,6 +286,9 @@ function applyOp(doc, body, by) {
     case "addCard": {
       if (doc.cards.length >= MAX_CARDS) fail("Too many cards");
       const card = { id: randomUUID(), ...readCard(doc, body) };
+      if (body.id && /^[\w-]{8,60}$/.test(body.id) && !doc.cards.some((c) => c.id === body.id)) card.id = body.id; // picture already saved under this id
+      const art = str(body.art, 40);
+      if (art) card.art = art;
       doc.cards.push(card);
       return `added the card ${cardName(card)}`;
     }
@@ -298,6 +301,11 @@ function applyOp(doc, body, by) {
         fail(`${cardName(card)} has expenses on it, so its owner can't change. Add a new card instead.`);
       }
       Object.assign(card, next);
+      if (body.art !== undefined) { // version of the card's picture (see card-art.mjs); "" when removed
+        const art = str(body.art, 40);
+        if (art) card.art = art;
+        else delete card.art;
+      }
       return `updated the card ${cardName(card)}`;
     }
 
