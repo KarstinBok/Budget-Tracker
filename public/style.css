@@ -969,3 +969,5 @@ dialog.bell-dlg { width: min(480px, calc(100vw - 24px)); padding: 16px; }
 .saved-recipe ul { margin: 4px 0; padding-left: 18px; list-style: disc; }
 .recent-list .saved-recipe li { display: list-item; padding: 1px 0; border: 0; background: none; cursor: default; font-size: 0.85rem; }
 .saved-recipe p { margin: 4px 0; color: var(--muted); }
+.week-note.calm { background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
+#kcalEq s { opacity: 0.6; font-size: 0.85em; }
