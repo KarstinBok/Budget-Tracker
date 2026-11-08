@@ -509,12 +509,25 @@ function renderCardList() {
     for (const i of on) { const b = borrowed(i); if (b) byOthers.set(b.from, (byOthers.get(b.from) ?? 0) + i.a); }
     const { name, digits } = splitCardName(c.name);
     const art = artOf(c);
-    return `<button type="button" class="cc cc-${cardTone(c.emoji)}${total ? "" : " idle"}${art ? " has-art" : ""}" data-card="${esc(c.id)}" aria-label="Edit ${esc(c.name)}"${art ? ` style="--art:url('${art}')"` : ""}>
+    const notes = [...byOthers].map(([p, a]) => `<span class="cc-note">${esc(p)} used it: ${money(a)}</span>`).join("");
+    const sub = total ? `${on.length} expense${on.length === 1 ? "" : "s"}` : `Nothing in ${mon}`;
+    if (art) {
+      // The card's picture on top, what went on it underneath.
+      return `<button type="button" class="cc cc-photo${total ? "" : " idle"}" data-card="${esc(c.id)}" aria-label="Edit ${esc(c.name)}">
+        <span class="cc-pic" style="background-image:url('${art}')"></span>
+        <span class="cc-info">
+          <span class="cc-line"><b>${esc(name)}</b>${digits ? `<span class="cc-d">•••• ${esc(digits)}</span>` : ""}</span>
+          <span class="cc-line"><span class="cc-amt">${total ? money(total) : "—"}</span><span class="cc-sub">${sub}</span></span>
+          ${notes}
+        </span>
+      </button>`;
+    }
+    return `<button type="button" class="cc cc-${cardTone(c.emoji)}${total ? "" : " idle"}" data-card="${esc(c.id)}" aria-label="Edit ${esc(c.name)}">
       <span class="cc-top"><span class="cc-name">${esc(name)}</span><span class="cc-emoji" aria-hidden="true">${esc(c.emoji)}</span></span>
-      <span class="cc-digits">${art ? `${esc(name)} ` : ""}${digits ? `•••• ${esc(digits)}` : "&nbsp;"}</span>
+      <span class="cc-digits">${digits ? `•••• ${esc(digits)}` : "&nbsp;"}</span>
       <span class="cc-amt">${total ? money(total) : "—"}</span>
-      <span class="cc-sub">${total ? `${on.length} expense${on.length === 1 ? "" : "s"}` : `Nothing in ${mon}`}</span>
-      ${[...byOthers].map(([p, a]) => `<span class="cc-note">${esc(p)} used it: ${money(a)}</span>`).join("")}
+      <span class="cc-sub">${sub}</span>
+      ${notes}
     </button>`;
   };
   const addTile = (owner) => `<button type="button" class="cc cc-add" data-add-card="${esc(owner)}"><span aria-hidden="true">＋</span>Add ${esc(owner)}'s card</button>`;
