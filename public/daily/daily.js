@@ -413,15 +413,33 @@ function renderSettle() {
     : "✅ You're all square.") + (lines.length ? `<span class="muted small borrow-line">💳 ${lines.join(" · ")}</span>` : "");
 }
 
-// The 💳 Cards fold-out: each card, what it's for, and what went on it this month.
+// ---------------------------------------------------------------- 💳 cards
+
+// "UOB Ladies (5897)" -> { name: "UOB Ladies", digits: "5897" }
+function splitCardName(full) {
+  const m = /^(.*?)\s*\((\d{3,4})\)\s*$/.exec(full);
+  return m ? { name: m[1], digits: m[2] } : { name: full, digits: "" };
+}
+
+// A card's colour, from its emoji.
+const CARD_ICONS = [["💳", "navy"], ["🔴", "red"], ["🟣", "purple"], ["🔵", "blue"], ["🟢", "green"], ["🟠", "orange"], ["🟡", "yellow"], ["⚫", "black"], ["⚪", "silver"], ["📲", "teal"], ["💵", "cash"]];
+const cardTone = (emoji) => CARD_ICONS.find(([e]) => e === emoji)?.[1] ?? "red";
+
+// Whose cards the 💳 Cards panel shows: one person or everyone ("all").
+function cardsWho() {
+  const saved = store.get("daily.cardsWho");
+  return saved === "all" || doc.people.includes(saved) ? saved : me() ?? doc.people[0];
+}
+
 // "Which card for what": the card each person usually uses for each kind of spending.
 function renderCardGuide() {
   const rows = doc.cardGuide ?? [];
-  const mine = me();
+  const who = cardsWho();
+  const people = who === "all" ? doc.people : [who];
   $("#cardGuide").innerHTML = rows.length
-    ? `<thead><tr><th scope="col">For</th>${doc.people.map((p) => `<th scope="col"${p === mine ? ' class="me"' : ""}>${esc(p)}</th>`).join("")}</tr></thead>
-       <tbody>${rows.map((r) => `<tr><th scope="row">${esc(r.what)}</th>${doc.people.map((p) => `<td${p === mine ? ' class="me"' : ""}>${esc(r.picks?.[p] || "—")}</td>`).join("")}</tr>`).join("")}</tbody>`
-    : `<tbody><tr><td class="muted small">Nothing yet. Add rows in ⚙️ Settings.</td></tr></tbody>`;
+    ? rows.map((r) => `<li><span class="g-what">${esc(r.what)}</span><span class="g-picks">${people.map((p) =>
+        `<span class="g-pick">${people.length > 1 ? `<small>${esc(p)}</small>` : ""}${esc(r.picks?.[p] || "—")}</span>`).join("")}</span></li>`).join("")
+    : `<li class="muted small">Nothing yet. Tap ✏️ Edit to add which card each of you uses for what.</li>`;
 }
 
 function guideRow(r = { what: "", picks: {} }) {
@@ -455,41 +473,123 @@ $("#guideSave").addEventListener("click", async () => {
   }
 });
 
-// 💳 Cards: each person's cards as rows in one card per person, with this month's spending.
+// 💳 Cards: each card as a tile with what went on it in the month being viewed.
 function renderCardList() {
-  if (!doc.cards.length) {
-    $("#cardList").innerHTML = `<p class="muted small">No cards yet. Tap ✏️ Manage cards to add yours and Lilin's.</p>`;
-    return;
-  }
+  const who = cardsWho();
+  $("#cardsWho").innerHTML = [...doc.people, "all"].map((p) => `<label><input type="radio" name="cardsWho" value="${esc(p)}"
+    ${p === who ? "checked" : ""} /><span>${p === "all" ? "Both" : esc(p)}</span></label>`).join("");
+  const mon = monthName(month, { month: "short" });
+  $("#cardsSpentH").textContent = `Spent on each card · ${monthName(month, { month: "long" })}`;
   const items = doc.items.filter((i) => i.date.startsWith(month));
-  const owners = [...doc.people, ...doc.cards.map((c) => c.owner).filter((o) => !doc.people.includes(o))];
-  const row = (c) => {
+  const spentOn = (c) => sum(items.filter((i) => i.card === c.id));
+  const tile = (c) => {
     const on = items.filter((i) => i.card === c.id);
     const total = sum(on);
     const byOthers = new Map();
     for (const i of on) { const b = borrowed(i); if (b) byOthers.set(b.from, (byOthers.get(b.from) ?? 0) + i.a); }
-    const m = /^(.*?)\s*\((\d{3,4})\)\s*$/.exec(c.name); // "UOB Ladies (5897)" -> name and last digits
-    const name = m ? m[1] : c.name;
-    const sub = [
-      c.cats.length ? c.cats.map((id) => `${catOf(id).emoji} ${esc(catOf(id).name)}`).join(" · ") : "",
-      ...[...byOthers].map(([p, a]) => `${esc(p)} used it: ${money(a)}, owes ${esc(c.owner)}`),
-    ].filter(Boolean);
-    return `<li>
-      <span class="cl-icon" aria-hidden="true">${esc(c.emoji)}</span>
-      <span class="cl-main"><b>${esc(name)}</b>${m ? `<span class="cl-digits">•• ${m[2]}</span>` : ""}${sub.length ? `<small>${sub.join("<br>")}</small>` : ""}</span>
-      <span class="cl-amt ${total ? "" : "zero"}">${total ? money(total) : "—"}${total ? `<small>${on.length} expense${on.length === 1 ? "" : "s"}</small>` : ""}</span>
-    </li>`;
+    const { name, digits } = splitCardName(c.name);
+    return `<button type="button" class="cc cc-${cardTone(c.emoji)}${total ? "" : " idle"}" data-card="${esc(c.id)}" aria-label="Edit ${esc(c.name)}">
+      <span class="cc-top"><span class="cc-name">${esc(name)}</span><span class="cc-emoji" aria-hidden="true">${esc(c.emoji)}</span></span>
+      <span class="cc-digits">${digits ? `•••• ${esc(digits)}` : "&nbsp;"}</span>
+      <span class="cc-amt">${total ? money(total) : "—"}</span>
+      <span class="cc-sub">${total ? `${on.length} expense${on.length === 1 ? "" : "s"}` : `Nothing in ${mon}`}</span>
+      ${[...byOthers].map(([p, a]) => `<span class="cc-note">${esc(p)} used it: ${money(a)}</span>`).join("")}
+    </button>`;
   };
-  $("#cardList").innerHTML = owners.map((o) => {
-    const cards = doc.cards.filter((c) => c.owner === o);
-    if (!cards.length) return "";
-    const total = sum(items.filter((i) => cards.some((c) => c.id === i.card)));
-    return `<section class="cl-group">
-      <h4><span>${esc(o)}</span><span class="muted">${total ? `${money(total)} this month` : "Nothing this month"}</span></h4>
-      <ul class="cl-list">${cards.map(row).join("")}</ul>
+  const addTile = (owner) => `<button type="button" class="cc cc-add" data-add-card="${esc(owner)}"><span aria-hidden="true">＋</span>Add ${esc(owner)}'s card</button>`;
+  const group = (o) => {
+    // Most used first, then by name.
+    const cards = doc.cards.filter((c) => c.owner === o).sort((x, y) => spentOn(y) - spentOn(x) || x.name.localeCompare(y.name));
+    const all = cards.reduce((s, c) => s + spentOn(c), 0);
+    return `<section class="cc-group">
+      <h4><span>${esc(o)}'s cards <span class="muted">· ${cards.length}</span></span><span class="muted">${all ? `${money(all)} in ${mon}` : `Nothing in ${mon}`}</span></h4>
+      <div class="cc-tiles">${cards.map(tile).join("")}${addTile(o)}</div>
     </section>`;
-  }).join("");
+  };
+  $("#cardList").innerHTML = (who === "all" ? doc.people : [who]).map(group).join("");
 }
+
+$("#cardsWho").addEventListener("change", (e) => {
+  store.set("daily.cardsWho", e.target.value);
+  renderCardList();
+  renderCardGuide();
+});
+$("#cardList").addEventListener("click", (e) => {
+  const tile = e.target.closest("[data-card]");
+  if (tile) return openCard(cardOf(tile.dataset.card));
+  const add = e.target.closest("[data-add-card]");
+  if (add) openCard(null, add.dataset.addCard);
+});
+$("#addCardBtn").addEventListener("click", () => openCard(null, cardsWho() === "all" ? me() ?? doc.people[0] : cardsWho()));
+$("#editGuide").addEventListener("click", () => {
+  if (!doc) return;
+  renderSettings();
+  $("#settingsDlg").showModal();
+  $("#guideHeading").scrollIntoView({ block: "start" });
+});
+
+// ---------------------------------------------------------------- add or edit a card
+
+let editingCard = null;
+const cardForm = $("#cardForm");
+
+function openCard(card, owner) {
+  if (!doc) return;
+  editingCard = card;
+  const { name, digits } = card ? splitCardName(card.name) : { name: "", digits: "" };
+  cardForm.elements.name.value = name;
+  cardForm.elements.digits.value = digits;
+  const own = card?.owner ?? owner ?? me() ?? doc.people[0];
+  $("#cardOwner").innerHTML = doc.people.map((p) => `<label><input type="radio" name="cardOwner" value="${esc(p)}" ${p === own ? "checked" : ""} /><span>${esc(p)}</span></label>`).join("");
+  const icon = card?.emoji ?? "💳";
+  const icons = CARD_ICONS.some(([e]) => e === icon) ? CARD_ICONS : [[icon, "red"], ...CARD_ICONS];
+  $("#cardIcons").innerHTML = icons.map(([e, tone]) => `<label class="icon-choice cc-${tone}"><input type="radio" name="cardIcon" value="${esc(e)}" ${e === icon ? "checked" : ""} /><span>${esc(e)}</span></label>`).join("");
+  $("#cardCats").innerHTML = doc.categories.map((k) => `<label class="cat-choice"><input type="checkbox" name="cats" value="${esc(k.id)}"
+    ${card?.cats.includes(k.id) ? "checked" : ""} /><span><span class="emoji">${esc(k.emoji)}</span>${esc(k.name)}</span></label>`).join("");
+  cardForm.querySelector(".card-auto").open = false;
+  $("#cardDlgTitle").textContent = card ? "Edit card" : "Add card";
+  $("#cardSave").textContent = card ? "Save" : "Add card";
+  $("#cardDelete").hidden = !card;
+  updateCardPreview();
+  $("#cardDlg").showModal();
+  if (!card) cardForm.elements.name.focus();
+}
+
+function cardFormValues() {
+  const name = cardForm.elements.name.value.trim();
+  const digits = cardForm.elements.digits.value.replace(/\D/g, "").slice(0, 4);
+  return {
+    name: digits ? `${name} (${digits})` : name,
+    emoji: cardForm.querySelector('input[name="cardIcon"]:checked')?.value ?? "💳",
+    owner: cardForm.querySelector('input[name="cardOwner"]:checked')?.value,
+    cats: [...cardForm.querySelectorAll('input[name="cats"]:checked')].map((i) => i.value),
+  };
+}
+
+function updateCardPreview() {
+  const v = cardFormValues();
+  const { name, digits } = splitCardName(v.name);
+  $("#cardPreview").className = `cc-preview cc cc-${cardTone(v.emoji)}`;
+  $("#cardPreview").innerHTML = `<span class="cc-top"><span class="cc-name">${esc(name || "Card name")}</span><span class="cc-emoji">${esc(v.emoji)}</span></span>
+    <span class="cc-digits">•••• ${esc(digits || "0000")}</span><span class="cc-sub">${esc(v.owner ?? "")}</span>`;
+  $("#cardCatsCount").textContent = v.cats.length ? `· ${v.cats.length} categor${v.cats.length === 1 ? "y" : "ies"}` : "· none";
+}
+cardForm.addEventListener("input", updateCardPreview);
+cardForm.addEventListener("change", updateCardPreview);
+
+cardForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const v = cardFormValues();
+  const ok = editingCard
+    ? await sync.runOp({ op: "editCard", id: editingCard.id, ...v }, `Saved ${v.name}`)
+    : await sync.runOp({ op: "addCard", ...v }, `Added ${v.name}`);
+  if (ok) $("#cardDlg").close();
+});
+$("#cardCancel").addEventListener("click", () => $("#cardDlg").close());
+$("#cardDelete").addEventListener("click", async () => {
+  if (!editingCard || !confirm(`Remove ${editingCard.name}?`)) return;
+  if (await sync.runOp({ op: "removeCard", id: editingCard.id }, `Removed ${editingCard.name}`)) $("#cardDlg").close();
+});
 
 // The table's expenses: this screen's kind and person filter, any date.
 function gridItems() {
@@ -757,6 +857,17 @@ function chips(container, name, options, selected) {
     ${o.value === selected ? "checked" : ""} required /><span>${o.label}</span></label>`).join("");
 }
 
+// "Paid with": cash, then each person's cards under their name (the expense's person first).
+function renderCardChoices(selected, first) {
+  const chip = (value, label) => `<label class="cat-choice"><input type="radio" name="card" value="${esc(value)}"
+    ${value === selected ? "checked" : ""} required /><span>${label}</span></label>`;
+  const order = [first, ...doc.people.filter((p) => p !== first)];
+  $("#cardChoices").innerHTML = `<div class="pay-group">${chip("", "💵 Cash / other")}</div>` + order.map((p) => {
+    const cards = doc.cards.filter((c) => c.owner === p).sort((a, b) => a.name.localeCompare(b.name));
+    return cards.length ? `<div class="pay-head">${esc(p)}'s cards</div><div class="pay-group">${cards.map((c) => chip(c.id, `${esc(c.emoji)} ${esc(c.name)}`)).join("")}</div>` : "";
+  }).join("");
+}
+
 function splitShares() {
   if (radioValue("split") !== "custom") return Object.fromEntries(doc.people.map((p) => [p, 1 / doc.people.length]));
   const raw = Object.fromEntries([...$("#splitCustom").querySelectorAll("input")].map((i) => [i.name, Math.max(0, Number(i.value) || 0)]));
@@ -814,9 +925,7 @@ function openAdd(prefill = {}, item = null) {
   const people = doc.people.map((p) => ({ value: p, label: esc(p) }));
   chips("#ownerChoices", "owner", people, item?.owner ?? (filter !== "all" ? filter : me()) ?? doc.people[0]);
   chips("#payerChoices", "payer", people, item?.paidBy ?? me() ?? doc.people[0]);
-  chips("#cardChoices", "card", [{ value: "", label: "💵 Cash / other" },
-    ...doc.cards.map((c) => ({ value: c.id, label: `${esc(c.emoji)} ${esc(c.name)} <span class="muted small">${esc(c.owner)}</span>` }))],
-    item?.card ?? "");
+  renderCardChoices(item?.card ?? "", item?.owner ?? (filter !== "all" ? filter : me()) ?? doc.people[0]);
   cardTouched = !!item;
   const shares = item?.shares ?? {};
   const equal = !item || doc.people.every((p) => Math.abs((shares[p] ?? 0) - 1 / doc.people.length) < 0.001);
@@ -902,59 +1011,16 @@ function renderSettings() {
     <input class="emoji-in" name="emoji" value="${esc(c.emoji)}" maxlength="8" aria-label="Emoji" />
     <input name="name" value="${esc(c.name)}" maxlength="40" aria-label="Category name" />
     <span class="acts"><button type="button" class="icon-btn" data-remove-cat title="Remove">🗑</button></span></li>`).join("");
-  const owners = (sel) => doc.people.map((p) => `<option ${p === sel ? "selected" : ""}>${esc(p)}</option>`).join("");
-  const catBoxes = (picked) => doc.categories.map((k) => `<label class="cat-choice"><input type="checkbox" name="cats" value="${esc(k.id)}"
-    ${picked.includes(k.id) ? "checked" : ""} /><span><span class="emoji">${esc(k.emoji)}</span>${esc(k.name)}</span></label>`).join("");
-  $("#cardEditList").innerHTML = doc.cards.map((c) => `<li class="card-edit" data-id="${esc(c.id)}">
-    <div class="row card-add-row">
-      <input class="emoji-in" name="emoji" value="${esc(c.emoji)}" maxlength="8" aria-label="Card emoji" />
-      <input name="name" value="${esc(c.name)}" maxlength="30" aria-label="Card name" />
-      <select name="owner" aria-label="Whose card">${owners(c.owner)}</select>
-      <button type="button" class="icon-btn" data-remove-card title="Remove card" aria-label="Remove ${esc(c.name)}">🗑</button>
-    </div>
-    <div class="cat-choices card-cats" aria-label="${esc(c.name)} is used for">${catBoxes(c.cats)}</div>
-  </li>`).join("") || `<li class="muted small">No cards yet.</li>`;
-  const add = $("#cardForm");
-  if (!add.contains(document.activeElement)) {
-    const picked = [...add.querySelectorAll('input[name="cats"]:checked')].map((i) => i.value);
-    add.elements.owner.innerHTML = owners(add.elements.owner.value || me() || doc.people[0]);
-    add.querySelector(".card-cats").innerHTML = catBoxes(picked);
-  }
 }
 
-const cardFields = (el) => ({
-  emoji: el.querySelector('[name="emoji"]').value,
-  name: el.querySelector('[name="name"]').value,
-  owner: el.querySelector('[name="owner"]').value,
-  cats: [...el.querySelectorAll('input[name="cats"]:checked')].map((i) => i.value),
-});
-
-$("#cardEditList").addEventListener("change", async (e) => {
-  const li = e.target.closest("li[data-id]");
-  if (li && !(await sync.runOp({ op: "editCard", id: li.dataset.id, ...cardFields(li) }, "Card saved"))) renderSettingsNow();
-});
-$("#cardEditList").addEventListener("click", (e) => {
-  if (e.target.closest("[data-remove-card]")) sync.runOp({ op: "removeCard", id: e.target.closest("li").dataset.id }, "Card removed");
-});
-$("#cardForm").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const fields = cardFields(e.target);
-  if (await sync.runOp({ op: "addCard", ...fields }, `Added ${fields.name}`)) {
-    e.target.reset();
-    document.activeElement?.blur();
-    renderSettingsNow();
-  }
-});
 // Redraws settings even while a field in it has focus (after a refused or finished edit).
 function renderSettingsNow() {
   document.activeElement?.blur();
   renderSettings();
 }
-$("#manageCards").addEventListener("click", () => {
-  if (!doc) return;
-  renderSettings();
-  $("#settingsDlg").showModal();
-  $("#cardsHeading").scrollIntoView({ block: "start" });
+$("#settingsToCards").addEventListener("click", () => {
+  $("#settingsDlg").close();
+  setView("overview", "cardsPanel");
 });
 
 $("#settingsBtn").addEventListener("click", () => { if (doc) { renderSettings(); $("#settingsDlg").showModal(); } });
