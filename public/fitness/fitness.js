@@ -319,6 +319,7 @@ function openFood(meal) {
   (foodForm.querySelector(`input[name="src"][value="${last}"]`) ?? foodForm.querySelector('input[name="src"]')).checked = true;
   $("#recentSearch").value = "";
   for (const id of ["#mName", "#mAmount", "#mKcal", "#mP", "#mC", "#mF"]) $(id).value = "";
+  $("#foodCancel").textContent = "Cancel";
   showSrc();
   renderReview();
   $("#foodDlg").showModal();
@@ -401,6 +402,33 @@ $("#reviewList").addEventListener("click", (e) => {
   if (li && e.target.closest("[data-rv-remove]")) { review.splice(Number(li.dataset.n), 1); renderReview(); }
 });
 
+// Builds add-list items (all at × 1) from foods logged before, saved foods or the manual form.
+function reviewItems(items, source) {
+  return items.map((i) => ({
+    on: true, x: 1, source, name: i.name, amount: i.amount ?? "",
+    kcal: Number(i.kcal) || 0, p: Number(i.p) || 0, c: Number(i.c) || 0, f: Number(i.f) || 0,
+    fiber: i.fiber, sugar: i.sugar, sodium: i.sodium, grams: Number(i.grams) || 0,
+    ingredients: i.ingredients ?? [],
+    ref: i.refName ?? "",
+    url: i.ref ?? "",
+  }));
+}
+
+// One tap logs straight to the chosen meal (no Log button); the dialog stays open to add more.
+async function logNow(items, source, row) {
+  const foods = reviewItems(items, source).map(foodPayload);
+  const meal = mealNow();
+  const mealName = MEALS.find((m) => m.id === meal).name.toLowerCase();
+  row?.classList.add("adding");
+  const ok = await sync.runOp({ op: "addFoods", person: who, date: day, meal, foods },
+    `✅ Logged ${foods.length === 1 ? foods[0].name : `${foods.length} foods`} · ${fmt(sum(foods, "kcal"))} kcal to ${mealName}`);
+  row?.classList.remove("adding");
+  if (!ok) return false;
+  row?.classList.add("added");
+  $("#foodCancel").textContent = "Done";
+  return true;
+}
+
 function addToReview(items, source) {
   // source: how it was added here (recent or manual); a recent food keeps its ingredients
   // and where its numbers came from (ref).
@@ -461,21 +489,20 @@ $("#recentList").addEventListener("click", async (e) => {
   const li = e.target.closest("[data-recent], [data-saved]");
   if (!li) return;
   const f = li.dataset.saved ? doc.library.find((x) => x.id === li.dataset.saved) : doc.foods.find((x) => x.id === li.dataset.recent);
-  if (f) { addToReview([f], "recent"); toast(`Added ${f.name} to the list`); }
+  if (f && !li.classList.contains("adding")) await logNow([f], "recent", li);
 });
 
-$("#manualAdd").addEventListener("click", () => {
+$("#manualAdd").addEventListener("click", async () => {
   const name = $("#mName").value.trim();
   const kcal = num($("#mKcal").value);
   if (!name) return toast("Name the food");
   if (!(kcal >= 0)) return toast("Enter the calories");
-  addToReview([{ name, amount: $("#mAmount").value.trim(), kcal, p: num($("#mP").value) || 0, c: num($("#mC").value) || 0, f: num($("#mF").value) || 0 }], "manual");
+  if (!(await logNow([{ name, amount: $("#mAmount").value.trim(), kcal, p: num($("#mP").value) || 0, c: num($("#mC").value) || 0, f: num($("#mF").value) || 0 }], "manual"))) return;
   for (const id of ["#mName", "#mAmount", "#mKcal", "#mP", "#mC", "#mF"]) $(id).value = "";
 });
 
-foodForm.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const foods = review.filter((r) => r.on).map((r) => ({
+// A food as the API takes it, from an item in the add list (scaled by its × amount).
+const foodPayload = (r) => ({
     name: r.name.trim() || "Food", source: r.source,
     amount: r.x !== 1 && !r.grams ? `${r.amount.trim() || "1 portion"} × ${r.x}` : r.amount.trim(),
     kcal: r0(r.kcal * r.x), p: r1(r.p * r.x), c: r1(r.c * r.x), f: r1(r.f * r.x),
@@ -486,7 +513,11 @@ foodForm.addEventListener("submit", async (e) => {
       name: i.name, grams: r0(i.grams * r.x), kcal: r0(i.kcal * r.x), p: r1(i.p * r.x), c: r1(i.c * r.x), f: r1(i.f * r.x),
       ...(i.url ? { url: i.url } : {}), ...(i.source ? { source: i.source } : {}),
     })) } : {}),
-  }));
+  });
+
+foodForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const foods = review.filter((r) => r.on).map(foodPayload);
   if (!foods.length) return;
   const meal = mealNow();
   const btn = $("#foodSubmit");

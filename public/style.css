@@ -1154,3 +1154,8 @@ fieldset.plain legend { padding: 0; margin-bottom: 6px; font-size: 0.85rem; colo
 .theme-menu button { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 0; border-radius: 8px; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
 .theme-menu button:hover { background: var(--surface-2); }
 .theme-menu button[aria-checked="true"] { background: var(--accent-soft); font-weight: 600; }
+.recent-list li.adding { opacity: 0.55; pointer-events: none; }
+.recent-list li.added .recent-add { color: var(--good); }
+.recent-list li.added .recent-add::before { content: "✓"; }
+.recent-list li.added .recent-add { font-size: 0; }
+.recent-list li.added .recent-add::before { font-size: 1rem; }
