@@ -223,6 +223,9 @@ dialog {
   padding: 20px;
   width: min(460px, calc(100vw - 32px));
   max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 24px); /* the space above the keyboard, when it's open */
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 dialog::backdrop { background: rgb(0 0 0 / 0.45); }
 dialog form { display: grid; gap: 12px; }
@@ -242,6 +245,12 @@ dialog input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 .cat-add { grid-template-columns: 64px 1fr auto; margin-top: 8px; }
 .emoji-in { text-align: center; }
 .dlg-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+/* Keep a dialog's buttons in view at the bottom while its form scrolls. */
+dialog .dlg-actions {
+  position: sticky; bottom: -20px; z-index: 2;
+  margin: 4px -20px -20px; padding: 12px 20px;
+  background: var(--surface); border-top: 1px solid var(--border);
+}
 .cat-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .cat-list li { display: grid; grid-template-columns: 52px 1fr auto; gap: 6px; align-items: center; }
 .cat-list .acts { display: flex; }
