@@ -32,7 +32,6 @@
   <nav class="screen-tabs" aria-label="Screens">
     <a href="#diary" data-screen="diary">📒 Diary</a>
     <a href="#progress" data-screen="progress">📈 Progress</a>
-    <a href="#toilet" data-screen="toilet">🚽 Toilet</a>
     <a href="/daily/">💸 Expenses</a>
   </nav>
 
@@ -110,29 +109,6 @@
     <section class="panel" data-only="progress">
       <h2>Weigh-ins</h2>
       <ul class="items-list food-list" id="weightList"></ul>
-    </section>
-
-    <!-- 🚽 Toilet -->
-    <section class="panel" data-only="toilet" aria-label="Toilet log">
-      <div class="panel-head">
-        <div>
-          <h2>Toilet log</h2>
-          <p class="muted small">Each poop, by day, with its type on the Bristol stool scale.</p>
-        </div>
-        <div class="head-actions"><button class="btn" type="button" id="addBowelBtn">＋ Log a poop</button></div>
-      </div>
-      <div class="bowel-cards" id="bowelCards"></div>
-      <h3 class="guide-h">Last 14 days</h3>
-      <div class="bowel-strip" id="bowelStrip"></div>
-      <h3 class="guide-h">By date</h3>
-      <div class="bowel-days" id="bowelList"></div>
-    </section>
-    <section class="panel" data-only="toilet">
-      <details class="bristol-guide">
-        <summary><b>What the types mean</b> <span class="muted small">(Bristol stool scale)</span></summary>
-        <ul class="bristol-list" id="bristolGuide"></ul>
-        <p class="muted small">This is a guide, not medical advice. See a doctor if there's blood, black or pale stools, or a change that lasts more than a couple of weeks.</p>
-      </details>
     </section>
 
     <nav class="fold-tabs" aria-label="More details">
@@ -305,22 +281,6 @@
       <div class="dlg-actions">
         <button class="btn ghost" type="button" id="goalsCancel">Cancel</button>
         <button class="btn" type="submit">Save goals</button>
-      </div>
-    </form>
-  </dialog>
-
-  <dialog id="bowelDlg">
-    <form id="bowelForm">
-      <h2>Log a poop · <span id="bowelWho"></span></h2>
-      <div class="row two">
-        <label>Date <input type="date" name="date" required /></label>
-        <label>Time <input type="time" name="time" /></label>
-      </div>
-      <fieldset class="plain"><legend>Type</legend><div class="bristol-pick" id="bristolPick"></div></fieldset>
-      <label>Note <span class="muted small">(optional)</span> <input name="note" maxlength="120" placeholder="e.g. after spicy food, urgent, some pain" autocomplete="off" /></label>
-      <div class="dlg-actions">
-        <button class="btn ghost" type="button" id="bowelCancel">Cancel</button>
-        <button class="btn" type="submit">Log it</button>
       </div>
     </form>
   </dialog>

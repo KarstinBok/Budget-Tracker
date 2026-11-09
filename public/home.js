@@ -20,7 +20,7 @@ try {
 // ---------------------------------------------------------------- tabs
 
 const loaded = {};
-const loaders = { expensesPanel: loadExpenses, fitnessPanel: loadFitness, insurancePanel: loadInsurance };
+const loaders = { expensesPanel: loadExpenses, fitnessPanel: loadFitness, insurancePanel: loadInsurance, toiletPanel: loadToilet };
 
 function openTab(id) {
   for (const btn of document.querySelectorAll(".home-tabs .fold-tab")) {
@@ -96,4 +96,18 @@ async function loadInsurance() {
       }).join("") +
       stat("Next payment", next ? esc(next.name) : "—", next ? `${next.nextDue}${overdue ? ` · ⚠️ ${overdue} overdue` : ""}` : overdue ? `⚠️ ${overdue} overdue` : "No dates added")
     : `<p class="muted small">No plans yet. Open the app to add them.</p>`;
+}
+
+async function loadToilet() {
+  const { doc } = await fetchJson("/api/fitness");
+  const today = localToday();
+  const weekAgo = new Date(Date.parse(`${today}T00:00:00Z`) - 6 * 86400000).toISOString().slice(0, 10);
+  const log = doc.toilet ?? [];
+  $("#toiletStats").innerHTML = doc.people.map((p) => {
+    const mine = log.filter((x) => x.person === p).sort((a, b) => (b.date + (b.time || "")).localeCompare(a.date + (a.time || "")));
+    const todayN = mine.filter((x) => x.date === today).length;
+    const week = mine.filter((x) => x.date >= weekAgo);
+    const last = mine[0];
+    return stat(esc(p), `${todayN} today`, last ? `${week.length} in 7 days · last type ${last.type}${last.date === today ? "" : `, ${last.date}`}` : "Nothing logged yet");
+  }).join("");
 }

@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Toilet Log</title>
+  <meta name="description" content="Karstin and Lilin's toilet log, by date, with the Bristol stool scale." />
+  <link rel="manifest" href="/daily/manifest.webmanifest" />
+  <meta name="theme-color" content="#bc002d" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23fff'/><circle cx='50' cy='50' r='26' fill='%23bc002d'/></svg>" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body class="daily toilet">
+  <header class="topbar">
+    <div class="brand">
+      <span class="sun" aria-hidden="true"></span>
+      <div>
+        <h1>Toilet log</h1>
+        <p class="muted" id="subtitle">By date, with the Bristol stool scale</p>
+      </div>
+    </div>
+    <div class="top-actions">
+      <span id="sync" class="sync" title="Sync status"><i></i><span>Connecting…</span></span>
+      <a class="btn ghost" href="/" title="All our apps" aria-label="Home">🏠</a>
+      <button id="whoBtn" class="chip" type="button" title="Change your name">👤 <span id="whoName">You</span></button>
+      <button class="btn add-btn" type="button" data-add-bowel>＋ Log a poop</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="seg person-filter" id="personPick" role="radiogroup" aria-label="Whose log"></div>
+
+    <section class="panel" aria-label="Toilet log">
+      <div class="panel-head">
+        <div>
+          <h2 id="logTitle">Toilet log</h2>
+          <p class="muted small">Each poop, by day, with its type on the Bristol stool scale.</p>
+        </div>
+        <div class="head-actions"><button class="btn" type="button" data-add-bowel>＋ Log a poop</button></div>
+      </div>
+      <div class="bowel-cards" id="bowelCards"></div>
+      <h3 class="guide-h">Last 14 days</h3>
+      <div class="bowel-strip" id="bowelStrip"></div>
+      <h3 class="guide-h">By date</h3>
+      <div class="bowel-days" id="bowelList"></div>
+    </section>
+
+    <section class="panel">
+      <details class="bristol-guide">
+        <summary><b>What the types mean</b> <span class="muted small">(Bristol stool scale)</span></summary>
+        <ul class="bristol-list" id="bristolGuide"></ul>
+        <p class="muted small">This is a guide, not medical advice. See a doctor if there's blood, black or pale stools, or a change that lasts more than a couple of weeks.</p>
+      </details>
+    </section>
+  </main>
+
+  <button class="fab" type="button" data-add-bowel aria-label="Log a poop">＋</button>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <dialog id="bowelDlg">
+    <form id="bowelForm">
+      <h2>Log a poop · <span id="bowelWho"></span></h2>
+      <div class="row two">
+        <label>Date <input type="date" name="date" required /></label>
+        <label>Time <input type="time" name="time" /></label>
+      </div>
+      <fieldset class="plain"><legend>Type</legend><div class="bristol-pick" id="bristolPick"></div></fieldset>
+      <label>Note, optional <input name="note" maxlength="120" placeholder="e.g. after spicy food, urgent, some pain" autocomplete="off" /></label>
+      <div class="dlg-actions">
+        <button class="btn ghost" type="button" id="bowelCancel">Cancel</button>
+        <button class="btn" type="submit">Log it</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="nameDlg">
+    <form method="dialog" id="nameForm">
+      <h2>Who's this?</h2>
+      <p class="muted">Your name is shown next to what you add.</p>
+      <input id="nameInput" maxlength="30" placeholder="Your name" required autocomplete="nickname" />
+      <div class="dlg-actions"><button class="btn" value="ok">Continue</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="codeDlg">
+    <form method="dialog" id="codeForm">
+      <h2>Passcode</h2>
+      <p class="muted">This tracker is protected. Enter the passcode.</p>
+      <input id="codeInput" type="password" required autocomplete="current-password" />
+      <div class="dlg-actions"><button class="btn" value="ok">Unlock</button></div>
+    </form>
+  </dialog>
+
+  <script src="/toilet/toilet.js" type="module"></script>
+  <script src="/notify.js" type="module"></script>
+</body>
+</html>

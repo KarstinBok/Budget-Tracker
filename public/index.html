@@ -23,6 +23,17 @@
   </header>
 
   <main>
+    <section aria-labelledby="pickTitle">
+      <h2 class="home-h" id="pickTitle">Open an app</h2>
+      <nav class="app-grid" aria-label="Our apps">
+        <a class="app-tile" href="/daily/"><span>💸</span><b>Expenses</b><small>Personal &amp; shared spending</small></a>
+        <a class="app-tile" href="/fitness/"><span>🥗</span><b>Food &amp; fitness</b><small>Calories, weight, exercise</small></a>
+        <a class="app-tile" href="/toilet/"><span>🚽</span><b>Toilet log</b><small>Bristol scale, by date</small></a>
+        <a class="app-tile" href="/insurance/"><span>🛡️</span><b>Insurance</b><small>Plans, cover, payments</small></a>
+        <a class="app-tile" href="/japan/"><span>🗾</span><b>Japan trip</b><small>Budget &amp; journal</small></a>
+      </nav>
+    </section>
+
     <section aria-labelledby="quickTitle">
       <h2 class="home-h" id="quickTitle">Quick add</h2>
       <nav class="quick-grid" aria-label="Quick add">
@@ -32,16 +43,16 @@
         <a class="quick" href="https://claude.ai/new" target="_blank" rel="noopener"><span>📷</span><b>Food photo</b><small>in Claude</small></a>
         <a class="quick" href="/fitness/?add=weight&amp;from=home"><span>⚖️</span><b>Weight</b></a>
         <a class="quick" href="/fitness/?add=exercise&amp;from=home"><span>🏃</span><b>Exercise</b></a>
-        <a class="quick" href="/fitness/?add=toilet&amp;from=home"><span>🚽</span><b>Toilet</b></a>
-        <a class="quick" href="/insurance/"><span>🛡️</span><b>Insurance</b></a>
+        <a class="quick" href="/toilet/?add=1&amp;from=home"><span>🚽</span><b>Poop</b></a>
       </nav>
     </section>
 
     <section aria-labelledby="appsTitle">
-      <h2 class="home-h" id="appsTitle">Our apps</h2>
+      <h2 class="home-h" id="appsTitle">At a glance</h2>
       <nav class="fold-tabs home-tabs" aria-label="Apps">
         <button type="button" class="fold-tab" data-fold="expensesPanel" aria-controls="expensesPanel" aria-expanded="false">💸 Expenses</button>
         <button type="button" class="fold-tab" data-fold="fitnessPanel" aria-controls="fitnessPanel" aria-expanded="false">🥗 Food &amp; fitness</button>
+        <button type="button" class="fold-tab" data-fold="toiletPanel" aria-controls="toiletPanel" aria-expanded="false">🚽 Toilet</button>
         <button type="button" class="fold-tab" data-fold="insurancePanel" aria-controls="insurancePanel" aria-expanded="false">🛡️ Insurance</button>
         <button type="button" class="fold-tab" data-fold="japanPanel" aria-controls="japanPanel" aria-expanded="false">🗾 Japan trip</button>
       </nav>
@@ -62,7 +73,15 @@
         <div class="home-links">
           <a class="btn" href="/fitness/#diary">📒 Diary</a>
           <a class="btn ghost" href="/fitness/#progress">📈 Progress</a>
-          <a class="btn ghost" href="/fitness/#toilet">🚽 Toilet</a>
+        </div>
+      </section>
+
+      <section class="panel fold home-panel" id="toiletPanel" hidden>
+        <h3>Toilet log</h3>
+        <div class="home-stats" id="toiletStats"><p class="muted small">Loading…</p></div>
+        <div class="home-links">
+          <a class="btn" href="/toilet/">🚽 Open log</a>
+          <a class="btn ghost" href="/toilet/?add=1&amp;from=home">＋ Log a poop</a>
         </div>
       </section>
 
