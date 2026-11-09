@@ -257,7 +257,7 @@ function applyOp(doc, body, by) {
     case "addCategory": {
       const name = str(body.name, 40);
       if (!name) fail("Give the category a name");
-      if (doc.categories.length >= 16) fail("Too many categories");
+      if (doc.categories.length >= 30) fail("Too many categories");
       const base = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "cat";
       let id = base;
       for (let n = 2; doc.categories.some((c) => c.id === id); n++) id = `${base}-${n}`;
