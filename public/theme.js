@@ -58,6 +58,13 @@
     document.addEventListener("click", (e) => { if (menu && !menu.contains(e.target)) close(); });
     document.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
   }
+  // Typing in a form on a phone: once the keyboard is up, bring the field into view.
+  document.addEventListener("focusin", (e) => {
+    const el = e.target;
+    if (!el.matches?.("input:not([type=radio]):not([type=checkbox]), textarea, select") || !el.closest("dialog")) return;
+    setTimeout(() => el.scrollIntoView({ block: "center", behavior: "smooth" }), 300);
+  });
+
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", addButton);
   else addButton();
   // Other tabs: follow a change made there.
