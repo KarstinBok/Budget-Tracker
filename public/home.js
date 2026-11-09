@@ -20,7 +20,7 @@ try {
 // ---------------------------------------------------------------- tabs
 
 const loaded = {};
-const loaders = { expensesPanel: loadExpenses, fitnessPanel: loadFitness };
+const loaders = { expensesPanel: loadExpenses, fitnessPanel: loadFitness, insurancePanel: loadInsurance };
 
 function openTab(id) {
   for (const btn of document.querySelectorAll(".home-tabs .fold-tab")) {
@@ -77,4 +77,23 @@ async function loadFitness() {
     return stat(esc(p), `${fmt(Math.abs(left))} kcal ${left < 0 ? "over" : "left"}`,
       `${fmt(eaten)} eaten of ${fmt(goal + burned)}${w ? ` · ${w.kg} kg${target ? ` → ${target} kg` : ""}` : ""}`);
   }).join("");
+}
+
+async function loadInsurance() {
+  const { doc } = await fetchJson("/api/insurance");
+  const live = doc.plans.filter((p) => p.status === "active" || p.status === "pending");
+  const perMonth = (p) => (p.frequency === "single" ? 0 : p.monthly ?? (p.annual !== null ? Math.round(p.annual / 12) : 0));
+  const perYear = (p) => (p.frequency === "single" ? 0 : p.annual ?? (p.monthly !== null ? p.monthly * 12 : 0));
+  const today = localToday();
+  const next = live.filter((p) => p.nextDue && p.nextDue >= today).sort((a, b) => a.nextDue.localeCompare(b.nextDue))[0];
+  const overdue = live.filter((p) => p.nextDue && p.nextDue < today).length;
+  $("#insuranceStats").innerHTML = live.length
+    ? doc.people.map((p) => {
+        const mine = live.filter((x) => x.person === p);
+        const m = mine.reduce((s, x) => s + perMonth(x), 0);
+        const y = mine.reduce((s, x) => s + perYear(x), 0);
+        return stat(esc(p), `${money(m)} a month`, `${mine.length} plan${mine.length === 1 ? "" : "s"} · ${money(y)} a year`);
+      }).join("") +
+      stat("Next payment", next ? esc(next.name) : "—", next ? `${next.nextDue}${overdue ? ` · ⚠️ ${overdue} overdue` : ""}` : overdue ? `⚠️ ${overdue} overdue` : "No dates added")
+    : `<p class="muted small">No plans yet. Open the app to add them.</p>`;
 }
