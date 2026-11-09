@@ -1123,3 +1123,11 @@ fieldset.plain legend { padding: 0; margin-bottom: 6px; font-size: 0.85rem; colo
 .payments li { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; }
 .payments small { color: var(--muted); }
 .plan-covers small { display: block; }
+
+/* Home: app picker */
+.app-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-bottom: 18px; }
+.app-tile { display: grid; align-content: start; gap: 2px; padding: 14px; border-radius: 16px; background: var(--surface); border: 1px solid var(--border); color: var(--text); text-decoration: none; box-shadow: 0 1px 4px rgb(0 0 0 / 0.05); }
+.app-tile:hover { border-color: var(--accent); }
+.app-tile span { font-size: 1.7rem; line-height: 1.2; }
+.app-tile b { font-size: 1rem; }
+.app-tile small { color: var(--muted); font-size: 0.78rem; }
