@@ -44,6 +44,8 @@ export function defaultDoc() {
     weights: [],
     // { id, person, date, name, minutes, kcal, note, by, t }
     exercises: [],
+    // Toilet log: { id, person, date, time ("HH:MM"), type (Bristol stool scale 1-7), note, by, t }
+    toilet: [],
     // Saved foods and recipes, shared by everyone, to add to a diary in one tap:
     // { id, name, amount, kcal, p, c, f, …same as a food…, recipe?, by, t }
     library: [],
@@ -54,6 +56,7 @@ export function defaultDoc() {
 export function normalize(doc) {
   for (const p of doc.people) doc.profiles[p] ??= defaultProfile();
   doc.library ??= [];
+  doc.toilet ??= [];
   return doc;
 }
 
@@ -226,6 +229,24 @@ export function applyOp(doc, body, by) {
       if (!x) return null;
       doc.exercises = doc.exercises.filter((e) => e !== x);
       return `removed ${x.person}'s ${x.name} on ${prettyDate(x.date)}`;
+    }
+
+    case "addBowel": {
+      const who = person(doc, body.person);
+      const d = date(body.date);
+      const time = str(body.time, 5);
+      if (time && !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) fail("Pick a time");
+      const type = num(body.type, { min: 1, max: 7, label: "type" });
+      if (doc.toilet.length >= MAX_ROWS * 2) fail("The toilet log is full");
+      doc.toilet.push({ id: randomUUID(), person: who, date: d, time, type, note: str(body.note, 120), by, t: Date.now() });
+      return `logged a toilet visit for ${who} on ${prettyDate(d)}`;
+    }
+
+    case "deleteBowel": {
+      const x = doc.toilet.find((e) => e.id === body.id);
+      if (!x) return null;
+      doc.toilet = doc.toilet.filter((e) => e !== x);
+      return `removed ${x.person}'s toilet entry on ${prettyDate(x.date)}`;
     }
 
     case "saveLibraryFood": {

@@ -1047,3 +1047,79 @@ fieldset.plain legend { padding: 0; margin-bottom: 6px; font-size: 0.85rem; colo
 .art-tip { margin: -6px 0 0; }
 .pay-art { width: 30px; height: 19px; border-radius: 3px; object-fit: cover; vertical-align: -5px; margin-right: 2px; }
 .art-actions label.btn { display: inline-flex; align-items: center; gap: 6px; }
+
+/* ---------------------------------------------------------------- 🚽 toilet log */
+.bowel-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 10px; }
+.bowel-cards .card .big { font-size: 1.5rem; }
+.bowel-strip { display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); gap: 3px; }
+.bs-day { display: grid; justify-items: center; align-content: end; gap: 2px; padding: 6px 0 4px; border-radius: 8px; background: var(--surface-2); font-size: 0.7rem; color: var(--muted); }
+.bs-day.today { outline: 2px solid var(--accent); }
+.bs-day b { font-size: 0.95rem; color: var(--text); }
+.bs-date { font-size: 0.65rem; }
+.bs-dots { display: grid; gap: 2px; min-height: 18px; align-content: end; }
+.bs-dot { display: grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; font-style: normal; font-size: 0.6rem; font-weight: 700; color: #fff; }
+.bs-more { font-style: normal; font-size: 0.6rem; }
+.tone-hard { background: #b5651d; }
+.tone-good { background: #2e9e6a; }
+.tone-soft { background: #d6a21e; }
+.tone-loose { background: #c0392b; }
+.tone-chip { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 0.72rem; font-weight: 600; color: #fff; }
+.bowel-days { display: grid; gap: 12px; }
+.bowel-day h4 { display: flex; justify-content: space-between; margin: 0 0 4px; font-size: 0.92rem; }
+.bowel-day h4 .muted { font-weight: 500; font-size: 0.82rem; }
+.bowel-day li { display: grid; grid-template-columns: 46px 1fr auto; gap: 8px; align-items: center; }
+.bowel-time { font-variant-numeric: tabular-nums; font-weight: 600; font-size: 0.9rem; }
+.poo { vertical-align: middle; flex: none; }
+.bowel-day .item-note { display: flex; align-items: center; gap: 8px; }
+.bristol-pick { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
+.bristol-opt input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.bristol-opt > span { display: grid; justify-items: center; gap: 3px; padding: 8px 6px; border: 2px solid var(--border); border-radius: 12px; cursor: pointer; text-align: center; background: var(--surface); height: 100%; box-sizing: border-box; }
+.bristol-opt small { font-size: 0.72rem; color: var(--muted); line-height: 1.2; }
+.bristol-opt input:checked + span { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
+.bristol-opt input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.bristol-guide summary { cursor: pointer; }
+.bristol-list { list-style: none; padding: 0; margin: 10px 0; display: grid; gap: 8px; }
+.bristol-list li { display: grid; grid-template-columns: 60px 1fr; gap: 10px; align-items: center; font-size: 0.9rem; }
+.row.two { grid-template-columns: 1fr 1fr; }
+@media (max-width: 520px) { .row.two { grid-template-columns: 1fr 1fr; } }
+
+/* ---------------------------------------------------------------- 🛡️ insurance */
+.insurance .card.due-soon { border-color: var(--warn); }
+.due-list li { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; }
+.due-list li.soon .item-meta { color: var(--warn); font-weight: 600; }
+.due-list li.overdue .item-meta { color: var(--bad, #c0392b); font-weight: 700; }
+.cover-check { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 0; }
+.cover-check li { display: grid; grid-template-columns: minmax(120px, 0.8fr) 1.2fr; gap: 10px; padding: 9px 0; align-items: start; font-size: 0.9rem; }
+.cover-check li + li { border-top: 1px solid var(--border); }
+.cc-people { display: grid; gap: 4px; }
+.cover-chip { display: grid; font-size: 0.86rem; }
+.cover-chip small { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.cover-chip.no { color: var(--muted); }
+.plan-list { display: grid; gap: 12px; }
+.plan-card { display: grid; gap: 10px; width: 100%; padding: 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); color: var(--text); text-align: left; font: inherit; cursor: pointer; }
+.plan-card:hover { border-color: var(--accent); }
+.plan-card.inactive { opacity: 0.6; }
+.plan-top { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; }
+.plan-emoji { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--surface-2); font-size: 1.25rem; }
+.plan-name { display: grid; gap: 2px; min-width: 0; }
+.plan-name b { font-size: 1rem; }
+.plan-name small { color: var(--muted); font-size: 0.8rem; }
+.plan-badges { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; }
+.badge { font-size: 0.75rem; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); }
+.status-active { background: color-mix(in srgb, var(--good, #2e9e6a) 18%, var(--surface)); }
+.status-pending { background: color-mix(in srgb, var(--warn) 18%, var(--surface)); }
+.status-lapsed, .status-cancelled { background: color-mix(in srgb, #c0392b 15%, var(--surface)); }
+.plan-cost { font-size: 0.95rem; }
+.plan-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px 14px; font-size: 0.86rem; }
+.plan-grid > span, .plan-covers { display: grid; gap: 1px; }
+.plan-grid small, .plan-covers small { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.plan-grid .hot { color: var(--warn); font-weight: 600; }
+.plan-covers { font-size: 0.86rem; white-space: pre-line; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.plan-form { display: grid; gap: 10px; }
+.plan-form textarea { width: 100%; box-sizing: border-box; font: inherit; }
+.form-h { margin: 8px 0 0; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); }
+.form-tip { margin: -4px 0 0; }
+.payments ul { list-style: none; padding: 0; margin: 4px 0; display: grid; gap: 4px; font-size: 0.86rem; }
+.payments li { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; }
+.payments small { color: var(--muted); }
+.plan-covers small { display: block; }

@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Our Insurance</title>
+  <meta name="description" content="Karstin and Lilin's insurance plans: what they cover, what they cost and when they're due." />
+  <link rel="manifest" href="/daily/manifest.webmanifest" />
+  <meta name="theme-color" content="#bc002d" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23fff'/><circle cx='50' cy='50' r='26' fill='%23bc002d'/></svg>" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body class="daily insurance">
+  <header class="topbar">
+    <div class="brand">
+      <span class="sun" aria-hidden="true"></span>
+      <div>
+        <h1>Our insurance</h1>
+        <p class="muted" id="subtitle">Plans, cover and payments</p>
+      </div>
+    </div>
+    <div class="top-actions">
+      <span id="sync" class="sync" title="Sync status"><i></i><span>Connecting…</span></span>
+      <a class="btn ghost" href="/" title="All our apps" aria-label="Home">🏠</a>
+      <button id="whoBtn" class="chip" type="button" title="Change your name">👤 <span id="whoName">You</span></button>
+      <button class="btn add-btn" type="button" id="addPlanBtn">＋ Add plan</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="seg person-filter" id="personPick" role="radiogroup" aria-label="Whose plans"></div>
+
+    <section class="cards" id="insCards" aria-label="Summary"></section>
+
+    <section class="panel" id="duePanel" hidden>
+      <h2>⏰ Payments due soon</h2>
+      <ul class="items-list due-list" id="dueList"></ul>
+    </section>
+
+    <section class="panel">
+      <h2>Cover check</h2>
+      <p class="muted small">The main kinds of cover, and which active plans give them.</p>
+      <ul class="cover-check" id="coverCheck"></ul>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div><h2>Plans</h2><p class="muted small">Tap a plan to see everything or edit it.</p></div>
+        <div class="head-actions"><button class="btn" type="button" id="addPlanBtn2">＋ Add plan</button></div>
+      </div>
+      <div class="plan-list" id="planList"></div>
+    </section>
+
+    <nav class="fold-tabs" aria-label="More details">
+      <button type="button" class="fold-tab" data-fold="logPanel" aria-controls="logPanel" aria-expanded="false">🕒 Recent changes</button>
+    </nav>
+    <section class="panel fold" id="logPanel" hidden>
+      <h2>Recent changes</h2>
+      <ol class="log" id="log"></ol>
+    </section>
+  </main>
+
+  <button type="button" class="fab" id="fab" aria-label="Add plan">＋</button>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <dialog id="planDlg" class="wide-dlg">
+    <form id="planForm" class="plan-form">
+      <h2 id="planTitle">Add plan</h2>
+
+      <h3 class="form-h">Plan</h3>
+      <label>Plan name <input name="name" maxlength="80" required placeholder="e.g. HealthShield Gold Max A" autocomplete="off" /></label>
+      <div class="row two">
+        <label>Insurer <input name="insurer" maxlength="60" placeholder="e.g. Great Eastern" autocomplete="off" /></label>
+        <label>Policy number <input name="policyNo" maxlength="40" autocomplete="off" /></label>
+      </div>
+      <div class="row two">
+        <label>Whose plan <select name="person" id="personSel"></select></label>
+        <label>Status <select name="status">
+          <option value="active">✅ Active</option><option value="pending">⏳ Pending</option>
+          <option value="lapsed">⚠️ Lapsed</option><option value="cancelled">✖️ Cancelled</option><option value="matured">🏁 Matured</option>
+        </select></label>
+      </div>
+      <label>Type of plan <select name="type" id="typeSel" required></select></label>
+
+      <h3 class="form-h">Cost and payment</h3>
+      <div class="row two">
+        <label>Monthly (S$) <input name="monthly" inputmode="decimal" placeholder="0.00" autocomplete="off" /></label>
+        <label>Yearly (S$) <input name="annual" inputmode="decimal" placeholder="0.00" autocomplete="off" /></label>
+      </div>
+      <p class="muted small form-tip" id="costTip">Fill in one and the other is worked out; change it if the insurer charges differently.</p>
+      <div class="row two">
+        <label>Paying <select name="frequency">
+          <option value="monthly">Monthly</option><option value="quarterly">Every 3 months</option>
+          <option value="half-yearly">Every 6 months</option><option value="yearly">Yearly</option><option value="single">One-off (single premium)</option>
+        </select></label>
+        <label>Next payment date <input type="date" name="nextDue" /></label>
+      </div>
+      <div class="row two">
+        <label>Paid with <select name="paidWith" id="paidSel"></select></label>
+        <label>Payment note <input name="paidNote" maxlength="80" placeholder="e.g. GIRO from OCBC 360" autocomplete="off" /></label>
+      </div>
+      <div class="row two">
+        <label>Payment term <select name="payKind">
+          <option value="">Not sure</option><option value="years">For a number of years</option><option value="age">Until an age</option>
+          <option value="whole-life">Whole life</option><option value="renewable">Renews each year</option><option value="single">One payment only</option>
+        </select></label>
+        <label id="payNLabel" hidden><span id="payNText">Years</span> <input name="payN" inputmode="numeric" maxlength="3" autocomplete="off" /></label>
+      </div>
+
+      <h3 class="form-h">Cover</h3>
+      <div class="row two">
+        <label>Cover starts <input type="date" name="start" /></label>
+        <label>Covers until <select name="coverKind">
+          <option value="">Not sure</option><option value="date">A date</option><option value="age">An age</option>
+          <option value="lifetime">For life</option><option value="renewable">Renews each year</option>
+        </select></label>
+      </div>
+      <div class="row two">
+        <label id="coverDateLabel" hidden>Cover ends <input type="date" name="coverDate" /></label>
+        <label id="coverAgeLabel" hidden>Until age <input name="coverAge" inputmode="numeric" maxlength="3" autocomplete="off" /></label>
+        <label>Sum assured / cover (S$) <input name="sumAssured" inputmode="decimal" placeholder="e.g. 200000" autocomplete="off" /></label>
+      </div>
+      <label>What it covers <textarea name="covers" rows="3" maxlength="2000" placeholder="e.g. Private hospital ward A, pre/post hospitalisation 180/365 days, cancer drug treatment…"></textarea></label>
+      <label>Description <textarea name="description" rows="2" maxlength="2000" placeholder="What the plan is, in your own words"></textarea></label>
+      <label>Exclusions and other notes <textarea name="notes" rows="2" maxlength="2000" placeholder="e.g. deductible S$3,500, co-insurance 10%, waiting periods, riders…"></textarea></label>
+
+      <h3 class="form-h">Contact</h3>
+      <div class="row two">
+        <label>Agent <input name="agent" maxlength="60" autocomplete="off" /></label>
+        <label>Agent's phone or email <input name="agentContact" maxlength="80" autocomplete="off" /></label>
+      </div>
+      <label>Policy link <span class="muted small">(optional, https)</span> <input name="link" type="url" maxlength="300" placeholder="https://" autocomplete="off" /></label>
+
+      <div class="payments" id="paymentHist" hidden></div>
+
+      <div class="dlg-actions">
+        <button class="btn ghost danger" type="button" id="planDelete" hidden>🗑 Remove</button>
+        <button class="btn ghost" type="button" id="planCancel">Cancel</button>
+        <button class="btn" type="submit" id="planSave">Add plan</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="nameDlg">
+    <form method="dialog" id="nameForm">
+      <h2>Who's this?</h2>
+      <p class="muted">Your name is shown next to what you add.</p>
+      <input id="nameInput" maxlength="30" placeholder="Your name" required autocomplete="nickname" />
+      <div class="dlg-actions"><button class="btn" value="ok">Continue</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="codeDlg">
+    <form method="dialog" id="codeForm">
+      <h2>Passcode</h2>
+      <p class="muted">This tracker is protected. Enter the passcode.</p>
+      <input id="codeInput" type="password" required autocomplete="current-password" />
+      <div class="dlg-actions"><button class="btn" value="ok">Unlock</button></div>
+    </form>
+  </dialog>
+
+  <script src="/insurance/insurance.js" type="module"></script>
+  <script src="/notify.js" type="module"></script>
+</body>
+</html>
