@@ -31,6 +31,22 @@
     color-scheme: dark;
   }
 }
+/* Chosen in the 🌓 menu (theme.js): overrides the phone's setting. */
+:root[data-theme="dark"] {
+  --bg: #15130f;
+  --surface: #1e1b17;
+  --surface-2: #27231e;
+  --text: #f1ebe3;
+  --muted: #a99f93;
+  --border: #3a342d;
+  --accent: #ff4d6d;
+  --accent-soft: #3a1a21;
+  --good: #5cc28a;
+  --warn: #f0a640;
+  --flash: #4a3f12;
+  --shadow: none;
+  color-scheme: dark;
+}
 
 * { box-sizing: border-box; }
 
@@ -1131,3 +1147,10 @@ fieldset.plain legend { padding: 0; margin-bottom: 6px; font-size: 0.85rem; colo
 .app-tile span { font-size: 1.7rem; line-height: 1.2; }
 .app-tile b { font-size: 1rem; }
 .app-tile small { color: var(--muted); font-size: 0.78rem; }
+
+/* 🌓 Light / dark switch (theme.js) */
+.theme-btn { min-width: 40px; }
+.theme-menu { position: fixed; z-index: 60; display: grid; gap: 2px; padding: 6px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 8px 24px rgb(0 0 0 / 0.18); }
+.theme-menu button { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 0; border-radius: 8px; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.theme-menu button:hover { background: var(--surface-2); }
+.theme-menu button[aria-checked="true"] { background: var(--accent-soft); font-weight: 600; }
