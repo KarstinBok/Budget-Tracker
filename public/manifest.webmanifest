@@ -1,7 +1,7 @@
 {
-  "name": "Karstin & Lilin",
-  "short_name": "Our Apps",
-  "description": "Everyday expenses, food & fitness, and the Japan trip.",
+  "name": "Life Kalicc",
+  "short_name": "Life Kalicc",
+  "description": "Karstin and Lilin's apps: expenses, food & fitness, toilet log, insurance and the Japan trip.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

@@ -24,7 +24,7 @@ self.addEventListener("push", (event) => {
   } catch {
     data = { body: event.data?.text() };
   }
-  event.waitUntil(self.registration.showNotification(data.title || "Our apps", {
+  event.waitUntil(self.registration.showNotification(data.title || "Life Kalicc", {
     body: data.body || "Something new was added.",
     tag: data.tag,
     renotify: !!(data.tag && data.renotify), // buzz again when a notification replaces one
