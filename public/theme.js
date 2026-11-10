@@ -13,6 +13,16 @@
     document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? DARK_BG : LIGHT_ACCENT);
   }
   apply(read());
+  // For the ⚙️ Settings page: read or change the choice.
+  window.appTheme = {
+    get: read,
+    set(mode) {
+      try { localStorage.setItem(KEY, mode); } catch { /* private mode */ }
+      apply(mode);
+      const b = document.querySelector(".theme-btn");
+      if (b) b.textContent = icon(mode);
+    },
+  };
   matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", () => apply(read()));
 
   const OPTIONS = [["auto", "🌓", "Auto (follow phone)"], ["light", "☀️", "Light"], ["dark", "🌙", "Dark"]];

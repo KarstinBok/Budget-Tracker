@@ -8,8 +8,8 @@
   <link rel="manifest" href="/daily/manifest.webmanifest" />
   <meta name="apple-mobile-web-app-title" content="Life Kalicc" />
   <meta name="theme-color" content="#bc002d" />
-  <link rel="icon" type="image/png" href="/icons/favicon-64.png?v=2" />
-  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=2" />
+  <link rel="icon" type="image/png" href="/icons/favicon-64.png?v=3" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=3" />
   <link rel="stylesheet" href="/style.css" />
   <script src="/theme.js"></script>
 </head>
@@ -26,15 +26,12 @@
       <span id="sync" class="sync" title="Sync status"><i></i><span>Connecting…</span></span>
       <a class="btn ghost" href="/" title="All our apps" aria-label="Home">🏠</a>
       <button id="whoBtn" class="chip" type="button" title="Change your name">👤 <span id="whoName">You</span></button>
-      <button id="settingsBtn" class="btn ghost" type="button">⚙️ Settings</button>
-      <button class="btn add-btn" type="button" data-add>＋ Add expense</button>
     </div>
   </header>
 
   <nav class="screen-tabs" aria-label="Screens">
     <a href="#personal" data-screen="personal">👤 Personal</a>
     <a href="#shared" data-screen="shared">🤝 Shared</a>
-    <a href="/fitness/">🥗 Food &amp; fitness</a>
   </nav>
 
   <main>
@@ -66,7 +63,7 @@
     <div class="tx-days" id="txList" data-view="home" aria-live="polite"></div>
 
     <!-- 📊 Overview: cards, the summary and the daily table -->
-    <div class="month-bar" data-view="overview">
+    <div class="month-bar" data-view="overview cards">
       <button type="button" class="icon-btn" id="prevMonth" aria-label="Previous month">‹</button>
       <h2 id="monthTitle">This month</h2>
       <button type="button" class="icon-btn" id="nextMonth" aria-label="Next month">›</button>
@@ -82,7 +79,6 @@
     <nav class="fold-tabs" aria-label="More details" data-view="overview">
       <button type="button" class="fold-tab" data-fold="summaryPanel" aria-controls="summaryPanel" aria-expanded="false">📊 Summary</button>
       <button type="button" class="fold-tab" data-fold="paymentsPanel" aria-controls="paymentsPanel" aria-expanded="false">💸 Payments</button>
-      <button type="button" class="fold-tab" data-fold="cardsPanel" aria-controls="cardsPanel" aria-expanded="false">💳 Cards</button>
       <button type="button" class="fold-tab" data-fold="monthsPanel" aria-controls="monthsPanel" aria-expanded="false">📅 Months</button>
       <button type="button" class="fold-tab" data-fold="logPanel" aria-controls="logPanel" aria-expanded="false">🕒 Recent changes</button>
     </nav>
@@ -105,15 +101,15 @@
       <ul class="items-list" id="payments"></ul>
     </section>
 
-    <section class="panel fold" id="cardsPanel" data-view="overview" hidden>
+    <section class="panel" id="cardsPanel" data-view="cards">
       <div class="panel-head">
         <div>
-          <h2>Our cards</h2>
-          <p class="muted small">Tap a card to edit it. Using the other person's card on your own expense means paying them back.</p>
+          <h2>Our cards &amp; accounts</h2>
+          <p class="muted small">Tap one to edit it. Using the other person's card or account on your own expense means paying them back.</p>
         </div>
-        <div class="head-actions"><button class="btn" type="button" id="addCardBtn">＋ Add card</button></div>
+        <div class="head-actions"><button class="btn" type="button" id="addCardBtn">＋ Add card</button><button class="btn ghost" type="button" id="addAccountBtn">＋ Add account</button></div>
       </div>
-      <div class="seg cards-who" id="cardsWho" role="radiogroup" aria-label="Whose cards"></div>
+      <div class="seg cards-who" id="cardsWho" role="radiogroup" aria-label="Whose cards and accounts"></div>
       <h3 class="guide-h" id="cardsSpentH">Spent on each card</h3>
       <div class="cc-grid" id="cardList"></div>
       <div class="guide-h guide-h-row"><h3 class="guide-h">Which card for what</h3><button type="button" class="linkish small" id="editGuide">✏️ Edit</button></div>
@@ -140,7 +136,6 @@
         <div class="head-actions">
           <button class="btn ghost" type="button" id="gridToday">⬆ Today</button>
           <label class="btn ghost date-jump">📅 Go to date<input type="date" id="gridDate" aria-label="Go to date" /></label>
-          <button class="btn" type="button" data-add>＋ Add expense</button>
         </div>
       </div>
       <div class="grid-wrap"><table class="grid" id="grid"></table></div>
@@ -148,10 +143,10 @@
   </main>
 
   <nav class="bottom-nav" aria-label="Views">
-    <button type="button" data-view-btn="home"><span aria-hidden="true">🏠</span>Home</button>
+    <button type="button" data-view-btn="home"><span aria-hidden="true">🧾</span>Spending</button>
     <button type="button" data-view-btn="overview"><span aria-hidden="true">📊</span>Overview</button>
     <button type="button" data-view-btn="cards"><span aria-hidden="true">💳</span>Cards</button>
-    <button type="button" id="navSettings"><span aria-hidden="true">⚙️</span>Settings</button>
+    <button type="button" id="settingsBtn"><span aria-hidden="true">⚙️</span>Settings</button>
   </nav>
 
   <button class="fab" type="button" data-add aria-label="Add expense">＋</button>
@@ -220,15 +215,19 @@
   <dialog id="cardDlg">
     <form id="cardForm" class="card-form">
       <h2 id="cardDlgTitle">Add card</h2>
+      <fieldset class="plain"><legend>Type</legend><div class="seg" id="cardKind">
+        <label><input type="radio" name="cardKind" value="card" checked /><span>💳 Card</span></label>
+        <label><input type="radio" name="cardKind" value="account" /><span>🏦 Account</span></label>
+      </div></fieldset>
       <div class="cc-preview" id="cardPreview" aria-hidden="true"></div>
       <div class="art-actions">
         <label class="btn ghost small-btn"><input type="file" id="cardArtInput" accept="image/*" hidden />📷 <span id="cardArtLabel">Add a picture of the card</span></label>
         <button type="button" class="btn ghost small-btn" id="cardArtRemove" hidden>Remove picture</button>
       </div>
       <p class="muted small art-tip">Use the card's picture from the bank's website or app, or a photo of the front with the card number covered.</p>
-      <label>Card name <input name="name" maxlength="24" placeholder="e.g. DBS Live Fresh" required autocomplete="off" /></label>
+      <label><span id="cardNameLabel">Card name</span> <input name="name" maxlength="24" placeholder="e.g. DBS Live Fresh" required autocomplete="off" /></label>
       <label>Last 4 digits, optional <input name="digits" inputmode="numeric" maxlength="4" pattern="\d{4}" placeholder="1234" autocomplete="off" /></label>
-      <fieldset class="plain"><legend>Whose card</legend><div class="seg" id="cardOwner"></div></fieldset>
+      <fieldset class="plain"><legend>Whose is it</legend><div class="seg" id="cardOwner"></div></fieldset>
       <fieldset class="plain"><legend>Colour</legend><div class="icon-choices" id="cardIcons"></div></fieldset>
       <details class="card-auto">
         <summary>Auto-pick this card for… <span class="muted small" id="cardCatsCount"></span></summary>

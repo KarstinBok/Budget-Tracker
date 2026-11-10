@@ -793,8 +793,9 @@ dialog.wide-dlg { width: min(560px, calc(100vw - 24px)); }
 .date-jump input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
 
 /* Everyday expenses: 🏠 home view (spending at a glance and by day) and the bottom bar. */
-body.daily[data-view="home"] [data-view="overview"],
-body.daily[data-view="overview"] [data-view="home"] { display: none !important; }
+body.daily[data-view="home"] [data-view]:not([data-view~="home"]),
+body.daily[data-view="overview"] [data-view]:not([data-view~="overview"]),
+body.daily[data-view="cards"] [data-view]:not([data-view~="cards"]) { display: none !important; }
 .daily main { padding-bottom: 96px; }
 .flow { display: grid; gap: 14px; }
 .flow-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
@@ -1187,3 +1188,38 @@ fieldset.plain legend { padding: 0; margin-bottom: 6px; font-size: 0.85rem; colo
 /* "Who's this?" picker */
 .people-pick { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
 .people-pick .btn { padding: 12px; font-size: 1rem; }
+.cc-slate { --c1: #5b6b7f; --c2: #2f3a48; }
+.cc-sub-h { margin: 10px 2px 6px; font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+#cardKind { width: fit-content; }
+#cardsPanel .head-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* ⚙️ Settings and the app map */
+.settings-seg { width: fit-content; margin: 8px 0; }
+.flow-map, .flow-map ul { list-style: none; margin: 0; padding: 0; }
+.flow-map ul { margin-left: 12px; padding-left: 16px; border-left: 2px solid var(--border); }
+.flow-map li { position: relative; padding: 6px 0 2px; }
+.flow-map ul > li::before { content: ""; position: absolute; left: -16px; top: 20px; width: 12px; border-top: 2px solid var(--border); }
+.flow-map small { display: block; margin: 2px 0 0 2px; font-size: 0.78rem; color: var(--muted); }
+.fm-node { display: inline-block; padding: 6px 12px; border-radius: 10px; background: var(--accent-soft); color: var(--text); font-weight: 700; }
+.fm-root > .fm-node { background: var(--accent); color: #fff; }
+.fm-leaf { display: inline-block; padding: 3px 10px; border-radius: 8px; background: var(--surface-2); font-weight: 600; font-size: 0.9rem; }
+
+/* 📅 Food calendar */
+.cal-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cal-head h2 { margin: 0; font-size: 1.05rem; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; margin-top: 8px; }
+.cal-wd { text-align: center; font-size: 0.72rem; font-weight: 700; color: var(--muted); padding-bottom: 2px; }
+.cal-day { display: grid; justify-items: center; align-content: start; gap: 1px; min-height: 58px; padding: 4px 2px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text); font: inherit; cursor: pointer; }
+.cal-day.blank { border: 0; background: none; cursor: default; }
+.cal-day:disabled { opacity: 0.35; cursor: default; }
+.cal-day b { font-size: 0.8rem; font-weight: 600; }
+.cal-day small { font-size: 0.62rem; color: var(--muted); white-space: nowrap; }
+.cal-day.today { outline: 2px solid var(--accent); outline-offset: -1px; }
+.cal-day.ok { background: color-mix(in srgb, var(--good) 14%, var(--surface)); border-color: color-mix(in srgb, var(--good) 40%, var(--border)); }
+.cal-day.over { background: color-mix(in srgb, #c0392b 12%, var(--surface)); border-color: color-mix(in srgb, #c0392b 35%, var(--border)); }
+.cal-mark { font-size: 1.05rem; font-weight: 800; line-height: 1; min-height: 1em; }
+.cal-mark.ok { color: var(--good); }
+.cal-mark.over { color: #c0392b; }
+.cal-mark.now { color: var(--accent); }
+.cal-key { margin-top: 8px; }
+.cal-key .cal-mark { font-size: 0.95rem; }

@@ -128,7 +128,7 @@ function render() {
   }
   if ($(".fold-tab.active")?.hidden) openFold(null);
   document.body.dataset.view = view;
-  const navOn = view === "home" ? "home" : $(".fold-tab.active")?.dataset.fold === "cardsPanel" ? "cards" : "overview";
+  const navOn = view;
   for (const b of document.querySelectorAll("[data-view-btn]")) b.classList.toggle("active", b.dataset.viewBtn === navOn);
 
   $("#subtitle").textContent = screen === "personal" ? "What each of us spends" : `Split between ${doc.people.join(" and ")}`;
@@ -352,10 +352,8 @@ function setView(next, fold) {
 $(".bottom-nav").addEventListener("click", (e) => {
   const b = e.target.closest("[data-view-btn]");
   if (!b) return;
-  if (b.dataset.viewBtn === "cards") setView("overview", "cardsPanel");
-  else setView(b.dataset.viewBtn);
+  setView(b.dataset.viewBtn);
 });
-$("#navSettings").addEventListener("click", () => $("#settingsBtn").click());
 
 function setCard(n, label, big, sub) {
   $(`#c${n}Label`).textContent = label;
@@ -423,7 +421,8 @@ function splitCardName(full) {
 }
 
 // A card's colour, from its emoji.
-const CARD_ICONS = [["💳", "navy"], ["🔴", "red"], ["🟣", "purple"], ["🔵", "blue"], ["🟢", "green"], ["🟠", "orange"], ["🟡", "yellow"], ["⚫", "black"], ["⚪", "silver"], ["📲", "teal"], ["💵", "cash"]];
+const CARD_ICONS = [["💳", "navy"], ["🔴", "red"], ["🟣", "purple"], ["🔵", "blue"], ["🟢", "green"], ["🟠", "orange"], ["🟡", "yellow"], ["⚫", "black"], ["⚪", "silver"], ["📲", "teal"], ["🏦", "slate"], ["💵", "cash"]];
+const isAccount = (c) => c?.kind === "account";
 const cardTone = (emoji) => CARD_ICONS.find(([e]) => e === emoji)?.[1] ?? "red";
 
 // Card pictures (see netlify/functions/card-art.mjs), loaded once and again whenever a
@@ -500,7 +499,7 @@ function renderCardList() {
   $("#cardsWho").innerHTML = [...doc.people, "all"].map((p) => `<label><input type="radio" name="cardsWho" value="${esc(p)}"
     ${p === who ? "checked" : ""} /><span>${p === "all" ? "Both" : esc(p)}</span></label>`).join("");
   const mon = monthName(month, { month: "short" });
-  $("#cardsSpentH").textContent = `Spent on each card · ${monthName(month, { month: "long" })}`;
+  $("#cardsSpentH").textContent = `Spent on each card and account · ${monthName(month, { month: "long" })}`;
   const items = doc.items.filter((i) => i.date.startsWith(month));
   const spentOn = (c) => sum(items.filter((i) => i.card === c.id));
   const tile = (c) => {
@@ -531,14 +530,17 @@ function renderCardList() {
       ${notes}
     </button>`;
   };
-  const addTile = (owner) => `<button type="button" class="cc cc-add" data-add-card="${esc(owner)}"><span aria-hidden="true">＋</span>Add ${esc(owner)}'s card</button>`;
+  const addTile = (owner, kind) => `<button type="button" class="cc cc-add" data-add-card="${esc(owner)}" data-kind="${kind}"><span aria-hidden="true">＋</span>Add ${esc(owner)}'s ${kind}</button>`;
   const group = (o) => {
     // Most used first, then by name.
     const cards = doc.cards.filter((c) => c.owner === o).sort((x, y) => spentOn(y) - spentOn(x) || x.name.localeCompare(y.name));
     const all = cards.reduce((s, c) => s + spentOn(c), 0);
     return `<section class="cc-group">
-      <h4><span>${esc(o)}'s cards <span class="muted">· ${cards.length}</span></span><span class="muted">${all ? `${money(all)} in ${mon}` : `Nothing in ${mon}`}</span></h4>
-      <div class="cc-tiles">${cards.map(tile).join("")}${addTile(o)}</div>
+      <h4><span>${esc(o)} <span class="muted">· ${cards.length}</span></span><span class="muted">${all ? `${money(all)} in ${mon}` : `Nothing in ${mon}`}</span></h4>
+      <h5 class="cc-sub-h">💳 Cards</h5>
+      <div class="cc-tiles">${cards.filter((c) => !isAccount(c)).map(tile).join("")}${addTile(o, "card")}</div>
+      <h5 class="cc-sub-h">🏦 Accounts</h5>
+      <div class="cc-tiles">${cards.filter(isAccount).map(tile).join("")}${addTile(o, "account")}</div>
     </section>`;
   };
   $("#cardList").innerHTML = (who === "all" ? doc.people : [who]).map(group).join("");
@@ -553,9 +555,10 @@ $("#cardList").addEventListener("click", (e) => {
   const tile = e.target.closest("[data-card]");
   if (tile) return openCard(cardOf(tile.dataset.card));
   const add = e.target.closest("[data-add-card]");
-  if (add) openCard(null, add.dataset.addCard);
+  if (add) openCard(null, add.dataset.addCard, add.dataset.kind || "card");
 });
-$("#addCardBtn").addEventListener("click", () => openCard(null, cardsWho() === "all" ? me() ?? doc.people[0] : cardsWho()));
+$("#addCardBtn").addEventListener("click", () => openCard(null, cardsWho() === "all" ? me() ?? doc.people[0] : cardsWho(), "card"));
+$("#addAccountBtn").addEventListener("click", () => openCard(null, cardsWho() === "all" ? me() ?? doc.people[0] : cardsWho(), "account"));
 $("#editGuide").addEventListener("click", () => {
   if (!doc) return;
   renderSettings();
@@ -603,23 +606,26 @@ $("#cardArtInput").addEventListener("change", async (e) => {
 });
 $("#cardArtRemove").addEventListener("click", () => { pendingArt = ""; updateCardPreview(); });
 
-function openCard(card, owner) {
+function openCard(card, owner, kind = "card") {
   if (!doc) return;
   editingCard = card;
+  const k = card ? (isAccount(card) ? "account" : "card") : kind;
+  cardForm.querySelector(`input[name="cardKind"][value="${k}"]`).checked = true;
   pendingArt = null;
   const { name, digits } = card ? splitCardName(card.name) : { name: "", digits: "" };
   cardForm.elements.name.value = name;
   cardForm.elements.digits.value = digits;
   const own = card?.owner ?? owner ?? me() ?? doc.people[0];
   $("#cardOwner").innerHTML = doc.people.map((p) => `<label><input type="radio" name="cardOwner" value="${esc(p)}" ${p === own ? "checked" : ""} /><span>${esc(p)}</span></label>`).join("");
-  const icon = card?.emoji ?? "💳";
+  const icon = card?.emoji ?? (k === "account" ? "🏦" : "💳");
   const icons = CARD_ICONS.some(([e]) => e === icon) ? CARD_ICONS : [[icon, "red"], ...CARD_ICONS];
   $("#cardIcons").innerHTML = icons.map(([e, tone]) => `<label class="icon-choice cc-${tone}"><input type="radio" name="cardIcon" value="${esc(e)}" ${e === icon ? "checked" : ""} /><span>${esc(e)}</span></label>`).join("");
   $("#cardCats").innerHTML = doc.categories.map((k) => `<label class="cat-choice"><input type="checkbox" name="cats" value="${esc(k.id)}"
     ${card?.cats.includes(k.id) ? "checked" : ""} /><span><span class="emoji">${esc(k.emoji)}</span>${esc(k.name)}</span></label>`).join("");
   cardForm.querySelector(".card-auto").open = false;
-  $("#cardDlgTitle").textContent = card ? "Edit card" : "Add card";
-  $("#cardSave").textContent = card ? "Save" : "Add card";
+  const noun = k === "account" ? "account" : "card";
+  $("#cardDlgTitle").textContent = card ? `Edit ${noun}` : `Add ${noun}`;
+  $("#cardSave").textContent = card ? "Save" : `Add ${noun}`;
   $("#cardDelete").hidden = !card;
   updateCardPreview();
   $("#cardDlg").showModal();
@@ -631,6 +637,7 @@ function cardFormValues() {
   const digits = cardForm.elements.digits.value.replace(/\D/g, "").slice(0, 4);
   return {
     name: digits ? `${name} (${digits})` : name,
+    kind: cardForm.querySelector('input[name="cardKind"]:checked')?.value ?? "card",
     emoji: cardForm.querySelector('input[name="cardIcon"]:checked')?.value ?? "💳",
     owner: cardForm.querySelector('input[name="cardOwner"]:checked')?.value,
     cats: [...cardForm.querySelectorAll('input[name="cats"]:checked')].map((i) => i.value),
@@ -639,6 +646,13 @@ function cardFormValues() {
 
 function updateCardPreview() {
   const v = cardFormValues();
+  const acct = v.kind === "account";
+  $("#cardNameLabel").textContent = acct ? "Account name" : "Card name";
+  cardForm.elements.name.placeholder = acct ? "e.g. OCBC 360, PayNow (UOB), GrabPay" : "e.g. DBS Live Fresh";
+  if (!editingCard) {
+    $("#cardDlgTitle").textContent = acct ? "Add account" : "Add card";
+    $("#cardSave").textContent = acct ? "Add account" : "Add card";
+  }
   const { name, digits } = splitCardName(v.name);
   const art = pendingArt ?? artOf(editingCard);
   $("#cardPreview").className = `cc-preview cc cc-${cardTone(v.emoji)}${art ? " has-art" : ""}`;
@@ -959,8 +973,8 @@ function renderCardChoices(selected, first) {
     ${value === selected ? "checked" : ""} required /><span>${label}</span></label>`;
   const order = [first, ...doc.people.filter((p) => p !== first)];
   $("#cardChoices").innerHTML = `<div class="pay-group">${chip("", "💵 Cash / other")}</div>` + order.map((p) => {
-    const cards = doc.cards.filter((c) => c.owner === p).sort((a, b) => a.name.localeCompare(b.name));
-    return cards.length ? `<div class="pay-head">${esc(p)}'s cards</div><div class="pay-group">${cards.map((c) => chip(c.id, `${artOf(c) ? `<img class="pay-art" src="${artOf(c)}" alt="" />` : esc(c.emoji)} ${esc(c.name)}`)).join("")}</div>` : "";
+    const cards = doc.cards.filter((c) => c.owner === p).sort((a, b) => Number(isAccount(a)) - Number(isAccount(b)) || a.name.localeCompare(b.name));
+    return cards.length ? `<div class="pay-head">${esc(p)}'s cards &amp; accounts</div><div class="pay-group">${cards.map((c) => chip(c.id, `${artOf(c) ? `<img class="pay-art" src="${artOf(c)}" alt="" />` : esc(c.emoji)} ${esc(c.name)}`)).join("")}</div>` : "";
   }).join("");
 }
 
@@ -1116,7 +1130,7 @@ function renderSettingsNow() {
 }
 $("#settingsToCards").addEventListener("click", () => {
   $("#settingsDlg").close();
-  setView("overview", "cardsPanel");
+  setView("cards");
 });
 
 $("#settingsBtn").addEventListener("click", () => { if (doc) { renderSettings(); $("#settingsDlg").showModal(); } });

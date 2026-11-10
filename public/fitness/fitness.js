@@ -178,7 +178,64 @@ function foodRow(f) {
 
 // ---------------------------------------------------------------- progress
 
+// 📅 Calendar: each day of the month, ✓ when that day stayed within its calorie goal.
+let calMonth = localToday().slice(0, 7);
+const monthAdd = (ym, n) => { const [y, m] = ym.split("-").map(Number); const d = new Date(Date.UTC(y, m - 1 + n, 1)); return d.toISOString().slice(0, 7); };
+
+function dayResult(d) {
+  const eaten = sum(foodsOn(d), "kcal");
+  if (!eaten) return null;
+  const burned = exerciseAddsBack(doc, who) ? sum(exercisesOn(d), "kcal") : 0;
+  const goal = targets(who, d).kcal + burned;
+  return { eaten, goal, diff: eaten - goal };
+}
+
+function renderCalendar() {
+  const today = localToday();
+  const [y, m] = calMonth.split("-").map(Number);
+  const first = `${calMonth}-01`;
+  const days = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const lead = (new Date(`${first}T00:00:00Z`).getUTCDay() + 6) % 7; // Monday first
+  $("#calTitle").textContent = new Date(`${first}T00:00:00Z`).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+  $("#calNext").disabled = calMonth >= today.slice(0, 7);
+  let under = 0, over = 0;
+  const cells = [];
+  for (let i = 0; i < lead; i++) cells.push(`<span class="cal-day blank"></span>`);
+  for (let n = 1; n <= days; n++) {
+    const d = `${calMonth}-${String(n).padStart(2, "0")}`;
+    const r = d <= today ? dayResult(d) : null;
+    let cls = "", mark = "", sub = "";
+    if (r && d === today && r.diff <= 0) { cls = "now"; mark = "•"; sub = `${fmt(r.goal - r.eaten)} left`; }
+    else if (r && r.diff <= 0) { cls = "ok"; mark = "✓"; sub = fmt(r.eaten); under++; }
+    else if (r) { cls = "over"; mark = "✕"; sub = `+${fmt(r.diff)}`; over++; }
+    cells.push(`<button type="button" class="cal-day ${cls}${d === today ? " today" : ""}" data-day="${d}" ${d > today ? "disabled" : ""}
+      title="${r ? `${fmt(r.eaten)} of ${fmt(r.goal)} kcal` : "Nothing logged"}"><b>${n}</b><span class="cal-mark ${cls}">${mark}</span><small>${sub}</small></button>`);
+  }
+  $("#calGrid").innerHTML = ["M", "T", "W", "T", "F", "S", "S"].map((w) => `<span class="cal-wd">${w}</span>`).join("") + cells.join("");
+  // Streak of finished days within goal, counting back from yesterday.
+  let streak = 0;
+  for (let d = shiftDay(today, -1); ; d = shiftDay(d, -1)) {
+    const r = dayResult(d);
+    if (!r || r.diff > 0) break;
+    streak++;
+    if (streak > 365) break;
+  }
+  const logged = under + over;
+  $("#calSummary").textContent = logged
+    ? `${who}: ${under} of ${logged} logged day${logged === 1 ? "" : "s"} within goal this month${streak ? ` · 🔥 ${streak}-day streak` : ""}`
+    : `${who}: nothing logged this month yet`;
+}
+$("#calPrev").addEventListener("click", () => { calMonth = monthAdd(calMonth, -1); renderCalendar(); });
+$("#calNext").addEventListener("click", () => { calMonth = monthAdd(calMonth, 1); renderCalendar(); });
+$("#calGrid").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-day]");
+  if (!b || b.disabled) return;
+  day = b.dataset.day;
+  location.hash = "#diary";
+});
+
 function renderProgress() {
+  renderCalendar();
   const ws = weighIns();
   const pr = doc.profiles[who] ?? {};
   const t = fitnessTargets(doc, who, localToday()); // the usual goal
