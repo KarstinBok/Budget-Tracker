@@ -135,12 +135,20 @@
       <p class="claude-tip">📷 Send a photo or description of your food to Claude in the Claude app. It'll work out the calories and log them here.</p>
       <div class="seg src-tabs" role="tablist" aria-label="How to add">
         <label><input type="radio" name="src" value="recent" checked /><span>🕒 Recent</span></label>
+        <label><input type="radio" name="src" value="recipes" /><span>📖 Recipes</span></label>
         <label><input type="radio" name="src" value="manual" /><span>✏️ Manual</span></label>
       </div>
 
       <div class="src-pane" data-src="recent">
-        <input type="search" id="recentSearch" placeholder="Search saved and logged foods" aria-label="Search recent foods" />
+        <input type="search" id="recentSearch" placeholder="Search favourites and foods you've logged" aria-label="Search favourites and recent foods" />
+        <p class="muted small src-tip">Tap a food to log it. Tap ☆ to make it a favourite: favourites stay at the top.</p>
         <ul class="items-list food-list recent-list" id="recentList"></ul>
+      </div>
+
+      <div class="src-pane" data-src="recipes" hidden>
+        <input type="search" id="recipeSearch" placeholder="Search recipes and saved foods" aria-label="Search recipes and saved foods" />
+        <p class="muted small src-tip">Your recipes and saved foods, shared by both of you. Tap one to log a serving; open Recipe to see what's in it.</p>
+        <ul class="items-list food-list recent-list" id="recipeList"></ul>
       </div>
 
       <div class="src-pane" data-src="manual" hidden>

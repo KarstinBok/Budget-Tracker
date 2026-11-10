@@ -1168,3 +1168,18 @@ fieldset.plain legend { padding: 0; margin-bottom: 6px; font-size: 0.85rem; colo
 .recent-list li.added .recent-add::before { content: "✓"; }
 .recent-list li.added .recent-add { font-size: 0; }
 .recent-list li.added .recent-add::before { font-size: 1rem; }
+
+/* Add food: favourites ☆ and the recipes tab */
+.src-tip { margin: 6px 2px 2px; }
+.items-list.recent-list li {
+  display: grid; grid-template-columns: 30px minmax(0, 1fr); grid-template-rows: auto;
+  grid-auto-flow: column; grid-auto-columns: auto; align-items: center; gap: 8px;
+}
+.recent-list .star-btn {
+  all: unset; box-sizing: border-box; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px;
+  font-size: 1.3rem; line-height: 1; color: var(--muted); cursor: pointer;
+}
+.recent-list .star-btn:hover { background: var(--surface-2); }
+.recent-list .star-btn.on { color: #e0a100; }
+.recent-list .star-btn:focus-visible { outline: 2px solid var(--accent); }
+.recent-list li.list-head, .recent-list li.muted { display: block; }

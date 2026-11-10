@@ -318,6 +318,7 @@ function openFood(meal) {
   const last = store.get("fitness.src");
   (foodForm.querySelector(`input[name="src"][value="${last}"]`) ?? foodForm.querySelector('input[name="src"]')).checked = true;
   $("#recentSearch").value = "";
+  $("#recipeSearch").value = "";
   for (const id of ["#mName", "#mAmount", "#mKcal", "#mP", "#mC", "#mF"]) $(id).value = "";
   $("#foodCancel").textContent = "Cancel";
   showSrc();
@@ -327,7 +328,7 @@ function openFood(meal) {
 
 function showSrc() {
   for (const p of foodForm.querySelectorAll(".src-pane")) p.hidden = p.dataset.src !== src();
-  if (src() === "recent") renderRecent();
+  renderFoodLists();
 }
 
 foodForm.addEventListener("change", (e) => {
@@ -445,52 +446,89 @@ function addToReview(items, source) {
   renderReview();
 }
 
-const recentRow = (f, saved) => `<li data-${saved ? "saved" : "recent"}="${esc(f.id)}" role="button" tabindex="0">
-    <div class="item-main"><span class="item-note">${saved ? "⭐ " : ""}<b>${esc(f.name)}</b></span>
+// Favourites and recent foods match on name and amount.
+const foodKey = (f) => `${norm(f.name)}|${norm(f.amount)}`;
+const favouritesOf = (p = who) => (doc.favourites ?? []).filter((f) => f.person === p);
+const favouriteFor = (f) => favouritesOf().find((x) => foodKey(x) === foodKey(f));
+
+// kind: "fav" (a favourite), "recent" (a food logged before) or "saved" (a recipe / saved food).
+const pickRow = (f, kind) => {
+  const fav = kind === "fav" || !!favouriteFor(f);
+  return `<li data-${kind}="${esc(f.id)}" role="button" tabindex="0">
+    <button type="button" class="star-btn${fav ? " on" : ""}" data-star title="${fav ? "Remove from favourites" : "Add to favourites"}" aria-label="${fav ? "Remove" : "Add"} ${esc(f.name)} ${fav ? "from" : "to"} favourites" aria-pressed="${fav}">${fav ? "★" : "☆"}</button>
+    <div class="item-main"><span class="item-note"><b>${esc(f.name)}</b></span>
       <span class="item-meta">${f.amount ? `${esc(f.amount)} · ` : ""}P ${g(f.p)} · C ${g(f.c)} · F ${g(f.f)}</span>
-      ${saved && (f.recipe || f.ingredients?.length) ? `<details class="saved-recipe"><summary>Recipe</summary>
+      ${kind === "saved" && (f.recipe || f.ingredients?.length) ? `<details class="saved-recipe"><summary>Recipe</summary>
         ${f.ingredients?.length ? `<ul>${f.ingredients.map((i) => `<li>${esc(i.name)}${i.grams ? ` · ${r1(i.grams)} g` : ""} · ${fmt(i.kcal)} kcal</li>`).join("")}</ul>` : ""}
         ${f.recipe ? `<p>${esc(f.recipe).replace(/\n/g, "<br>")}</p>` : ""}</details>` : ""}</div>
     <div class="item-amt">${fmt(f.kcal)}</div>
-    ${saved ? `<button type="button" class="icon-btn" data-del-saved="${esc(f.id)}" title="Remove from saved foods" aria-label="Remove ${esc(f.name)} from saved foods">🗑</button>` : ""}
+    ${kind === "saved" ? `<button type="button" class="icon-btn" data-del-saved="${esc(f.id)}" title="Remove from recipes" aria-label="Remove ${esc(f.name)} from recipes">🗑</button>` : ""}
     <span class="recent-add" aria-hidden="true">＋</span></li>`;
+};
 
-// Saved foods (shared by everyone) first, then foods this person logged before, newest
-// first, one per name and amount.
+// 🕒 Recent: this person's favourites first, then foods they logged before (newest first,
+// one per name and amount, leaving out ones already in favourites).
 function renderRecent() {
   const q = norm($("#recentSearch").value);
-  const saved = (doc.library ?? []).filter((f) => !q || norm(f.name).includes(q)).sort((a, b) => a.name.localeCompare(b.name));
-  const seen = new Set();
+  const match = (f) => !q || norm(f.name).includes(q);
+  const favs = favouritesOf().filter(match).sort((a, b) => a.name.localeCompare(b.name));
+  const seen = new Set(favouritesOf().map(foodKey));
   const list = [];
-  for (const f of [...doc.foods].filter((x) => x.person === who).sort((a, b) => b.t - a.t)) {
-    const key = `${norm(f.name)}|${norm(f.amount)}`;
-    if (seen.has(key) || (q && !norm(f.name).includes(q))) continue;
+  for (const f of doc.foods.filter((x) => x.person === who).sort((a, b) => b.t - a.t)) {
+    const key = foodKey(f);
+    if (seen.has(key) || !match(f)) continue;
     seen.add(key);
     list.push(f);
     if (list.length >= 40) break;
   }
   $("#recentList").innerHTML =
-    (saved.length ? `<li class="list-head">Saved foods</li>${saved.map((f) => recentRow(f, true)).join("")}` : "") +
-    (list.length ? `${saved.length ? `<li class="list-head">Logged before</li>` : ""}${list.map((f) => recentRow(f, false)).join("")}` : "") ||
+    (favs.length ? `<li class="list-head">⭐ Favourites</li>${favs.map((f) => pickRow(f, "fav")).join("")}` : "") +
+    (list.length ? `<li class="list-head">🕒 Logged recently</li>${list.map((f) => pickRow(f, "recent")).join("")}` : "") ||
     `<li class="muted small">${q ? "No match." : "Foods you log will show up here, ready to add again."}</li>`;
 }
+
+// 📖 Recipes: the shared saved foods and recipes.
+function renderRecipes() {
+  const q = norm($("#recipeSearch").value);
+  const list = (doc.library ?? []).filter((f) => !q || norm(f.name).includes(q)).sort((a, b) => a.name.localeCompare(b.name));
+  $("#recipeList").innerHTML = list.map((f) => pickRow(f, "saved")).join("") ||
+    `<li class="muted small">${q ? "No match." : "No recipes yet. Ask Claude to save one, or tap a logged food in the diary and choose ⭐ Save food."}</li>`;
+}
+
+const renderFoodLists = () => { if (src() === "recent") renderRecent(); else if (src() === "recipes") renderRecipes(); };
 $("#recentSearch").addEventListener("input", renderRecent);
-$("#recentList").addEventListener("click", async (e) => {
+$("#recipeSearch").addEventListener("input", renderRecipes);
+
+async function toggleFavourite(f) {
+  const fav = favouriteFor(f);
+  if (fav) await sync.runOp({ op: "removeFavourite", id: fav.id }, `Removed ${f.name} from favourites`);
+  else {
+    const keep = ["name", "amount", "kcal", "p", "c", "f", "fiber", "sugar", "sodium", "grams", "ref", "refName", "ingredients", "note"];
+    await sync.runOp({ op: "addFavourite", person: who, food: Object.fromEntries(keep.filter((k) => f[k] !== undefined).map((k) => [k, f[k]])) }, `⭐ ${f.name} added to favourites`);
+  }
+  renderFoodLists();
+}
+
+async function onFoodListClick(e) {
   if (e.target.closest("details")) return; // opening a recipe
-  const del = e.target.closest("[data-del-saved]");
-  if (del) {
-    const f = doc.library.find((x) => x.id === del.dataset.delSaved);
-    if (f && confirm(`Remove ${f.name} from saved foods?`)) {
+  const li = e.target.closest("[data-recent], [data-saved], [data-fav]");
+  if (!li) return;
+  const f = li.dataset.saved ? doc.library.find((x) => x.id === li.dataset.saved)
+    : li.dataset.fav ? favouritesOf().find((x) => x.id === li.dataset.fav)
+    : doc.foods.find((x) => x.id === li.dataset.recent);
+  if (!f) return;
+  if (e.target.closest("[data-star]")) return toggleFavourite(f);
+  if (e.target.closest("[data-del-saved]")) {
+    if (confirm(`Remove ${f.name} from recipes?`)) {
       await sync.runOp({ op: "deleteLibraryFood", id: f.id }, `Removed ${f.name}`);
-      renderRecent();
+      renderRecipes();
     }
     return;
   }
-  const li = e.target.closest("[data-recent], [data-saved]");
-  if (!li) return;
-  const f = li.dataset.saved ? doc.library.find((x) => x.id === li.dataset.saved) : doc.foods.find((x) => x.id === li.dataset.recent);
-  if (f && !li.classList.contains("adding")) await logNow([f], "recent", li);
-});
+  if (!li.classList.contains("adding")) await logNow([f], "recent", li);
+}
+$("#recentList").addEventListener("click", onFoodListClick);
+$("#recipeList").addEventListener("click", onFoodListClick);
 
 $("#manualAdd").addEventListener("click", async () => {
   const name = $("#mName").value.trim();
