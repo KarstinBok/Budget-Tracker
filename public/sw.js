@@ -29,7 +29,7 @@ self.addEventListener("push", (event) => {
     tag: data.tag,
     renotify: !!(data.tag && data.renotify), // buzz again when a notification replaces one
     data: { url: data.url || "/" },
-    icon: "/icons/icon-192.png",
+    icon: "/icons/icon-192.png?v=2",
     badge: "/icons/icon-192.png",
   }));
 });
