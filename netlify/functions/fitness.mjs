@@ -49,6 +49,9 @@ export function defaultDoc() {
     // Saved foods and recipes, shared by everyone, to add to a diary in one tap:
     // { id, name, amount, kcal, p, c, f, …same as a food…, recipe?, by, t }
     library: [],
+    // Favourites: foods a person logs often, shown first when adding food (a copy of the
+    // food, so it stays when the log it came from is deleted): { id, person, ...food, by, t }
+    favourites: [],
     log: [],
   };
 }
@@ -57,6 +60,7 @@ export function normalize(doc) {
   for (const p of doc.people) doc.profiles[p] ??= defaultProfile();
   doc.library ??= [];
   doc.toilet ??= [];
+  doc.favourites ??= [];
   return doc;
 }
 
@@ -247,6 +251,24 @@ export function applyOp(doc, body, by) {
       if (!x) return null;
       doc.toilet = doc.toilet.filter((e) => e !== x);
       return `removed ${x.person}'s toilet entry on ${prettyDate(x.date)}`;
+    }
+
+    case "addFavourite": {
+      const who = person(doc, body.person);
+      const food = readFood({ ...(body.food ?? {}), source: "recent" });
+      delete food.source;
+      const key = (f) => `${f.name.toLowerCase()}|${(f.amount ?? "").toLowerCase()}`;
+      if (doc.favourites.some((f) => f.person === who && key(f) === key(food))) return null;
+      if (doc.favourites.filter((f) => f.person === who).length >= 200) fail("Too many favourites");
+      doc.favourites.push({ id: randomUUID(), person: who, ...food, by, t: Date.now() });
+      return `added ${food.name} to ${who}'s favourites`;
+    }
+
+    case "removeFavourite": {
+      const f = doc.favourites.find((x) => x.id === body.id);
+      if (!f) return null;
+      doc.favourites = doc.favourites.filter((x) => x !== f);
+      return `removed ${f.name} from ${f.person}'s favourites`;
     }
 
     case "saveLibraryFood": {
