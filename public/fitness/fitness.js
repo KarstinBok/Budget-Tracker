@@ -343,6 +343,7 @@ function renderReview() {
   const on = review.filter((r) => r.on);
   const kcal = on.reduce((s, r) => s + r.kcal * r.x, 0);
   $("#foodSubmit").disabled = !on.length;
+  $("#foodSubmit").hidden = !review.length; // tapping a food logs it straight away; this is only for a list
   $("#foodSubmit").textContent = on.length ? `Log ${on.length} food${on.length === 1 ? "" : "s"} · ${fmt(kcal)} kcal` : "Log food";
   $("#reviewTotal").textContent = on.length > 1
     ? `Total: ${fmt(kcal)} kcal · P ${g(on.reduce((s, r) => s + r.p * r.x, 0))} · C ${g(on.reduce((s, r) => s + r.c * r.x, 0))} · F ${g(on.reduce((s, r) => s + r.f * r.x, 0))}`
