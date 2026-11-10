@@ -7,10 +7,10 @@
   <meta name="application-name" content="Life Kalicc" />
   <meta name="apple-mobile-web-app-title" content="Life Kalicc" />
   <meta name="description" content="Our apps: everyday expenses, food & fitness, and the Japan trip." />
-  <link rel="icon" type="image/png" href="/icons/favicon-64.png?v=2" />
+  <link rel="icon" type="image/png" href="/icons/favicon-64.png?v=3" />
   <link rel="manifest" href="/manifest.webmanifest" />
   <meta name="theme-color" content="#bc002d" />
-  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=2" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=3" />
   <link rel="stylesheet" href="/style.css" />
   <script src="/theme.js"></script>
 </head>
@@ -24,6 +24,7 @@
       </div>
     </div>
     <div class="top-actions">
+      <a class="btn ghost" href="/settings/" title="Settings and app map" aria-label="Settings">⚙️</a>
       <button id="whoBtn" class="chip" type="button" title="Who's using this phone">👤 <span id="whoName">You</span></button>
     </div>
   </header>
@@ -49,6 +50,7 @@
         <a class="quick" href="https://claude.ai/new" target="_blank" rel="noopener"><span>📷</span><b>Food photo</b><small>in Claude</small></a>
         <a class="quick" href="/fitness/?add=weight&amp;from=home"><span>⚖️</span><b>Weight</b></a>
         <a class="quick" href="/fitness/?add=exercise&amp;from=home"><span>🏃</span><b>Exercise</b></a>
+        <a class="quick" href="/daily/?add=payment&amp;from=home"><span>🔁</span><b>Record a payment</b></a>
         <a class="quick" href="/toilet/?add=1&amp;from=home"><span>🚽</span><b>Poop</b></a>
       </nav>
     </section>
@@ -66,46 +68,26 @@
       <section class="panel fold home-panel" id="expensesPanel" hidden>
         <h3>Everyday expenses</h3>
         <div class="home-stats" id="expensesStats"><p class="muted small">Loading…</p></div>
-        <div class="home-links">
-          <a class="btn" href="/daily/#personal">👤 Personal</a>
-          <a class="btn ghost" href="/daily/#shared">🤝 Shared</a>
-          <a class="btn ghost" href="/daily/?add=payment&amp;from=home">💸 Record a payment</a>
-        </div>
       </section>
 
       <section class="panel fold home-panel" id="fitnessPanel" hidden>
         <h3>Food &amp; fitness today</h3>
         <div class="home-stats" id="fitnessStats"><p class="muted small">Loading…</p></div>
-        <div class="home-links">
-          <a class="btn" href="/fitness/#diary">📒 Diary</a>
-          <a class="btn ghost" href="/fitness/#progress">📈 Progress</a>
-        </div>
       </section>
 
       <section class="panel fold home-panel" id="toiletPanel" hidden>
         <h3>Toilet log</h3>
         <div class="home-stats" id="toiletStats"><p class="muted small">Loading…</p></div>
-        <div class="home-links">
-          <a class="btn" href="/toilet/">🚽 Open log</a>
-          <a class="btn ghost" href="/toilet/?add=1&amp;from=home">＋ Log a poop</a>
-        </div>
       </section>
 
       <section class="panel fold home-panel" id="insurancePanel" hidden>
         <h3>Our insurance</h3>
         <div class="home-stats" id="insuranceStats"><p class="muted small">Loading…</p></div>
-        <div class="home-links">
-          <a class="btn" href="/insurance/">🛡️ All plans</a>
-        </div>
       </section>
 
       <section class="panel fold home-panel" id="japanPanel" hidden>
         <h3>Japan trip, 22 Oct – 5 Nov 2026</h3>
         <p class="muted small">Our shared budget and the trip journal.</p>
-        <div class="home-links">
-          <a class="btn" href="/japan/">💴 Budget</a>
-          <a class="btn ghost" href="/journal.html">📒 Journal</a>
-        </div>
       </section>
     </section>
   </main>

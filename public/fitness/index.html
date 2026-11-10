@@ -8,8 +8,8 @@
   <link rel="manifest" href="/daily/manifest.webmanifest" />
   <meta name="apple-mobile-web-app-title" content="Life Kalicc" />
   <meta name="theme-color" content="#bc002d" />
-  <link rel="icon" type="image/png" href="/icons/favicon-64.png?v=2" />
-  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=2" />
+  <link rel="icon" type="image/png" href="/icons/favicon-64.png?v=3" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=3" />
   <link rel="stylesheet" href="/style.css" />
   <script src="/theme.js"></script>
 </head>
@@ -27,14 +27,12 @@
       <a class="btn ghost" href="/" title="All our apps" aria-label="Home">🏠</a>
       <button id="whoBtn" class="chip" type="button" title="Change your name">👤 <span id="whoName">You</span></button>
       <button id="goalsBtn" class="btn ghost" type="button">🎯 Goals</button>
-      <button class="btn add-btn" type="button" data-add-food>＋ Add food</button>
     </div>
   </header>
 
   <nav class="screen-tabs" aria-label="Screens">
     <a href="#diary" data-screen="diary">📒 Diary</a>
     <a href="#progress" data-screen="progress">📈 Progress</a>
-    <a href="/daily/">💸 Expenses</a>
   </nav>
 
   <main>
@@ -85,6 +83,17 @@
       <article class="card"><h2>Goal weight</h2><p class="big" id="pGoal">—</p><p class="muted" id="pGoalSub"></p></article>
       <article class="card"><h2>Daily calorie goal</h2><p class="big" id="pKcal">—</p><p class="muted" id="pKcalSub"></p></article>
       <article class="card"><h2>Last 7 days</h2><p class="big" id="pWeek">—</p><p class="muted" id="pWeekSub"></p></article>
+    </section>
+
+    <section class="panel" data-only="progress" aria-labelledby="calTitle">
+      <div class="cal-head">
+        <button type="button" class="icon-btn" id="calPrev" aria-label="Previous month">‹</button>
+        <h2 id="calTitle">Calendar</h2>
+        <button type="button" class="icon-btn" id="calNext" aria-label="Next month">›</button>
+      </div>
+      <p class="muted small" id="calSummary"></p>
+      <div class="cal-grid" id="calGrid"></div>
+      <p class="muted small cal-key"><span class="cal-mark ok">✓</span> under goal · <span class="cal-mark over">✕</span> over goal · <span class="cal-mark now">•</span> today so far · tap a day to open it</p>
     </section>
 
     <section class="panel" data-only="progress">

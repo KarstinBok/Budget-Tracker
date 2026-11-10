@@ -142,7 +142,9 @@ function readCard(doc, body) {
   const name = str(body.name, 40);
   if (!name) fail("Give the card a name");
   const cats = [...new Set((Array.isArray(body.cats) ? body.cats : []).filter((id) => doc.categories.some((c) => c.id === id)))];
-  return { name, emoji: str(body.emoji, 8) || "💳", owner: person(doc, body.owner, "whose card this is"), cats };
+  // kind: "card" (credit/debit card) or "account" (a bank account, PayNow, e-wallet, …)
+  const kind = body.kind === "account" ? "account" : "card";
+  return { name, kind, emoji: str(body.emoji, 8) || (kind === "account" ? "🏦" : "💳"), owner: person(doc, body.owner, "whose card this is"), cats };
 }
 
 function applyOp(doc, body, by) {

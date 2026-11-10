@@ -290,7 +290,7 @@ $("#planDelete").addEventListener("click", async () => {
 
 // ---------------------------------------------------------------- events
 
-for (const id of ["#addPlanBtn", "#addPlanBtn2", "#fab"]) $(id).addEventListener("click", () => openPlan(null));
+$("#fab").addEventListener("click", () => openPlan(null));
 $("#planList").addEventListener("click", (e) => {
   const b = e.target.closest("[data-plan]");
   if (b) openPlan(doc.plans.find((p) => p.id === b.dataset.plan));

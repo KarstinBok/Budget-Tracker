@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content" />
+  <title>Settings · Life Kalicc</title>
+  <meta name="description" content="Who's using this phone, light or dark mode, and a map of every page in Life Kalicc." />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="theme-color" content="#bc002d" />
+  <meta name="apple-mobile-web-app-title" content="Life Kalicc" />
+  <link rel="icon" type="image/png" href="/icons/favicon-64.png?v=3" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=3" />
+  <link rel="stylesheet" href="/style.css" />
+  <script src="/theme.js"></script>
+</head>
+<body class="home settings-page">
+  <header class="topbar">
+    <div class="brand">
+      <span class="sun" aria-hidden="true"></span>
+      <div>
+        <h1>Settings</h1>
+        <p class="muted">Life Kalicc</p>
+      </div>
+    </div>
+    <div class="top-actions">
+      <a class="btn ghost" href="/" title="Back to all apps" aria-label="Home">🏠</a>
+    </div>
+  </header>
+
+  <main>
+    <section class="panel">
+      <h2>Who's using this phone</h2>
+      <p class="muted small">Everything you add is saved under this person.</p>
+      <div class="seg settings-seg" id="whoPick" role="radiogroup" aria-label="Who's using this phone"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Appearance</h2>
+      <div class="seg settings-seg" id="themePick" role="radiogroup" aria-label="Light or dark mode">
+        <label><input type="radio" name="theme" value="auto" /><span>🌓 Auto</span></label>
+        <label><input type="radio" name="theme" value="light" /><span>☀️ Light</span></label>
+        <label><input type="radio" name="theme" value="dark" /><span>🌙 Dark</span></label>
+      </div>
+      <p class="muted small">Auto follows your phone's setting.</p>
+    </section>
+
+    <section class="panel">
+      <h2>🗺️ App map</h2>
+      <p class="muted small">Every page, and the one button that takes you there. 🏠 at the top of any page brings you back home.</p>
+      <ul class="flow-map">
+        <li class="fm-root"><span class="fm-node">🏠 Home</span><small>Opens when you start the app</small>
+          <ul>
+            <li><span class="fm-node">💸 Expenses</span><small>Home → Open an app</small>
+              <ul>
+                <li><span class="fm-leaf">👤 Personal · 🤝 Shared</span><small>tabs at the top</small></li>
+                <li><span class="fm-leaf">🧾 Spending</span><small>bottom bar: day-by-day list</small></li>
+                <li><span class="fm-leaf">📊 Overview</span><small>bottom bar: summary, payments, months, recent changes</small></li>
+                <li><span class="fm-leaf">💳 Cards</span><small>bottom bar: cards &amp; accounts, which card for what</small></li>
+                <li><span class="fm-leaf">⚙️ Settings</span><small>bottom bar: names, categories, data</small></li>
+                <li><span class="fm-leaf">＋ Add expense</span><small>round ＋ button</small></li>
+              </ul>
+            </li>
+            <li><span class="fm-node">🥗 Food &amp; fitness</span><small>Home → Open an app</small>
+              <ul>
+                <li><span class="fm-leaf">📒 Diary</span><small>tab: meals, exercise, weight</small></li>
+                <li><span class="fm-leaf">📈 Progress</span><small>tab: calendar, weight and calorie charts</small></li>
+                <li><span class="fm-leaf">🎯 Goals</span><small>button at the top</small></li>
+                <li><span class="fm-leaf">＋ Add food</span><small>round ＋ button (or ＋ under a meal)</small></li>
+              </ul>
+            </li>
+            <li><span class="fm-node">🚽 Toilet log</span><small>Home → Open an app</small>
+              <ul><li><span class="fm-leaf">＋ Log a poop</span><small>round ＋ button</small></li></ul>
+            </li>
+            <li><span class="fm-node">🛡️ Insurance</span><small>Home → Open an app</small>
+              <ul><li><span class="fm-leaf">＋ Add plan</span><small>round ＋ button; tap a plan to edit</small></li></ul>
+            </li>
+            <li><span class="fm-node">🗾 Japan trip</span><small>Home → Open an app</small>
+              <ul>
+                <li><span class="fm-leaf">📒 Journal</span><small>button at the top</small></li>
+                <li><span class="fm-leaf">⚙️ Trip settings</span><small>button at the top</small></li>
+              </ul>
+            </li>
+            <li><span class="fm-node">⚙️ Settings</span><small>Home → ⚙️ at the top (this page)</small></li>
+          </ul>
+        </li>
+      </ul>
+      <p class="muted small">Quick add on the home page jumps straight into an app's add form and comes back home when you're done. 🔔 and 👤 are on every page.</p>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="/settings/settings.js" type="module"></script>
+  <script src="/notify.js" type="module"></script>
+</body>
+</html>
