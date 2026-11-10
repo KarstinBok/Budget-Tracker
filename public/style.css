@@ -1183,3 +1183,7 @@ fieldset.plain legend { padding: 0; margin-bottom: 6px; font-size: 0.85rem; colo
 .recent-list .star-btn.on { color: #e0a100; }
 .recent-list .star-btn:focus-visible { outline: 2px solid var(--accent); }
 .recent-list li.list-head, .recent-list li.muted { display: block; }
+
+/* "Who's this?" picker */
+.people-pick { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+.people-pick .btn { padding: 12px; font-size: 1rem; }

@@ -6,7 +6,7 @@
 
 import {
   $, esc, store, localToday, fmtDay, timeAgo, toast, downloadFile,
-  myName, setupIdentity, createSync, launchAction, returnHomeAfter, fetchJson, postJson,
+  myName, setupIdentity, createSync, launchAction, returnHomeAfter, fetchJson, postJson, checkIdentity,
 } from "/common.js";
 import { borrowedOf, settleUp } from "/calc.js";
 
@@ -26,6 +26,7 @@ const sync = createSync({
   path: "/api/daily",
   schema: 1,
   onDoc(next) {
+    checkIdentity(next.people);
     doc = next;
     render();
     quickAction();
@@ -1018,9 +1019,9 @@ function openAdd(prefill = {}, item = null) {
   chips("#catChoices", "cat", doc.categories.map((c) => ({ value: c.id, label: `<span class="emoji">${esc(c.emoji)}</span>${esc(c.name)}` })),
     doc.categories.some((c) => c.id === cat) ? cat : doc.categories[0].id);
   const people = doc.people.map((p) => ({ value: p, label: esc(p) }));
-  chips("#ownerChoices", "owner", people, item?.owner ?? (filter !== "all" ? filter : me()) ?? doc.people[0]);
+  chips("#ownerChoices", "owner", people, item?.owner ?? me() ?? (filter !== "all" ? filter : doc.people[0]));
   chips("#payerChoices", "payer", people, item?.paidBy ?? me() ?? doc.people[0]);
-  renderCardChoices(item?.card ?? "", item?.owner ?? (filter !== "all" ? filter : me()) ?? doc.people[0]);
+  renderCardChoices(item?.card ?? "", item?.owner ?? me() ?? (filter !== "all" ? filter : doc.people[0]));
   cardTouched = !!item;
   const shares = item?.shares ?? {};
   const equal = !item || doc.people.every((p) => Math.abs((shares[p] ?? 0) - 1 / doc.people.length) < 0.001);

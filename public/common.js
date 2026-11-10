@@ -111,9 +111,51 @@ export function setMyName(name) {
   if (label) label.textContent = me || "Set name";
 }
 
+// The people the apps know about, for the "Who's this?" picker (pages pass the real list
+// with checkIdentity once their data has loaded).
+let people = ["Karstin", "Lilin"];
+const normName = (x) => String(x ?? "").toLowerCase().replace(/\s+/g, "");
+
+// The listed person a name belongs to ("Karstin Bok" -> Karstin, "lilin" -> Lilin), else null.
+export function personOf(name, list = people) {
+  const n = normName(name);
+  return list.find((p) => n && (normName(p) === n || n.startsWith(normName(p)) || normName(p).startsWith(n))) ?? null;
+}
+
+function renderPeoplePick() {
+  const form = document.getElementById("nameForm");
+  if (!form) return;
+  let pick = form.querySelector(".people-pick");
+  if (!pick) {
+    pick = document.createElement("div");
+    pick.className = "people-pick";
+    form.querySelector("#nameInput").before(pick);
+    form.querySelector("#nameInput").placeholder = "Or type your name";
+    pick.addEventListener("click", (e) => {
+      const b = e.target.closest("[data-person]");
+      if (!b) return;
+      $("#nameInput").value = b.dataset.person;
+      form.requestSubmit();
+    });
+  }
+  const current = personOf(me);
+  pick.innerHTML = people.map((p) => `<button type="button" class="btn ${p === current ? "" : "ghost"}" data-person="${esc(p)}">👤 I'm ${esc(p)}</button>`).join("");
+}
+
 function askName() {
-  $("#nameInput").value = me;
+  renderPeoplePick();
+  $("#nameInput").value = personOf(me) ? me : "";
   $("#nameDlg").showModal();
+}
+
+// Called by each page once it knows who the people are: if this phone's name isn't one of
+// them, ask "Who's this?" so everything added is put under the right person.
+let identityChecked = false;
+export function checkIdentity(list) {
+  if (Array.isArray(list) && list.length) people = list;
+  if (identityChecked) return;
+  identityChecked = true;
+  if (!personOf(me) && document.getElementById("nameDlg") && !$("#nameDlg").open) askName();
 }
 
 function askPasscode() {
@@ -128,6 +170,7 @@ export function setupIdentity() {
     me = $("#nameInput").value.trim().slice(0, 30);
     store.set("trip.name", me);
     $("#whoName").textContent = me || "Set name";
+    window.dispatchEvent(new CustomEvent("identitychange", { detail: me }));
   });
   $("#whoBtn").addEventListener("click", askName);
   $("#codeForm").addEventListener("submit", () => {
