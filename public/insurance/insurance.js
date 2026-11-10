@@ -1,7 +1,7 @@
 // Our insurance (/insurance/): each plan with what it covers, what it costs (monthly and
 // yearly), how and when it's paid, and how long it covers. Live-synced with /api/insurance.
 
-import { $, esc, store, localToday, fmtDay, timeAgo, toast, myName, setupIdentity, createSync, fetchJson } from "/common.js";
+import { $, esc, store, localToday, fmtDay, timeAgo, toast, myName, setupIdentity, createSync, fetchJson, checkIdentity } from "/common.js";
 
 const TYPES = [
   ["hospital", "🏥", "Hospitalisation (Integrated Shield)"],
@@ -45,6 +45,7 @@ const sync = createSync({
   path: "/api/insurance",
   schema: 1,
   onDoc(next) {
+    checkIdentity(next.people);
     doc = next;
     render();
   },

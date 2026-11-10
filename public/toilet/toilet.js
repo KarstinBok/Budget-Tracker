@@ -1,7 +1,7 @@
 // 🚽 Toilet log (/toilet/): each poop by date and time, with its type on the Bristol stool
 // scale. Stored with Food & fitness (/api/fitness, doc.toilet); its own page on the home screen.
 
-import { $, esc, store, localToday, fmtDay, timeAgo, toast, myName, setupIdentity, createSync, launchAction, returnHomeAfter } from "/common.js";
+import { $, esc, store, localToday, fmtDay, timeAgo, toast, myName, setupIdentity, createSync, launchAction, returnHomeAfter, checkIdentity } from "/common.js";
 
 let doc = null;
 let who = store.get("fitness.person") || "";
@@ -10,6 +10,7 @@ const sync = createSync({
   path: "/api/fitness",
   schema: 1,
   onDoc(next) {
+    checkIdentity(next.people);
     doc = next;
     render();
     quickAction();

@@ -1,12 +1,16 @@
 // Home page (/): quick-add buttons that open an app straight into its dialog (it comes back
 // here afterwards), and a tab per app with today's snapshot.
 
-import { $, esc, localToday, toast, fetchJson } from "/common.js";
+import { $, esc, localToday, toast, fetchJson, setupIdentity, checkIdentity } from "/common.js";
 import { dayTargets, exerciseAddsBack, latestWeightOf, settleUp } from "/calc.js";
 
 const money = (c) => `S$${(c / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmt = (v) => Math.round(v).toLocaleString("en-US");
 const sum = (list, k) => list.reduce((s, x) => s + (Number(x[k]) || 0), 0);
+
+// Who uses this phone: asked once, with a button for each of us.
+setupIdentity();
+checkIdentity(["Karstin", "Lilin"]);
 
 // The message from the dialog just used, e.g. "Added S$12.50".
 try {

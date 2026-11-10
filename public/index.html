@@ -23,6 +23,9 @@
         <p class="muted">Karstin &amp; Lilin</p>
       </div>
     </div>
+    <div class="top-actions">
+      <button id="whoBtn" class="chip" type="button" title="Who's using this phone">👤 <span id="whoName">You</span></button>
+    </div>
   </header>
 
   <main>
@@ -108,6 +111,24 @@
   </main>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <dialog id="nameDlg">
+    <form method="dialog" id="nameForm">
+      <h2>Who's this?</h2>
+      <p class="muted">Pick who uses this phone, so what you add goes under your name.</p>
+      <input id="nameInput" maxlength="30" placeholder="Your name" required autocomplete="nickname" />
+      <div class="dlg-actions"><button class="btn" value="ok">Continue</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="codeDlg">
+    <form method="dialog" id="codeForm">
+      <h2>Passcode</h2>
+      <p class="muted">This tracker is protected. Enter the passcode.</p>
+      <input id="codeInput" type="password" required autocomplete="current-password" />
+      <div class="dlg-actions"><button class="btn" value="ok">Unlock</button></div>
+    </form>
+  </dialog>
   <script src="/home.js" type="module"></script>
   <script src="/notify.js" type="module"></script>
 </body>

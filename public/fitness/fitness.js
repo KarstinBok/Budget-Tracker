@@ -8,7 +8,7 @@
 
 import {
   $, esc, store, localToday, fmtDay, timeAgo, toast, myName, setupIdentity, createSync,
-  launchAction, returnHomeAfter,
+  launchAction, returnHomeAfter, checkIdentity
 } from "/common.js";
 import { dayTargets, exerciseAddsBack, fitnessTargets, latestWeightOf, weekBalance, weekNote, weighInsOf } from "/calc.js";
 
@@ -35,6 +35,7 @@ const sync = createSync({
   path: "/api/fitness",
   schema: 1,
   onDoc(next) {
+    checkIdentity(next.people);
     doc = next;
     render();
     quickAction();
