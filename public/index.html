@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, interactive-widget=resizes-content" />
   <title>Life Kalicc</title>
   <meta name="application-name" content="Life Kalicc" />
   <meta name="apple-mobile-web-app-title" content="Life Kalicc" />
@@ -24,23 +24,11 @@
       </div>
     </div>
     <div class="top-actions">
-      <a class="btn ghost" href="/settings/" title="Settings and app map" aria-label="Settings">⚙️</a>
       <button id="whoBtn" class="chip" type="button" title="Who's using this phone">👤 <span id="whoName">You</span></button>
     </div>
   </header>
 
   <main>
-    <section aria-labelledby="pickTitle">
-      <h2 class="home-h" id="pickTitle">Open an app</h2>
-      <nav class="app-grid" aria-label="Our apps">
-        <a class="app-tile" href="/daily/"><span>💸</span><b>Expenses</b><small>Personal &amp; shared spending</small></a>
-        <a class="app-tile" href="/fitness/"><span>🥗</span><b>Food &amp; fitness</b><small>Calories, weight, exercise</small></a>
-        <a class="app-tile" href="/toilet/"><span>🚽</span><b>Toilet log</b><small>Bristol scale, by date</small></a>
-        <a class="app-tile" href="/insurance/"><span>🛡️</span><b>Insurance</b><small>Plans, cover, payments</small></a>
-        <a class="app-tile" href="/japan/"><span>🗾</span><b>Japan trip</b><small>Budget &amp; journal</small></a>
-      </nav>
-    </section>
-
     <section aria-labelledby="quickTitle">
       <h2 class="home-h" id="quickTitle">Quick add</h2>
       <nav class="quick-grid" aria-label="Quick add">
@@ -50,6 +38,7 @@
         <a class="quick" href="https://claude.ai/new" target="_blank" rel="noopener"><span>📷</span><b>Food photo</b><small>in Claude</small></a>
         <a class="quick" href="/fitness/?add=weight&amp;from=home"><span>⚖️</span><b>Weight</b></a>
         <a class="quick" href="/fitness/?add=exercise&amp;from=home"><span>🏃</span><b>Exercise</b></a>
+        <a class="quick" href="/daily/?add=income&amp;from=home"><span>💰</span><b>Income</b></a>
         <a class="quick" href="/daily/?add=payment&amp;from=home"><span>🔁</span><b>Record a payment</b></a>
         <a class="quick" href="/toilet/?add=1&amp;from=home"><span>🚽</span><b>Poop</b></a>
       </nav>
@@ -91,6 +80,15 @@
       </section>
     </section>
   </main>
+
+  <nav class="bottom-nav app-nav" aria-label="Our apps">
+    <a href="/daily/"><span aria-hidden="true">💸</span>Expenses</a>
+    <a href="/fitness/"><span aria-hidden="true">🥗</span>Food</a>
+    <a href="/toilet/"><span aria-hidden="true">🚽</span>Toilet</a>
+    <a href="/insurance/"><span aria-hidden="true">🛡️</span>Insurance</a>
+    <a href="/japan/"><span aria-hidden="true">🗾</span>Japan</a>
+    <a href="/settings/"><span aria-hidden="true">⚙️</span>Settings</a>
+  </nav>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
