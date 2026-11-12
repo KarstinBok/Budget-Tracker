@@ -68,6 +68,10 @@
     document.addEventListener("click", (e) => { if (menu && !menu.contains(e.target)) close(); });
     document.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
   }
+  // No pinch zoom (iPhone Safari ignores user-scalable=no on its own).
+  for (const ev of ["gesturestart", "gesturechange", "gestureend"]) document.addEventListener(ev, (e) => e.preventDefault(), { passive: false });
+  document.addEventListener("touchmove", (e) => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+
   // Typing in a form on a phone: once the keyboard is up, bring the field into view.
   document.addEventListener("focusin", (e) => {
     const el = e.target;

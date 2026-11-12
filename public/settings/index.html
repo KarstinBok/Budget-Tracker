@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, interactive-widget=resizes-content" />
   <title>Settings · Life Kalicc</title>
   <meta name="description" content="Who's using this phone, light or dark mode, and a map of every page in Life Kalicc." />
   <link rel="manifest" href="/manifest.webmanifest" />
@@ -44,23 +44,48 @@
       <p class="muted small">Auto follows your phone's setting.</p>
     </section>
 
+    <section class="panel" id="feedbackPanel">
+      <h2>💬 Feedback</h2>
+      <p class="muted small">Something not working, or an idea for the app? Send it here and it'll be gone through and fixed.</p>
+      <form id="feedbackForm" class="feedback-form">
+        <div class="seg settings-seg" role="radiogroup" aria-label="Kind of feedback">
+          <label><input type="radio" name="kind" value="problem" checked /><span>🐞 Problem</span></label>
+          <label><input type="radio" name="kind" value="idea" /><span>💡 Idea</span></label>
+          <label><input type="radio" name="kind" value="other" /><span>💬 Other</span></label>
+        </div>
+        <label class="field">Which part
+          <select name="area">
+            <option value="home">🏠 Home</option><option value="expenses">💸 Expenses</option><option value="fitness">🥗 Food &amp; fitness</option>
+            <option value="toilet">🚽 Toilet log</option><option value="insurance">🛡️ Insurance</option><option value="japan">🗾 Japan trip</option>
+            <option value="settings">⚙️ Settings</option><option value="other">Other</option>
+          </select>
+        </label>
+        <label class="field">What would you like changed?
+          <textarea name="text" rows="4" maxlength="2000" required placeholder="e.g. When I add an expense, the card should default to…"></textarea>
+        </label>
+        <button class="btn" type="submit">Send feedback</button>
+      </form>
+      <h3 class="guide-h">Sent so far</h3>
+      <ul class="feedback-list" id="feedbackList"><li class="muted small">Loading…</li></ul>
+    </section>
+
     <section class="panel">
       <h2>🗺️ App map</h2>
       <p class="muted small">Every page, and the one button that takes you there. 🏠 at the top of any page brings you back home.</p>
       <ul class="flow-map">
         <li class="fm-root"><span class="fm-node">🏠 Home</span><small>Opens when you start the app</small>
           <ul>
-            <li><span class="fm-node">💸 Expenses</span><small>Home → Open an app</small>
+            <li><span class="fm-node">💸 Expenses</span><small>Home → bottom bar</small>
               <ul>
                 <li><span class="fm-leaf">👤 Personal · 🤝 Shared</span><small>tabs at the top</small></li>
                 <li><span class="fm-leaf">🧾 Spending</span><small>bottom bar: day-by-day list</small></li>
                 <li><span class="fm-leaf">📊 Overview</span><small>bottom bar: summary, payments, months, recent changes</small></li>
                 <li><span class="fm-leaf">💳 Cards</span><small>bottom bar: cards &amp; accounts, which card for what</small></li>
                 <li><span class="fm-leaf">⚙️ Settings</span><small>bottom bar: names, categories, data</small></li>
-                <li><span class="fm-leaf">＋ Add expense</span><small>round ＋ button</small></li>
+                <li><span class="fm-leaf">＋ Add expense / 💰 income</span><small>round ＋ button, then Expense or Income at the top</small></li>
               </ul>
             </li>
-            <li><span class="fm-node">🥗 Food &amp; fitness</span><small>Home → Open an app</small>
+            <li><span class="fm-node">🥗 Food &amp; fitness</span><small>Home → bottom bar</small>
               <ul>
                 <li><span class="fm-leaf">📒 Diary</span><small>tab: meals, exercise, weight</small></li>
                 <li><span class="fm-leaf">📈 Progress</span><small>tab: calendar, weight and calorie charts</small></li>
@@ -68,23 +93,23 @@
                 <li><span class="fm-leaf">＋ Add food</span><small>round ＋ button (or ＋ under a meal)</small></li>
               </ul>
             </li>
-            <li><span class="fm-node">🚽 Toilet log</span><small>Home → Open an app</small>
+            <li><span class="fm-node">🚽 Toilet log</span><small>Home → bottom bar</small>
               <ul><li><span class="fm-leaf">＋ Log a poop</span><small>round ＋ button</small></li></ul>
             </li>
-            <li><span class="fm-node">🛡️ Insurance</span><small>Home → Open an app</small>
+            <li><span class="fm-node">🛡️ Insurance</span><small>Home → bottom bar</small>
               <ul><li><span class="fm-leaf">＋ Add plan</span><small>round ＋ button; tap a plan to edit</small></li></ul>
             </li>
-            <li><span class="fm-node">🗾 Japan trip</span><small>Home → Open an app</small>
+            <li><span class="fm-node">🗾 Japan trip</span><small>Home → bottom bar</small>
               <ul>
                 <li><span class="fm-leaf">📒 Journal</span><small>button at the top</small></li>
                 <li><span class="fm-leaf">⚙️ Trip settings</span><small>button at the top</small></li>
               </ul>
             </li>
-            <li><span class="fm-node">⚙️ Settings</span><small>Home → ⚙️ at the top (this page)</small></li>
+            <li><span class="fm-node">⚙️ Settings</span><small>Home → bottom bar (this page): who's using the phone, appearance, 💬 feedback</small></li>
           </ul>
         </li>
       </ul>
-      <p class="muted small">Quick add on the home page jumps straight into an app's add form and comes back home when you're done. 🔔 and 👤 are on every page.</p>
+      <p class="muted small">Quick add on the home page (including 💰 Income) jumps straight into an app's add form and comes back home when you're done. 🔔 and 👤 are on every page.</p>
     </section>
   </main>
 

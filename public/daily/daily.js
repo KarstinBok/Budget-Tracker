@@ -42,6 +42,12 @@ function quickAction() {
     render();
     openAdd();
     returnHomeAfter($("#addDlg"));
+  } else if (action === "income") {
+    history.replaceState(null, "", `${location.pathname}#personal`);
+    screen = "personal";
+    render();
+    openIncome();
+    returnHomeAfter($("#incomeDlg"));
   } else if (action === "payment") {
     history.replaceState(null, "", `${location.pathname}#shared`);
     screen = "shared";
@@ -111,6 +117,15 @@ function itemsFor(ym, who = filter) {
 }
 
 const sum = (items) => items.reduce((s, i) => s + i.a, 0);
+
+// Money that came in for a month (personal screen only).
+const INCOME_SOURCES = [["transfer", "🤝", "Transfer from a friend"], ["gambling", "🎰", "Gambling winnings"], ["salary", "💼", "Salary / pay"],
+  ["gift", "🎁", "Gift"], ["refund", "↩️", "Refund"], ["other", "💰", "Other"]];
+const incomeSource = (id) => INCOME_SOURCES.find((x) => x[0] === id) ?? INCOME_SOURCES.at(-1);
+function incomesFor(ym, who = filter) {
+  if (screen !== "personal") return [];
+  return (doc.incomes ?? []).filter((i) => i.date.startsWith(ym) && (who === "all" || i.owner === who));
+}
 
 // Who owes whom over all time (shared expenses, borrowed cards and payments).
 const balances = () => settleUp(doc);
@@ -214,11 +229,13 @@ function renderFlow(items) {
     pills.push(["Avg / day", days ? total / days : 0]);
     const avg = monthlyAverages();
     if (avg.months) pills.push([`Avg / month (${avg.months} mo)`, avg.perMonth]);
+    const income = sum(incomesFor(month));
+    if (income) pills.push(["Income", income, "in"], ["Net", income - total, income >= total ? "in" : ""]);
   } else {
     pills.push([`${mine}'s share`, items.reduce((s, i) => s + i.a * (i.shares?.[mine] ?? 0), 0)]);
     pills.push([`${mine} paid`, sum(items.filter((i) => i.paidBy === mine))]);
   }
-  $("#flowPills").innerHTML = pills.map(([k, v]) => `<span class="flow-pill"><span>${esc(k)}</span><b>${money(v)}</b></span>`).join("");
+  $("#flowPills").innerHTML = pills.map(([k, v, cls]) => `<span class="flow-pill${cls ? ` ${cls}` : ""}"><span>${esc(k)}</span><b>${cls === "in" && v > 0 ? "+" : ""}${v < 0 ? "−" : ""}${money(Math.abs(v))}</b></span>`).join("");
 
   // Six months ending this month, the chosen month if it's further back, or where ‹ › paged to.
   let end = chartEnd ?? (month < shiftMonth(now, -5) ? month : now);
@@ -251,16 +268,38 @@ function renderFlow(items) {
 
   // Expenses by day, newest first, each day in its own card.
   const byDay = new Map();
-  for (const i of [...items].sort((a, b) => b.date.localeCompare(a.date) || b.t - a.t)) {
+  const incomes = incomesFor(month).map((i) => ({ ...i, isIncome: true }));
+  for (const i of [...items, ...incomes].sort((a, b) => b.date.localeCompare(a.date) || b.t - a.t)) {
     if (!byDay.has(i.date)) byDay.set(i.date, []);
     byDay.get(i.date).push(i);
   }
   $("#txList").innerHTML = byDay.size ? [...byDay].map(([d, list]) => `
     <section class="tx-day">
-      <h3 class="tx-date"><span>${dayHeading(d)}</span><span>−${money(sum(list))}</span></h3>
-      <ul class="tx-card">${list.map(txRow).join("")}</ul>
+      <h3 class="tx-date"><span>${dayHeading(d)}</span><span>${(() => {
+        const out = sum(list.filter((x) => !x.isIncome)), inn = sum(list.filter((x) => x.isIncome));
+        return [out ? `−${money(out)}` : "", inn ? `<span class="in">+${money(inn)}</span>` : ""].filter(Boolean).join(" · ");
+      })()}</span></h3>
+      <ul class="tx-card">${list.map((x) => (x.isIncome ? incomeRow(x) : txRow(x))).join("")}</ul>
     </section>`).join("")
     : `<div class="tx-empty"><span aria-hidden="true">🧾</span><p>No ${screen === "shared" ? "shared " : ""}expenses ${month === now ? "this month" : `in ${monthName(month)}`} yet.</p><button type="button" class="btn" data-add>＋ Add expense</button></div>`;
+}
+
+function incomeRow(i) {
+  const [, emoji, name] = incomeSource(i.source);
+  const acct = cardOf(i.account);
+  const chips = [];
+  if (filter === "all") chips.push(esc(i.owner));
+  if (i.from) chips.push(`from ${esc(i.from)}`);
+  if (acct) chips.push(`${isAccount(acct) ? "🏦" : "💳"} ${esc(acct.name)}`);
+  return `<li><button type="button" class="tx income" data-income="${esc(i.id)}" aria-label="Edit ${esc(name)} ${money(i.a)}">
+    <span class="tx-icon in"><span>${emoji}</span></span>
+    <span class="tx-main">
+      <b>${esc(name)}</b>
+      ${chips.length ? `<span class="tx-chips">${chips.map((x) => `<span class="tx-chip">${x}</span>`).join("")}</span>` : ""}
+      ${i.note ? `<span class="tx-note">${esc(i.note)}</span>` : ""}
+    </span>
+    <span class="tx-amt in"><b>+${money(i.a)}</b></span>
+  </button></li>`;
 }
 
 function txRow(i) {
@@ -338,6 +377,8 @@ $("#monthsTable").addEventListener("click", (e) => {
   if (tr) { month = tr.dataset.month; chartEnd = null; openCell = null; setView("home"); }
 });
 $("#txList").addEventListener("click", (e) => {
+  const inc = e.target.closest("[data-income]");
+  if (inc) return openIncome(doc.incomes.find((i) => i.id === inc.dataset.income));
   const tx = e.target.closest("[data-tx]");
   if (tx) openAdd({}, doc.items.find((i) => i.id === tx.dataset.tx));
 });
@@ -1021,10 +1062,70 @@ function updateCardUI() {
   $("#payerPick").hidden = kind !== "shared" || !!card;
 }
 
+// ---------------------------------------------------------------- add or edit income
+
+let editingIncome = null;
+const incomeForm = $("#incomeForm");
+
+function openIncome(item = null, prefill = {}) {
+  if (!doc) return;
+  editingIncome = item;
+  const f = incomeForm.elements;
+  incomeForm.reset();
+  f.date.value = item?.date ?? prefill.date ?? localToday();
+  f.date.max = localToday();
+  f.amount.value = item ? (item.a / 100).toFixed(2) : "";
+  f.from.value = item?.from ?? "";
+  f.note.value = item?.note ?? prefill.note ?? "";
+  const owner = item?.owner ?? me() ?? doc.people[0];
+  chips("#incomeSources", "incomeSource", INCOME_SOURCES.map(([id, e, n]) => ({ value: id, label: `<span class="emoji">${e}</span>${esc(n)}` })), item?.source ?? "transfer");
+  chips("#incomeOwners", "incomeOwner", doc.people.map((p) => ({ value: p, label: esc(p) })), owner);
+  // Accounts first (where transfers usually land), then cards.
+  const mine = doc.cards.filter((c) => c.owner === owner).sort((a, b) => Number(isAccount(b)) - Number(isAccount(a)) || a.name.localeCompare(b.name));
+  const others = doc.cards.filter((c) => c.owner !== owner);
+  chips("#incomeAccounts", "incomeAccount", [{ value: "", label: "💵 Cash / other" },
+    ...[...mine, ...others].map((c) => ({ value: c.id, label: `${isAccount(c) ? "🏦" : "💳"} ${esc(c.name)}${c.owner !== owner ? ` <span class="muted small">${esc(c.owner)}</span>` : ""}` }))],
+    item?.account ?? "");
+  $("#incomeTitle").textContent = item ? "Edit income" : "Add income";
+  $("#incomeSubmit").textContent = item ? "Save" : "Add income";
+  $("#incomeDelete").hidden = !item;
+  $("#incomeDlg").showModal();
+  if (!item) setTimeout(() => f.amount.focus(), 50);
+}
+
+incomeForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const f = incomeForm.elements;
+  const a = parseCents(f.amount.value);
+  if (!(a > 0)) return toast("Enter an amount, e.g. 50");
+  const pick = (n) => incomeForm.querySelector(`input[name="${n}"]:checked`)?.value ?? "";
+  const body = { date: f.date.value, a, source: pick("incomeSource"), owner: pick("incomeOwner"), account: pick("incomeAccount"), from: f.from.value, note: f.note.value };
+  const ok = editingIncome
+    ? await sync.runOp({ op: "updateIncome", id: editingIncome.id, ...body }, `Saved +${money(a)}`)
+    : await sync.runOp({ op: "addIncome", ...body }, `💰 Added +${money(a)}`);
+  if (ok) $("#incomeDlg").close();
+});
+$("#incomeCancel").addEventListener("click", () => $("#incomeDlg").close());
+$("#incomeDelete").addEventListener("click", async () => {
+  if (!editingIncome || !confirm("Delete this income?")) return;
+  if (await sync.runOp({ op: "deleteIncome", id: editingIncome.id }, "Removed")) $("#incomeDlg").close();
+});
+
+// Expense / Income switch at the top of the add form (new personal entries only).
+$("#kindSwitch").addEventListener("change", (e) => {
+  if (e.target.value !== "income") return;
+  const date = form.elements.date.value;
+  e.target.form.querySelector('input[name="entryKind"][value="expense"]').checked = true;
+  $("#addDlg").close();
+  openIncome(null, { date });
+});
+
 function openAdd(prefill = {}, item = null) {
   if (!doc) return;
   editing = item;
   $("#addDelete").hidden = !item;
+  $("#kindSwitch").hidden = !!item || (item?.kind ?? screen) !== "personal";
+  form.querySelector('input[name="entryKind"][value="expense"]').checked = true;
   const kind = item?.kind ?? screen;
   for (const el of form.querySelectorAll("[data-kind]")) el.hidden = el.dataset.kind !== kind;
   const f = form.elements;

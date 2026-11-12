@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, interactive-widget=resizes-content" />
   <title>Our Expenses</title>
   <meta name="description" content="Karstin and Lilin's everyday expenses: what each of us spends, and what we split." />
   <link rel="manifest" href="/daily/manifest.webmanifest" />
@@ -155,6 +155,10 @@
   <dialog id="addDlg">
     <form id="addForm">
       <h2 id="addTitle">Add expense</h2>
+      <div class="seg kind-switch" id="kindSwitch" role="radiogroup" aria-label="Expense or income">
+        <label><input type="radio" name="entryKind" value="expense" checked /><span>💸 Expense</span></label>
+        <label><input type="radio" name="entryKind" value="income" /><span>💰 Income</span></label>
+      </div>
       <label>Date <input name="date" type="date" required /></label>
       <fieldset class="cat-pick">
         <legend>Category</legend>
@@ -188,6 +192,33 @@
         <button class="btn ghost danger" type="button" id="addDelete" hidden>🗑 Delete</button>
         <button class="btn ghost" type="button" id="addCancel">Cancel</button>
         <button class="btn" type="submit" id="addSubmit">Add</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="incomeDlg">
+    <form id="incomeForm">
+      <h2 id="incomeTitle">Add income</h2>
+      <label>Date <input name="date" type="date" required /></label>
+      <fieldset class="cat-pick">
+        <legend>What is it</legend>
+        <div class="cat-choices" id="incomeSources" role="radiogroup" aria-label="Kind of income"></div>
+      </fieldset>
+      <label>Amount (S$) <input name="amount" inputmode="decimal" autocomplete="off" placeholder="0.00" required /></label>
+      <label>From, optional <input name="from" maxlength="40" placeholder="e.g. Jason, Singapore Pools, employer" autocomplete="off" /></label>
+      <label>Note, optional <input name="note" maxlength="80" placeholder="e.g. paying back for dinner" autocomplete="off" /></label>
+      <fieldset class="cat-pick">
+        <legend>Received into</legend>
+        <div class="cat-choices" id="incomeAccounts" role="radiogroup" aria-label="Received into"></div>
+      </fieldset>
+      <fieldset class="cat-pick">
+        <legend>Whose income</legend>
+        <div class="cat-choices" id="incomeOwners" role="radiogroup" aria-label="Whose income"></div>
+      </fieldset>
+      <div class="dlg-actions">
+        <button class="btn ghost danger" type="button" id="incomeDelete" hidden>🗑 Delete</button>
+        <button class="btn ghost" type="button" id="incomeCancel">Cancel</button>
+        <button class="btn" type="submit" id="incomeSubmit">Add income</button>
       </div>
     </form>
   </dialog>

@@ -43,6 +43,8 @@ function defaultDoc() {
     cardGuide: structuredClone(DEFAULT_GUIDE),
     // Money paid back: { id, date, from, to, a: cents, note, by, t }
     settlements: [],
+    // Money coming in (friends paying you back, winnings, pay, …)
+    incomes: [],
     log: [],
   };
 }
@@ -64,6 +66,8 @@ const DEFAULT_GUIDE = [
 function normalize(doc) {
   doc.cards ??= [];
   doc.cardGuide ??= structuredClone(DEFAULT_GUIDE);
+  // Money coming in: { id, owner, date, a (cents), source, from, account (card id), note, by, t }
+  doc.incomes ??= [];
   // Imports from other apps (e.g. Spendee): { id, source, by, t, count, total }, so one can be undone.
   doc.imports ??= [];
   return doc;
@@ -129,6 +133,24 @@ function readItem(doc, body) {
 }
 
 const cardName = (card) => `${card.owner}'s ${card.name}`;
+
+export const INCOME_SOURCES = ["transfer", "gambling", "salary", "gift", "refund", "other"];
+const INCOME_NAMES = { transfer: "a transfer", gambling: "winnings", salary: "pay", gift: "a gift", refund: "a refund", other: "income" };
+
+function readIncome(doc, body) {
+  const inc = {
+    owner: person(doc, body.owner, "whose income this is"),
+    date: date(body.date), a: cents(body.a),
+    source: INCOME_SOURCES.includes(body.source) ? body.source : "other",
+    from: str(body.from, 40), note: str(body.note, 80),
+  };
+  if (body.account) {
+    if (!doc.cards.some((c) => c.id === body.account)) fail("That account was removed, pick another");
+    inc.account = body.account;
+  }
+  return inc;
+}
+const describeIncome = (i) => `${i.owner}'s ${INCOME_NAMES[i.source]} of S$${(i.a / 100).toFixed(2)}${i.from ? ` from ${i.from}` : ""}`;
 
 function describe(doc, item, cat) {
   const whose = item.kind === "personal" ? `${item.owner}'s` : `shared (paid by ${item.paidBy})`;
@@ -196,6 +218,29 @@ function applyOp(doc, body, by) {
       doc.items = doc.items.filter((i) => i.importBatch !== entry.id);
       doc.imports = doc.imports.filter((x) => x !== entry);
       return `undid the ${entry.source} import (${before - doc.items.length} expenses removed)`;
+    }
+
+    case "addIncome": {
+      if (doc.incomes.length >= MAX_ITEMS) fail("Too many entries");
+      const inc = readIncome(doc, body);
+      doc.incomes.push({ id: randomUUID(), ...inc, by, t: Date.now() });
+      return `added ${describeIncome(inc)}`;
+    }
+
+    case "updateIncome": {
+      const old = doc.incomes.find((i) => i.id === body.id);
+      if (!old) fail("This income was deleted by someone else", 409);
+      const next = readIncome(doc, body);
+      if (!next.account) delete old.account;
+      Object.assign(old, next, { editedBy: by, editedAt: Date.now() });
+      return `edited ${describeIncome(old)}`;
+    }
+
+    case "deleteIncome": {
+      const old = doc.incomes.find((i) => i.id === body.id);
+      if (!old) return null;
+      doc.incomes = doc.incomes.filter((i) => i !== old);
+      return `removed ${describeIncome(old)}`;
     }
 
     case "addItem": {
