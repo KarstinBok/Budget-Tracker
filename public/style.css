@@ -760,10 +760,6 @@ dialog.wide-dlg { width: min(560px, calc(100vw - 24px)); }
 .quick span { font-size: 1.8rem; line-height: 1; }
 .quick b { font-size: 0.92rem; }
 .quick small { color: var(--muted); font-size: 0.75rem; margin-top: -2px; }
-.home-tabs { display: grid; grid-template-columns: repeat(3, 1fr); }
-.home-panel { display: grid; gap: 12px; }
-.home-panel[hidden] { display: none; }
-.home-panel h3 { margin: 0; }
 .home-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
 .home-stat { display: grid; gap: 2px; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); min-width: 0; }
 .home-stat span { font-size: 0.78rem; color: var(--muted); }
@@ -772,8 +768,6 @@ dialog.wide-dlg { width: min(560px, calc(100vw - 24px)); }
 .home-links { display: flex; flex-wrap: wrap; gap: 8px; }
 @media (max-width: 600px) {
   .quick { min-height: 84px; }
-  .home-tabs { grid-template-columns: 1fr 1fr 1fr; }
-  .home-tabs .fold-tab { padding: 9px 4px; font-size: 0.8rem; }
 }
 
 /* Everyday expenses: the daily table scrolls a week at a time, today first. */
@@ -1253,3 +1247,24 @@ body.home main { padding-bottom: 96px; }
 .app-nav a span { font-size: 1.3rem; line-height: 1.2; padding: 2px 10px; border-radius: 999px; }
 .app-nav a:hover span, .app-nav a:focus-visible span { background: var(--accent-soft); }
 .app-nav a:active span { background: var(--accent-soft); }
+
+/* Home: today at a glance */
+.glance { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; margin-bottom: 18px; }
+.glance-card { display: grid; align-content: start; gap: 8px; padding: 12px 14px; border-radius: 16px; background: var(--surface); border: 1px solid var(--border); color: var(--text); text-decoration: none; box-shadow: var(--shadow); }
+.glance-card[hidden] { display: none; }
+.glance-card:hover { border-color: var(--accent); }
+.glance-card h3 { margin: 0; font-size: 0.85rem; color: var(--muted); font-weight: 600; }
+.g-body { display: grid; gap: 8px; }
+.g-row { display: grid; grid-template-columns: auto 1fr; column-gap: 8px; align-items: baseline; }
+.g-who { font-size: 0.8rem; color: var(--muted); }
+.g-row b { justify-self: end; font-size: 1.02rem; font-variant-numeric: tabular-nums; }
+.g-row b.over, .g-note.over { color: #c0392b; }
+.g-row small { grid-column: 1 / -1; font-size: 0.74rem; color: var(--muted); }
+.g-meter { grid-column: 1 / -1; height: 5px; border-radius: 99px; background: var(--surface-2); overflow: hidden; margin-top: 3px; }
+.g-meter i { display: block; height: 100%; background: var(--good); }
+.g-meter.over i { background: #c0392b; }
+.g-note { margin: 0; font-size: 0.78rem; color: var(--muted); }
+@media (max-width: 520px) { .glance { grid-template-columns: 1fr 1fr; } }
+/* With no insurance card, the toilet card spans the row and puts the two of you side by side. */
+.glance:has(#gIns[hidden]) #gToilet { grid-column: 1 / -1; }
+.glance:has(#gIns[hidden]) #gToilet .g-body { grid-template-columns: 1fr 1fr; column-gap: 16px; }
