@@ -33,6 +33,9 @@ function applyOp(doc, body, by) {
         area: AREAS.includes(body.area) ? body.area : "other",
         status: "open", reply: "", by, t: Date.now(),
       };
+      // Screenshots (ids from /api/feedback-photo), up to 4.
+      const photos = (Array.isArray(body.photos) ? body.photos : []).filter((id) => /^[0-9a-f-]{36}$/.test(id)).slice(0, 4);
+      if (photos.length) item.photos = photos;
       doc.items.unshift(item);
       return `sent feedback: ${text.slice(0, 60)}${text.length > 60 ? "…" : ""}`;
     }

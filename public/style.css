@@ -1268,3 +1268,20 @@ body.home main { padding-bottom: 96px; }
 /* With no insurance card, the toilet card spans the row and puts the two of you side by side. */
 .glance:has(#gIns[hidden]) #gToilet { grid-column: 1 / -1; }
 .glance:has(#gIns[hidden]) #gToilet .g-body { grid-template-columns: 1fr 1fr; column-gap: 16px; }
+
+/* Feedback screenshots and highlighting */
+.fb-photos-field { display: grid; gap: 6px; }
+.fb-photos-field .field-label { font-size: 0.85rem; color: var(--muted); }
+.fb-thumbs { display: flex; flex-wrap: wrap; gap: 8px; }
+.fb-thumbs:empty { display: none; }
+.fb-thumb { position: relative; width: 76px; height: 76px; padding: 0; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--surface-2); cursor: pointer; }
+.fb-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.fb-marked { position: absolute; right: 3px; bottom: 3px; font-size: 0.8rem; background: var(--surface); border-radius: 6px; padding: 0 3px; }
+.fb-add-photo { justify-self: start; display: inline-flex; align-items: center; gap: 6px; }
+.fb-add-photo[hidden] { display: none; }
+.fb-list-photos { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0; }
+.fb-list-photos img { width: 88px; height: 88px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); cursor: zoom-in; background: var(--surface-2); }
+.mark-dlg { width: min(720px, calc(100vw - 16px)); padding: 12px; }
+.mark-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+.mark-wrap { display: grid; place-items: center; max-height: calc(100dvh - 190px); overflow: auto; background: var(--surface-2); border-radius: 10px; }
+#markCanvas { max-width: 100%; max-height: calc(100dvh - 200px); touch-action: none; cursor: crosshair; display: block; }

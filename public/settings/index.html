@@ -63,6 +63,12 @@
         <label class="field">What would you like changed?
           <textarea name="text" rows="4" maxlength="2000" required placeholder="e.g. When I add an expense, the card should default to…"></textarea>
         </label>
+        <div class="fb-photos-field">
+          <span class="field-label">Screenshots, optional</span>
+          <div class="fb-thumbs" id="fbThumbs"></div>
+          <label class="btn ghost small-btn fb-add-photo"><input type="file" id="fbPhotoInput" accept="image/*" multiple hidden />📷 Add a screenshot</label>
+          <p class="muted small">Tap a screenshot to circle or highlight the problem on it.</p>
+        </div>
         <button class="btn" type="submit">Send feedback</button>
       </form>
       <h3 class="guide-h">Sent so far</h3>
@@ -112,6 +118,22 @@
       <p class="muted small">Quick add on the home page (including 💰 Income) jumps straight into an app's add form and comes back home when you're done. 🔔 and 👤 are on every page.</p>
     </section>
   </main>
+
+  <dialog id="markDlg" class="wide-dlg mark-dlg">
+    <div class="mark-head">
+      <b>Highlight the problem</b>
+      <div class="seg" id="markTool" role="radiogroup" aria-label="Pen">
+        <label><input type="radio" name="markTool" value="pen" checked /><span>🖊️ Draw</span></label>
+        <label><input type="radio" name="markTool" value="box" /><span>▭ Box</span></label>
+      </div>
+    </div>
+    <div class="mark-wrap"><canvas id="markCanvas"></canvas></div>
+    <div class="dlg-actions">
+      <button class="btn ghost danger" type="button" id="markRemove">🗑 Remove</button>
+      <button class="btn ghost" type="button" id="markUndo">↶ Undo</button>
+      <button class="btn" type="button" id="markDone">Done</button>
+    </div>
+  </dialog>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="/settings/settings.js" type="module"></script>
