@@ -29,6 +29,16 @@
   </header>
 
   <main>
+    <section aria-labelledby="todayTitle">
+      <h2 class="home-h" id="todayTitle">Today</h2>
+      <div class="glance" id="glance">
+        <a class="glance-card" href="/fitness/" id="gFood"><h3>🥗 Calories</h3><div class="g-body"><p class="muted small">Loading…</p></div></a>
+        <a class="glance-card" href="/daily/" id="gSpend"><h3>💸 Spending</h3><div class="g-body"><p class="muted small">Loading…</p></div></a>
+        <a class="glance-card" href="/toilet/" id="gToilet"><h3>🚽 Toilet</h3><div class="g-body"><p class="muted small">Loading…</p></div></a>
+        <a class="glance-card" href="/insurance/" id="gIns" hidden><h3>🛡️ Insurance</h3><div class="g-body"></div></a>
+      </div>
+    </section>
+
     <section aria-labelledby="quickTitle">
       <h2 class="home-h" id="quickTitle">Quick add</h2>
       <nav class="quick-grid" aria-label="Quick add">
@@ -44,41 +54,6 @@
       </nav>
     </section>
 
-    <section aria-labelledby="appsTitle">
-      <h2 class="home-h" id="appsTitle">At a glance</h2>
-      <nav class="fold-tabs home-tabs" aria-label="Apps">
-        <button type="button" class="fold-tab" data-fold="expensesPanel" aria-controls="expensesPanel" aria-expanded="false">💸 Expenses</button>
-        <button type="button" class="fold-tab" data-fold="fitnessPanel" aria-controls="fitnessPanel" aria-expanded="false">🥗 Food &amp; fitness</button>
-        <button type="button" class="fold-tab" data-fold="toiletPanel" aria-controls="toiletPanel" aria-expanded="false">🚽 Toilet</button>
-        <button type="button" class="fold-tab" data-fold="insurancePanel" aria-controls="insurancePanel" aria-expanded="false">🛡️ Insurance</button>
-        <button type="button" class="fold-tab" data-fold="japanPanel" aria-controls="japanPanel" aria-expanded="false">🗾 Japan trip</button>
-      </nav>
-
-      <section class="panel fold home-panel" id="expensesPanel" hidden>
-        <h3>Everyday expenses</h3>
-        <div class="home-stats" id="expensesStats"><p class="muted small">Loading…</p></div>
-      </section>
-
-      <section class="panel fold home-panel" id="fitnessPanel" hidden>
-        <h3>Food &amp; fitness today</h3>
-        <div class="home-stats" id="fitnessStats"><p class="muted small">Loading…</p></div>
-      </section>
-
-      <section class="panel fold home-panel" id="toiletPanel" hidden>
-        <h3>Toilet log</h3>
-        <div class="home-stats" id="toiletStats"><p class="muted small">Loading…</p></div>
-      </section>
-
-      <section class="panel fold home-panel" id="insurancePanel" hidden>
-        <h3>Our insurance</h3>
-        <div class="home-stats" id="insuranceStats"><p class="muted small">Loading…</p></div>
-      </section>
-
-      <section class="panel fold home-panel" id="japanPanel" hidden>
-        <h3>Japan trip, 22 Oct – 5 Nov 2026</h3>
-        <p class="muted small">Our shared budget and the trip journal.</p>
-      </section>
-    </section>
   </main>
 
   <nav class="bottom-nav app-nav" aria-label="Our apps">
