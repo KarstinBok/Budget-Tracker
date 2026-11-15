@@ -1129,8 +1129,8 @@ function openAdd(prefill = {}, item = null) {
   const kind = item?.kind ?? screen;
   for (const el of form.querySelectorAll("[data-kind]")) el.hidden = el.dataset.kind !== kind;
   const f = form.elements;
-  const lastCat = store.get(`daily.lastCat.${kind}`);
-  const cat = item?.cat ?? prefill.cat ?? lastCat ?? doc.categories[0].id;
+  // New expenses always start on Food (or the first category if Food was removed).
+  const cat = item?.cat ?? prefill.cat ?? "food";
   chips("#catChoices", "cat", doc.categories.map((c) => ({ value: c.id, label: `<span class="emoji">${esc(c.emoji)}</span>${esc(c.name)}` })),
     doc.categories.some((c) => c.id === cat) ? cat : doc.categories[0].id);
   const people = doc.people.map((p) => ({ value: p, label: esc(p) }));
@@ -1181,7 +1181,6 @@ form.addEventListener("submit", async (e) => {
     `${editing ? "Saved" : "Added"} ${money(a)}`);
   submit.disabled = false;
   if (!ok) return;
-  store.set(`daily.lastCat.${kind}`, body.cat);
   if (body.date.slice(0, 7) !== month) month = body.date.slice(0, 7);
   $("#addDlg").close();
   render();
