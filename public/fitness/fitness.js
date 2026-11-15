@@ -530,7 +530,12 @@ const pickRow = (f, kind) => {
 function renderRecent() {
   const q = norm($("#recentSearch").value);
   const match = (f) => !q || norm(f.name).includes(q);
-  const favs = favouritesOf().filter(match).sort((a, b) => a.name.localeCompare(b.name));
+  // Most-logged first (times this person logged it in the last 60 days, by name), then A–Z.
+  const since = shiftDay(localToday(), -60);
+  const uses = new Map();
+  for (const f of doc.foods) if (f.person === who && f.date >= since) uses.set(norm(f.name), (uses.get(norm(f.name)) ?? 0) + 1);
+  const used = (f) => uses.get(norm(f.name)) ?? 0;
+  const favs = favouritesOf().filter(match).sort((a, b) => used(b) - used(a) || a.name.localeCompare(b.name));
   const seen = new Set(favouritesOf().map(foodKey));
   const list = [];
   for (const f of doc.foods.filter((x) => x.person === who).sort((a, b) => b.t - a.t)) {
