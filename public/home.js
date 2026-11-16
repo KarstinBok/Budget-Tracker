@@ -57,9 +57,12 @@ function renderToilet(doc) {
   }).join("");
 }
 
+let fitDoc = null, dailyDoc = null;
 async function loadFitnessCards() {
   try {
     const { doc } = await fetchJson("/api/fitness");
+    fitDoc = doc;
+    renderMiniCal();
     renderFood(doc);
     renderToilet(doc);
   } catch { failed("gFood"); failed("gToilet"); }
@@ -68,6 +71,7 @@ async function loadFitnessCards() {
 async function loadSpending() {
   try {
     const { doc } = await fetchJson("/api/daily");
+    dailyDoc = doc;
     const today = localToday(), month = today.slice(0, 7);
     const personal = doc.items.filter((i) => i.kind === "personal" && i.date.startsWith(month));
     const shared = doc.items.filter((i) => i.kind === "shared" && i.date.startsWith(month));
@@ -94,6 +98,97 @@ async function loadInsurance() {
     $("#gIns").hidden = false;
   } catch { /* stays hidden */ }
 }
+
+// ---------------------------------------------------------------- 📅 calendar
+// A month at a glance for one of us: calories met or over, toilet visits, and (tap a
+// day) what was eaten, logged and spent.
+
+const shift = (iso, n) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
+const monthAdd = (ym, n) => { const [y, m] = ym.split("-").map(Number); return new Date(Date.UTC(y, m - 1 + n, 1)).toISOString().slice(0, 7); };
+let calWho = null, calMonth = localToday().slice(0, 7), calPick = null;
+
+function dayInfo(p, d) {
+  const eaten = sum(fitDoc.foods.filter((f) => f.person === p && f.date === d), "kcal");
+  const burned = exerciseAddsBack(fitDoc, p) ? sum(fitDoc.exercises.filter((x) => x.person === p && x.date === d), "kcal") : 0;
+  const goal = dayTargets(fitDoc, p, d).kcal + burned;
+  const poops = (fitDoc.toilet ?? []).filter((x) => x.person === p && x.date === d);
+  const spent = dailyDoc ? sum(dailyDoc.items.filter((i) => i.date === d && i.kind === "personal" && i.owner === p), "a")
+    + dailyDoc.items.filter((i) => i.date === d && i.kind === "shared").reduce((a, i) => a + i.a * (i.shares?.[p] ?? 0), 0) : 0;
+  return { eaten, goal, over: eaten - goal, poops, spent };
+}
+
+// Last 7 days as little marks on the Today card.
+function renderMiniCal() {
+  const p = me() ?? fitDoc.people[0];
+  const today = localToday();
+  $("#gCalMini").innerHTML = Array.from({ length: 7 }, (_, i) => shift(today, i - 6)).map((d) => {
+    const r = dayInfo(p, d);
+    const cls = !r.eaten ? "" : d === today && r.over <= 0 ? "now" : r.over <= 0 ? "ok" : "over";
+    return `<i class="${cls}" title="${d}">${cls === "ok" ? "✓" : cls === "over" ? "✕" : cls === "now" ? "•" : ""}</i>`;
+  }).join("");
+}
+
+function renderCal() {
+  const today = localToday();
+  const people = fitDoc.people;
+  calWho ??= me() ?? people[0];
+  $("#calWho").innerHTML = people.map((p) => `<label><input type="radio" name="calWho" value="${esc(p)}" ${p === calWho ? "checked" : ""} /><span>${esc(p)}</span></label>`).join("");
+  const [y, m] = calMonth.split("-").map(Number);
+  const first = `${calMonth}-01`;
+  const days = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const lead = (new Date(`${first}T00:00:00Z`).getUTCDay() + 6) % 7;
+  $("#calTitle").textContent = new Date(`${first}T00:00:00Z`).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+  $("#calNext").disabled = calMonth >= today.slice(0, 7);
+  let ok = 0, over = 0, poopDays = 0, spent = 0;
+  const cells = Array.from({ length: lead }, () => `<span class="cal-day blank"></span>`);
+  for (let n = 1; n <= days; n++) {
+    const d = `${calMonth}-${String(n).padStart(2, "0")}`;
+    const future = d > today;
+    const r = future ? null : dayInfo(calWho, d);
+    let cls = "", mark = "";
+    if (r?.eaten) {
+      if (d === today && r.over <= 0) { cls = "now"; mark = "•"; }
+      else if (r.over <= 0) { cls = "ok"; mark = "✓"; ok++; }
+      else { cls = "over"; mark = "✕"; over++; }
+    }
+    if (r?.poops.length) poopDays++;
+    if (r) spent += r.spent;
+    cells.push(`<button type="button" class="cal-day ${cls}${d === today ? " today" : ""}${d === calPick ? " picked" : ""}" data-day="${d}" ${future ? "disabled" : ""}>
+      <b>${n}</b><span class="cal-mark ${cls}">${mark}</span><small>${r?.poops.length ? `💩${r.poops.length > 1 ? r.poops.length : ""}` : ""}</small></button>`);
+  }
+  $("#calGrid").innerHTML = ["M", "T", "W", "T", "F", "S", "S"].map((w) => `<span class="cal-wd">${w}</span>`).join("") + cells.join("");
+  $("#calSummary").textContent = `${calWho}: ${ok} of ${ok + over} logged days within calories · toilet on ${poopDays} day${poopDays === 1 ? "" : "s"}${dailyDoc ? ` · ${money(spent)} spent` : ""}`;
+  renderCalDay();
+}
+
+function renderCalDay() {
+  if (!calPick || !calPick.startsWith(calMonth)) { $("#calDay").hidden = true; return; }
+  const r = dayInfo(calWho, calPick);
+  const label = new Date(`${calPick}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "long", day: "numeric", month: "short", timeZone: "UTC" });
+  $("#calDay").hidden = false;
+  $("#calDay").innerHTML = `<h3>${label}</h3>
+    <div class="g-row"><span class="g-who">🥗 Calories</span><b class="${r.over > 0 ? "over" : ""}">${r.eaten ? `${fmt(r.eaten)} / ${fmt(r.goal)}` : "nothing logged"}</b>${r.eaten ? `<small>${r.over > 0 ? `${fmt(r.over)} over` : `${fmt(-r.over)} under`}</small>` : ""}</div>
+    <div class="g-row"><span class="g-who">🚽 Toilet</span><b>${r.poops.length || "none"}</b>${r.poops.length ? `<small>${r.poops.map((x) => `${x.time || "?"} · type ${x.type}`).join(", ")}</small>` : ""}</div>
+    ${dailyDoc ? `<div class="g-row"><span class="g-who">💸 Spent</span><b>${money(r.spent)}</b><small>own expenses plus share of shared</small></div>` : ""}
+    <a class="btn ghost small-btn" href="/fitness/#diary">Open the food diary</a>`;
+}
+
+$("#gCal").addEventListener("click", () => {
+  if (!fitDoc) return toast("Still loading…");
+  calPick = localToday();
+  renderCal();
+  $("#calDlg").showModal();
+});
+$("#calClose").addEventListener("click", () => $("#calDlg").close());
+$("#calWho").addEventListener("change", (e) => { calWho = e.target.value; renderCal(); });
+$("#calPrev").addEventListener("click", () => { calMonth = monthAdd(calMonth, -1); calPick = null; renderCal(); });
+$("#calNext").addEventListener("click", () => { calMonth = monthAdd(calMonth, 1); calPick = null; renderCal(); });
+$("#calGrid").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-day]");
+  if (!b || b.disabled) return;
+  calPick = b.dataset.day;
+  renderCal();
+});
 
 loadFitnessCards();
 loadSpending();
