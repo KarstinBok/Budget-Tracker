@@ -35,9 +35,24 @@
         <a class="glance-card" href="/fitness/" id="gFood"><h3>🥗 Calories</h3><div class="g-body"><p class="muted small">Loading…</p></div></a>
         <a class="glance-card" href="/daily/" id="gSpend"><h3>💸 Spending</h3><div class="g-body"><p class="muted small">Loading…</p></div></a>
         <a class="glance-card" href="/toilet/" id="gToilet"><h3>🚽 Toilet</h3><div class="g-body"><p class="muted small">Loading…</p></div></a>
-        <button type="button" class="glance-card g-cal" id="gCal"><h3>📅 Calendar</h3><div class="g-body"><p class="g-note">Calories met, toilet and spending, day by day</p><span class="g-cal-mini" id="gCalMini"></span></div></button>
         <a class="glance-card" href="/insurance/" id="gIns" hidden><h3>🛡️ Insurance</h3><div class="g-body"></div></a>
       </div>
+    </section>
+
+    <section class="panel home-cal" aria-labelledby="calTitle">
+      <div class="cal-top">
+        <h2 class="home-h">📅 Calendar</h2>
+        <div class="seg" id="calWho" role="radiogroup" aria-label="Whose calendar"></div>
+      </div>
+      <div class="cal-head">
+        <button type="button" class="icon-btn" id="calPrev" aria-label="Previous month">‹</button>
+        <h3 id="calTitle">Calendar</h3>
+        <button type="button" class="icon-btn" id="calNext" aria-label="Next month">›</button>
+      </div>
+      <div class="cal-grid" id="calGrid"><p class="muted small">Loading…</p></div>
+      <p class="muted small cal-key">🍔 calories within the goal · 💩 pooped · tap a day for details</p>
+      <p class="muted small" id="calSummary"></p>
+      <div class="hc-day" id="calDay" hidden></div>
     </section>
 
     <section aria-labelledby="quickTitle">
@@ -65,22 +80,6 @@
     <a href="/japan/"><span aria-hidden="true">🗾</span>Japan</a>
     <a href="/settings/"><span aria-hidden="true">⚙️</span>Settings</a>
   </nav>
-
-  <dialog id="calDlg" class="wide-dlg cal-dlg">
-    <div class="cal-top">
-      <div class="seg" id="calWho" role="radiogroup" aria-label="Whose calendar"></div>
-      <button type="button" class="icon-btn" id="calClose" aria-label="Close">✕</button>
-    </div>
-    <div class="cal-head">
-      <button type="button" class="icon-btn" id="calPrev" aria-label="Previous month">‹</button>
-      <h2 id="calTitle">Calendar</h2>
-      <button type="button" class="icon-btn" id="calNext" aria-label="Next month">›</button>
-    </div>
-    <p class="muted small" id="calSummary"></p>
-    <div class="cal-grid hc-grid" id="calGrid"></div>
-    <p class="muted small cal-key"><span class="cal-mark ok">✓</span> calories met · <span class="cal-mark over">✕</span> over · 💩 toilet visits · tap a day for details</p>
-    <div class="hc-day" id="calDay" hidden></div>
-  </dialog>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 

@@ -790,7 +790,9 @@ dialog.wide-dlg { width: min(560px, calc(100vw - 24px)); }
 /* Everyday expenses: 🏠 home view (spending at a glance and by day) and the bottom bar. */
 body.daily[data-view="home"] [data-view]:not([data-view~="home"]),
 body.daily[data-view="overview"] [data-view]:not([data-view~="overview"]),
-body.daily[data-view="cards"] [data-view]:not([data-view~="cards"]) { display: none !important; }
+body.daily[data-view="cards"] [data-view]:not([data-view~="cards"]),
+body.daily[data-view="income"] [data-view]:not([data-view~="income"]) { display: none !important; }
+body.daily[data-view="income"] .screen-tabs, body.daily[data-view="income"] .settle-box { display: none; }
 .daily main { padding-bottom: 96px; }
 .flow { display: grid; gap: 14px; }
 .flow-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
@@ -841,6 +843,32 @@ body.daily[data-view="cards"] [data-view]:not([data-view~="cards"]) { display: n
 .bottom-nav button.active { color: var(--text); font-weight: 600; }
 .bottom-nav button.active span { background: var(--accent-soft); }
 .daily .fab { display: grid; place-items: center; bottom: calc(80px + env(safe-area-inset-bottom)); }
+body.daily .bottom-nav { grid-template-columns: repeat(5, 1fr); }
+body.daily .bottom-nav button span { padding: 2px 12px; }
+
+/* 💰 Income tab: the surplus calculator and the income, fixed expenses and savings lists. */
+.surplus { display: grid; gap: 10px; }
+.surplus-h { margin: 0; font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.surplus .flow-total, .surplus .muted { margin: 0; }
+.surplus { --c-fixed: var(--muted); --c-saving: var(--good); --c-spent: var(--accent); --c-surplus: var(--warn); }
+.surplus-bar { display: flex; height: 14px; border-radius: 999px; overflow: hidden; background: var(--surface-2); gap: 2px; }
+.surplus-bar span { min-width: 3px; }
+.sb-fixed { background: var(--c-fixed); } .sb-saving { background: var(--c-saving); }
+.sb-spent { background: var(--c-spent); } .sb-surplus { background: var(--c-surplus); }
+.surplus-steps { list-style: none; margin: 0; padding: 0; display: grid; font-variant-numeric: tabular-nums; }
+.surplus-steps li { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 8px 0; border-top: 1px solid var(--border); }
+.surplus-steps li:first-child { border-top: 0; }
+.surplus-steps li > span { display: grid; grid-template-columns: auto 1fr; column-gap: 8px; align-items: baseline; }
+.surplus-steps small { grid-column: 2; color: var(--muted); font-size: 0.8rem; }
+.surplus-steps i { width: 10px; height: 10px; border-radius: 3px; background: transparent; align-self: center; }
+.ss-fixed i { background: var(--c-fixed); } .ss-saving i { background: var(--c-saving); }
+.ss-spent i { background: var(--c-spent); } .ss-total i { background: var(--c-surplus); }
+.ss-income b { color: var(--good); }
+.surplus-steps .ss-total { border-top: 2px solid var(--text); font-weight: 700; font-size: 1.05rem; }
+.surplus-note { margin: 0; color: var(--muted); font-size: 0.9rem; }
+.surplus-note.warn { color: var(--warn); font-weight: 600; }
+.tx-icon.fixed { --c: var(--muted); } .tx-icon.saving { --c: var(--good); }
+.tx-none { padding: 12px 0; }
 @media (min-width: 900px) {
   .bottom-nav { left: 50%; right: auto; transform: translateX(-50%); width: 480px; bottom: 12px; border: 1px solid var(--border); border-radius: 20px; box-shadow: var(--shadow); }
   .daily .fab { bottom: 24px; right: 24px; }
@@ -1289,14 +1317,11 @@ body.home main { padding-bottom: 96px; }
 
 /* Home: 📅 calendar card and dialog */
 button.glance-card { font: inherit; text-align: left; cursor: pointer; }
-.g-cal { grid-column: 1 / -1; }
-.g-cal-mini { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
-.g-cal-mini i { display: grid; place-items: center; height: 26px; border-radius: 7px; background: var(--surface-2); font-style: normal; font-weight: 800; font-size: 0.85rem; }
-.g-cal-mini i.ok { background: color-mix(in srgb, var(--good) 18%, var(--surface)); color: var(--good); }
-.g-cal-mini i.over { background: color-mix(in srgb, #c0392b 15%, var(--surface)); color: #c0392b; }
-.g-cal-mini i.now { color: var(--accent); outline: 2px solid var(--accent); outline-offset: -2px; }
-.cal-dlg { width: min(560px, calc(100vw - 16px)); padding: 14px; }
-.cal-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.cal-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.home-cal { display: grid; gap: 4px; }
+.home-cal .home-h { margin: 0; }
+.home-cal .cal-head h3 { margin: 0; font-size: 1.05rem; }
+.cal-emoji { font-size: 0.95rem; line-height: 1.1; min-height: 1.1em; letter-spacing: -0.1em; white-space: nowrap; }
 .cal-day.picked { box-shadow: 0 0 0 2px var(--text) inset; }
 .hc-day { display: grid; gap: 8px; margin-top: 10px; padding: 12px; border-radius: 12px; background: var(--surface-2); }
 .hc-day[hidden] { display: none; }
