@@ -25,7 +25,7 @@ function defaultProfile() {
     activity: "light", kcalTarget: null, macros: { p: 30, c: 40, f: 30 },
     addExercise: true, // add exercise calories back to the day's goal
     overAlert: false, // push a reminder to this person's phones when they go over for the day
-    makeUp: false, // lower the following days' goal to make up for going over
+    makeUp: false, // lower the rest of the week's goal (Mon-Sun) to make up for going over
   };
 }
 

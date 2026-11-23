@@ -739,6 +739,20 @@ dialog.wide-dlg { width: min(560px, calc(100vw - 24px)); }
 .db-goal { position: absolute; left: 10%; right: 10%; height: 0; border-top: 2px dashed var(--good); pointer-events: none; }
 .fitness .db-bar { background: var(--series-2); }
 .fitness .db-col.over .db-bar { background: var(--accent); }
+.ov-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 10px 0 6px; }
+.ov-stat { background: var(--surface-2); border-radius: 10px; padding: 10px 12px; display: grid; gap: 2px; min-width: 0; }
+.ov-stat span { font-size: 0.75rem; color: var(--muted); }
+.ov-stat b { font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+.ov-stat.over b, .ov-diff.over { color: var(--accent); }
+.ov-stat.under b, .ov-diff.under { color: var(--good); }
+#ovTitle { margin: 0; font-size: 1rem; text-align: center; }
+.ov-row { display: flex; align-items: center; gap: 12px; }
+.ov-row[data-ov-day], .ov-row[data-ov-week] { cursor: pointer; }
+.ov-row[data-ov-day]:hover, .ov-row[data-ov-week]:hover { background: var(--surface-2); }
+.ov-row .item-main { flex: 1; min-width: 0; }
+.ov-row .meter { margin-top: 6px; }
+.ov-nums { display: grid; justify-items: end; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ov-diff { font-size: 0.78rem; font-weight: 600; }
 @media (max-width: 600px) {
   .kcal-eq b { font-size: 1.05rem; }
   .kcal-eq .left b { font-size: 1.2rem; }
@@ -746,6 +760,7 @@ dialog.wide-dlg { width: min(560px, calc(100vw - 24px)); }
   .macro-top { font-size: 0.78rem; }
   .row.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .rv-nums input { font-size: 0.9rem; }
+  .ov-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 /* ---------- home page (/) ---------- */
