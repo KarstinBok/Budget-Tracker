@@ -878,7 +878,6 @@ function openGoals() {
   f.addExercise.checked = pr.addExercise !== false;
   f.overAlert.checked = !!pr.overAlert;
   f.makeUp.checked = !!pr.makeUp;
-  f.freshWeek.checked = !!pr.freshWeek;
   f.mp.value = pr.macros?.p ?? 30;
   f.mc.value = pr.macros?.c ?? 40;
   f.mf.value = pr.macros?.f ?? 30;
@@ -894,7 +893,7 @@ goalsForm.addEventListener("submit", async (e) => {
   if (kg > 0 && kg !== latest?.kg && !(await sync.runOp({ op: "addWeight", person: who, date: localToday(), kg }))) return;
   if (await sync.runOp({
     op: "saveProfile", person: who, sex: f.sex.value, birthYear: f.birthYear.value, heightCm: f.heightCm.value,
-    goalKg: f.goalKg.value, weeklyKg: f.weeklyKg.value, activity: f.activity.value, kcalTarget: f.kcalTarget.value, addExercise: f.addExercise.checked, overAlert: f.overAlert.checked, makeUp: f.makeUp.checked, freshWeek: f.freshWeek.checked,
+    goalKg: f.goalKg.value, weeklyKg: f.weeklyKg.value, activity: f.activity.value, kcalTarget: f.kcalTarget.value, addExercise: f.addExercise.checked, overAlert: f.overAlert.checked, makeUp: f.makeUp.checked,
     macros: { p: num(f.mp.value), c: num(f.mc.value), f: num(f.mf.value) },
   }, "Goals saved")) $("#goalsDlg").close();
 });
