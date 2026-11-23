@@ -91,6 +91,9 @@ export const kcalFloor = (doc, p) => (doc.profiles?.[p]?.sex === "male" ? 1500 :
 // Whether a person's goal drops on the following days to make up for going over (Goals).
 export const makesUp = (doc, p) => doc.profiles?.[p]?.makeUp === true;
 
+// Whether each week starts fresh on Monday: going over never carries into the next week (Goals).
+export const freshWeek = (doc, p) => doc.profiles?.[p]?.freshWeek === true;
+
 // Calories eaten on a day, minus exercise when the person adds it back.
 function netKcal(doc, p, d) {
   const eaten = doc.foods.reduce((s, f) => s + (f.person === p && f.date === d ? f.kcal : 0), 0);
@@ -109,9 +112,10 @@ function surplusBetween(doc, p, from, to) {
   return s;
 }
 
-// What's left over from last week to make up this week (only if the person makes up).
+// What's left over from last week to make up this week (only if the person makes up and
+// doesn't start each week fresh).
 function carryInto(doc, p, start) {
-  return makesUp(doc, p) ? Math.max(0, surplusBetween(doc, p, addDays(start, -7), start)) : 0;
+  return makesUp(doc, p) && !freshWeek(doc, p) ? Math.max(0, surplusBetween(doc, p, addDays(start, -7), start)) : 0;
 }
 
 // The day's goals. For someone who makes up, the usual goal minus their surplus so far this
@@ -149,8 +153,8 @@ export function weekBalance(doc, p, day) {
   const daysLeft = over ? 6 - dow : 7 - dow; // today still counts while it isn't over
   const floor = kcalFloor(doc, p);
   const perDay = daysLeft ? Math.max(floor, r10(t.base - surplus / daysLeft)) : null;
-  const nextWeek = !daysLeft && surplus > 0 && makesUp(doc, p) ? Math.min(t.base - floor, r10(surplus / 7)) : 0;
-  return { goal: t.kcal, base: t.base, cut: t.cut, carry: t.carry, weekly: t.base * 7, start, end: addDays(start, 6), over, surplus, daysLeft, perDay, floor, nextWeek, makeUp: makesUp(doc, p) };
+  const nextWeek = !daysLeft && surplus > 0 && makesUp(doc, p) && !freshWeek(doc, p) ? Math.min(t.base - floor, r10(surplus / 7)) : 0;
+  return { goal: t.kcal, base: t.base, cut: t.cut, carry: t.carry, weekly: t.base * 7, start, end: addDays(start, 6), over, surplus, daysLeft, perDay, floor, nextWeek, makeUp: makesUp(doc, p), fresh: freshWeek(doc, p) };
 }
 
 // The reminder for weekBalance(), or null when there's nothing to say. `when` is "today" or
@@ -164,6 +168,7 @@ export function weekNote(w, when = "today") {
     if (w.surplus <= 0) return `${head} This week is still ${n(-w.surplus)} kcal under its budget, so no need to cut back.`;
     const week = w.surplus !== w.over ? ` That's ${n(w.surplus)} kcal over for the week so far.` : "";
     if (!w.daysLeft) {
+      if (w.fresh) return `${head} That ends the week ${n(w.surplus)} kcal over its budget. Next week starts fresh on Monday.`;
       return w.makeUp
         ? `${head}${week} It carries into next week: your goal will be about ${n(w.nextWeek)} kcal lower each day (${n(w.base - w.nextWeek)} kcal).`
         : `${head} That ends the week ${n(w.surplus)} kcal over its budget.`;

@@ -26,6 +26,7 @@ function defaultProfile() {
     addExercise: true, // add exercise calories back to the day's goal
     overAlert: false, // push a reminder to this person's phones when they go over for the day
     makeUp: false, // lower the following days' goal to make up for going over
+    freshWeek: false, // start each week (Monday) fresh: going over never carries into next week
   };
 }
 
@@ -154,6 +155,7 @@ function readProfile(body, old) {
   if (body.activity !== undefined) p.activity = ACTIVITY.includes(body.activity) ? body.activity : "light";
   if (body.addExercise !== undefined) p.addExercise = body.addExercise === true || body.addExercise === "on";
   if (body.makeUp !== undefined) p.makeUp = body.makeUp === true || body.makeUp === "on";
+  if (body.freshWeek !== undefined) p.freshWeek = body.freshWeek === true || body.freshWeek === "on";
   if (body.overAlert !== undefined) p.overAlert = body.overAlert === true || body.overAlert === "on";
   if (body.kcalTarget !== undefined) p.kcalTarget = num(body.kcalTarget, { min: 800, max: 6000, label: "calorie goal", optional: true });
   if (body.macros !== undefined) {

@@ -30,6 +30,8 @@ let day = localToday();
 let who = store.get("fitness.person") || "";
 let review = []; // foods waiting to be logged in the add dialog
 let editing = null; // food being edited
+let ovMode = store.get("fitness.ov") || "week"; // calorie overview: day | week | month
+let ovAt = localToday(); // a day inside the period shown
 
 const sync = createSync({
   path: "/api/fitness",
@@ -235,6 +237,7 @@ $("#calGrid").addEventListener("click", (e) => {
 });
 
 function renderProgress() {
+  renderOverview();
   renderCalendar();
   const ws = weighIns();
   const pr = doc.profiles[who] ?? {};
@@ -283,6 +286,125 @@ function renderProgress() {
       <button type="button" class="icon-btn" data-del-weight="${esc(w.id)}" title="Delete" aria-label="Delete weigh-in">🗑</button></li>`;
   }).join("") || `<li class="muted small">No weigh-ins yet.</li>`;
 }
+
+// ---------------------------------------------------------------- calorie overview
+
+const mondayOf = (d) => shiftDay(d, -((new Date(`${d}T00:00:00Z`).getUTCDay() + 6) % 7));
+const monthEnd = (d) => new Date(Date.UTC(+d.slice(0, 4), +d.slice(5, 7), 0)).toISOString().slice(0, 10);
+
+function ovPeriod(mode = ovMode, at = ovAt) {
+  if (mode === "day") return { from: at, to: at };
+  if (mode === "week") { const from = mondayOf(at); return { from, to: shiftDay(from, 6) }; }
+  return { from: `${at.slice(0, 7)}-01`, to: monthEnd(at) };
+}
+
+// One day's actual calories. `net` is food minus exercise when exercise is added back.
+function dayStats(d) {
+  const eaten = sum(foodsOn(d), "kcal");
+  const burned = sum(exercisesOn(d), "kcal");
+  const net = eaten - (exerciseAddsBack(doc, who) ? burned : 0);
+  return { d, eaten, burned, net, goal: targets(who, d).kcal, logged: eaten > 0 };
+}
+
+// Totals over [from, to], up to today. Goal and over/under count logged days only.
+function rangeStats(from, to) {
+  const days = [];
+  const last = to < localToday() ? to : localToday();
+  for (let d = from; d <= last; d = shiftDay(d, 1)) days.push(dayStats(d));
+  const logged = days.filter((x) => x.logged);
+  return {
+    days, logged: logged.length, eaten: sum(days, "eaten"), burned: sum(days, "burned"), net: sum(days, "net"),
+    goal: sum(logged, "goal"), diff: logged.reduce((s, x) => s + x.net - x.goal, 0),
+    p: doc.foods.filter((f) => f.person === who && f.date >= from && f.date <= last).reduce((a, f) => a + (f.p || 0), 0),
+  };
+}
+
+function ovTitle(from, to) {
+  if (ovMode === "day") return dayLabel(from);
+  if (ovMode === "month") return fmtDay(from, { month: "long", year: "numeric" });
+  const thisWeek = mondayOf(localToday());
+  const name = from === thisWeek ? "This week" : from === shiftDay(thisWeek, -7) ? "Last week" : "Week";
+  return `${name}, ${fmtDay(from, { month: "short", day: "numeric" })} – ${fmtDay(to, { month: "short", day: "numeric" })}`;
+}
+
+const diffText = (v) => `${fmt(Math.abs(v))} ${v > 0 ? "over" : "under"}`;
+
+function ovRow({ label, sub, net, goal, logged, diff, attrs = "" }) {
+  const pct = goal ? Math.min(100, (net / goal) * 100) : 0;
+  return `<li class="ov-row" ${attrs}><div class="item-main"><span class="item-note"><b>${label}</b>${sub ? ` <span class="muted small">${sub}</span>` : ""}</span>
+      ${logged ? `<div class="meter ${diff > 0 ? "over" : ""}"><span style="width:${Math.max(pct, 0)}%"></span></div>` : ""}</div>
+    <div class="ov-nums">${logged
+      ? `<b>${fmt(net)}</b><span class="muted small">of ${fmt(goal)}</span><span class="ov-diff ${diff > 0 ? "over" : "under"}">${diffText(diff)}</span>`
+      : `<span class="muted small">Not logged</span>`}</div></li>`;
+}
+
+function renderOverview() {
+  for (const r of document.querySelectorAll('input[name="ovMode"]')) r.checked = r.value === ovMode;
+  const { from, to } = ovPeriod();
+  const today = localToday();
+  $("#ovTitle").textContent = ovTitle(from, to);
+  $("#ovNext").disabled = to >= today;
+  const s = rangeStats(from, to);
+  const addsBack = exerciseAddsBack(doc, who);
+  const avg = s.logged ? s.eaten / s.logged : 0;
+  const tile = (name, v, cls = "") => `<div class="ov-stat ${cls}"><span>${name}</span><b>${v}</b></div>`;
+  $("#ovStats").innerHTML = [
+    tile("Food eaten", `${fmt(s.eaten)} kcal`),
+    tile("Exercise", `${fmt(s.burned)} kcal`),
+    tile(addsBack ? "Net (food − exercise)" : "Net (exercise not added back)", `${fmt(s.net)} kcal`),
+    tile(ovMode === "day" ? "Goal" : "Goal (logged days)", s.logged ? `${fmt(s.goal)} kcal` : "—"),
+    tile("Over / under goal", s.logged ? diffText(s.diff) : "—", s.logged ? (s.diff > 0 ? "over" : "under") : ""),
+    ovMode === "day" ? tile("Protein", s.logged ? `${fmt(s.p)}g` : "—") : tile("Average a logged day", s.logged ? `${fmt(avg)} kcal` : "—"),
+  ].join("");
+  const span = s.days.length;
+  $("#ovNote").textContent = from > today ? "This period hasn't started yet."
+    : ovMode === "day" ? (s.logged ? "" : "No food logged on this day.")
+    : `${s.logged} of ${span} day${span === 1 ? "" : "s"} logged${to > today ? " so far" : ""}. Days without food logged don't count towards the goal. Tap a row to open it.`;
+
+  let rows = "";
+  if (ovMode === "day") {
+    rows = MEALS.map((m) => {
+      const kcal = sum(foodsOn(from).filter((f) => f.meal === m.id), "kcal");
+      return `<li class="ov-row"><div class="item-main"><span class="item-note"><b>${m.emoji} ${m.name}</b></span></div><div class="ov-nums"><b>${fmt(kcal)}</b><span class="muted small">kcal</span></div></li>`;
+    }).join("") + `<li class="ov-row"><div class="item-main"><span class="item-note"><b>🏃 Exercise</b>${addsBack ? "" : ' <span class="muted small">not added back</span>'}</span></div><div class="ov-nums"><b>−${fmt(s.burned)}</b><span class="muted small">kcal</span></div></li>`
+      + `<li class="ov-row" data-ov-day="${from}"><div class="item-main"><span class="item-note"><b>📒 Open this day's diary</b></span></div><div class="ov-nums">›</div></li>`;
+  } else if (ovMode === "week") {
+    rows = s.days.map((x) => ovRow({
+      label: fmtDay(x.d, { weekday: "long" }), sub: fmtDay(x.d, { month: "short", day: "numeric" }) + (x.d === today ? " · today so far" : ""),
+      net: x.net, goal: x.goal, logged: x.logged, diff: x.net - x.goal, attrs: `data-ov-day="${x.d}" tabindex="0"`,
+    })).join("");
+  } else {
+    for (let w = mondayOf(from); w <= to && w <= today; w = shiftDay(w, 7)) {
+      const a = w < from ? from : w, b = shiftDay(w, 6) > to ? to : shiftDay(w, 6);
+      const ws = rangeStats(a, b);
+      rows += ovRow({
+        label: a === b ? fmtDay(a, { weekday: "short", month: "short", day: "numeric" }) : `${fmtDay(a, { month: "short", day: "numeric" })} – ${fmtDay(b, { month: "short", day: "numeric" })}`,
+        sub: ws.logged ? `${ws.logged} day${ws.logged === 1 ? "" : "s"} logged · ${fmt(ws.eaten)} eaten` : "",
+        net: ws.days.filter((x) => x.logged).reduce((t, x) => t + x.net, 0), goal: ws.goal, logged: ws.logged > 0, diff: ws.diff,
+        attrs: `data-ov-week="${a}" tabindex="0"`,
+      });
+    }
+  }
+  $("#ovRows").innerHTML = rows || `<li class="muted small">Nothing to show yet.</li>`;
+}
+
+$("#ovMode").addEventListener("change", (e) => { ovMode = e.target.value; store.set("fitness.ov", ovMode); renderOverview(); });
+$("#ovPrev").addEventListener("click", () => {
+  const { from } = ovPeriod();
+  ovAt = shiftDay(from, -1);
+  if (ovMode !== "month") ovAt = ovPeriod(ovMode, ovAt).from;
+  renderOverview();
+});
+$("#ovNext").addEventListener("click", () => { ovAt = shiftDay(ovPeriod().to, 1); renderOverview(); });
+$("#ovRows").addEventListener("click", (e) => {
+  const d = e.target.closest("[data-ov-day]");
+  if (d) { day = d.dataset.ovDay; location.hash = "#diary"; return; }
+  const w = e.target.closest("[data-ov-week]");
+  if (w) { ovMode = "week"; ovAt = w.dataset.ovWeek; renderOverview(); }
+});
+$("#ovRows").addEventListener("keydown", (e) => {
+  if ((e.key === "Enter" || e.key === " ") && e.target.closest(".ov-row[tabindex]")) { e.preventDefault(); e.target.closest(".ov-row").click(); }
+});
 
 function renderWeightChart(ws, goal) {
   const svg = $("#weightChart");
@@ -756,6 +878,7 @@ function openGoals() {
   f.addExercise.checked = pr.addExercise !== false;
   f.overAlert.checked = !!pr.overAlert;
   f.makeUp.checked = !!pr.makeUp;
+  f.freshWeek.checked = !!pr.freshWeek;
   f.mp.value = pr.macros?.p ?? 30;
   f.mc.value = pr.macros?.c ?? 40;
   f.mf.value = pr.macros?.f ?? 30;
@@ -771,7 +894,7 @@ goalsForm.addEventListener("submit", async (e) => {
   if (kg > 0 && kg !== latest?.kg && !(await sync.runOp({ op: "addWeight", person: who, date: localToday(), kg }))) return;
   if (await sync.runOp({
     op: "saveProfile", person: who, sex: f.sex.value, birthYear: f.birthYear.value, heightCm: f.heightCm.value,
-    goalKg: f.goalKg.value, weeklyKg: f.weeklyKg.value, activity: f.activity.value, kcalTarget: f.kcalTarget.value, addExercise: f.addExercise.checked, overAlert: f.overAlert.checked, makeUp: f.makeUp.checked,
+    goalKg: f.goalKg.value, weeklyKg: f.weeklyKg.value, activity: f.activity.value, kcalTarget: f.kcalTarget.value, addExercise: f.addExercise.checked, overAlert: f.overAlert.checked, makeUp: f.makeUp.checked, freshWeek: f.freshWeek.checked,
     macros: { p: num(f.mp.value), c: num(f.mc.value), f: num(f.mf.value) },
   }, "Goals saved")) $("#goalsDlg").close();
 });
