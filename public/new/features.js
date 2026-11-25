@@ -85,7 +85,7 @@ export const FEATURES = [
   },
   {
     id: "record-income",
-    page: "/",
+    page: "/daily/",
     date: "2026-11-12",
     app: "💸 Expenses",
     title: "Record money coming in",
