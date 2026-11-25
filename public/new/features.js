@@ -12,7 +12,7 @@ export const FEATURES = [
     date: "2026-11-25",
     app: "🏠 Home",
     title: "Habits: a ✓ when both are done",
-    why: "The home calendar ticks a day when calories stayed within the goal and you pooped (○ when only one), switches between week and month, and shows how many days each habit was kept.",
+    why: "The home calendar ticks a day when calories stayed within the goal and you pooped (○ when only one), switches between week and month, and shows how many days each habit was kept. Tap 🥗 Calories or 💩 Poop to see one habit on its own: ✓ met, ✕ not met, with its success rate.",
   },
   {
     id: "home-redesign",
