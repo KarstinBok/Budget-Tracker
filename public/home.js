@@ -58,17 +58,6 @@ function renderFood(doc) {
   }).join("");
 }
 
-function renderToilet(doc) {
-  const today = localToday();
-  const log = doc.toilet ?? [];
-  $("#gToilet .g-body").innerHTML = order(doc.people).map((p) => {
-    const mine = log.filter((x) => x.person === p).sort((a, b) => (b.date + (b.time || "")).localeCompare(a.date + (a.time || "")));
-    const n = mine.filter((x) => x.date === today).length;
-    const last = mine[0];
-    return row(p, `${n} today`, last ? `last ${last.date === today ? `at ${last.time || "today"}` : last.date.slice(5)} · type ${last.type}` : "none yet");
-  }).join("");
-}
-
 let fitDoc = null, dailyDoc = null;
 async function loadFitnessCards() {
   try {
@@ -76,8 +65,7 @@ async function loadFitnessCards() {
     fitDoc = doc;
     renderCal();
     renderFood(doc);
-    renderToilet(doc);
-  } catch { failed("gFood"); failed("gToilet"); }
+  } catch { failed("gFood"); }
 }
 
 async function loadSpending() {
