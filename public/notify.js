@@ -53,7 +53,7 @@ function renderBadge() {
 
 function renderList() {
   const seen = seenAt();
-  const icon = { expenses: "💸", fitness: "🥗" };
+  const icon = { expenses: "💸", fitness: "🍔" };
   $("#bellList").innerHTML = items.length ? items.map((i) => `<li class="${fromOthers(i) && i.t > seen ? "new" : ""}">
     <a href="${esc(i.url || "/")}"><span class="bell-icon" aria-hidden="true">${icon[i.app] ?? "🔔"}</span>
       <span class="bell-text">${esc(i.text)}<time>${timeAgo(i.t)}</time></span></a></li>`).join("")

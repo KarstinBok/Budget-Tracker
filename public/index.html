@@ -12,75 +12,86 @@
   <meta name="theme-color" content="#bc002d" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=4" />
   <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/tour/tour.css" />
   <script src="/theme.js"></script>
 </head>
-<body class="home">
+<body class="home home-page">
   <header class="topbar">
     <div class="brand">
       <span class="sun" aria-hidden="true"></span>
       <div>
         <h1>Life Kalicc</h1>
-        <p class="muted">Karstin &amp; Lilin</p>
+        <p class="tagline">Track · Plan · Stay Consistent</p>
       </div>
     </div>
     <div class="top-actions">
+      <a id="newTab" class="btn ghost new-btn" href="/new/" title="What's new" aria-label="What's new">✨</a>
       <button id="whoBtn" class="chip" type="button" title="Who's using this phone">👤 <span id="whoName">You</span></button>
     </div>
   </header>
 
   <main>
     <section aria-labelledby="todayTitle">
-      <h2 class="home-h" id="todayTitle">Today</h2>
+      <h2 class="home-h sr-only" id="todayTitle">Today</h2>
       <div class="glance" id="glance">
-        <a class="glance-card" href="/fitness/" id="gFood"><h3>🥗 Calories</h3><div class="g-body"><p class="muted small">Loading…</p></div></a>
-        <a class="glance-card" href="/daily/" id="gSpend"><h3>💸 Spending</h3><div class="g-body"><p class="muted small">Loading…</p></div></a>
-        <a class="glance-card" href="/toilet/" id="gToilet"><h3>🚽 Toilet</h3><div class="g-body"><p class="muted small">Loading…</p></div></a>
-        <button type="button" class="glance-card g-cal" id="gCal"><h3>📅 Calendar</h3><div class="g-body"><p class="g-note">Calories met, toilet and spending, day by day</p><span class="g-cal-mini" id="gCalMini"></span></div></button>
-        <a class="glance-card" href="/insurance/" id="gIns" hidden><h3>🛡️ Insurance</h3><div class="g-body"></div></a>
+        <a class="glance-card tint-food" href="/fitness/" id="gFood"><h3>🍔 Calories</h3><div class="g-body"><p class="muted small">Loading…</p></div></a>
+        <a class="glance-card tint-spend" href="/daily/" id="gSpend"><h3>💸 Spending</h3><div class="g-body"><p class="muted small">Loading…</p></div><p class="g-note g-ins" id="gInsLine" hidden></p></a>
       </div>
     </section>
 
     <section aria-labelledby="quickTitle">
-      <h2 class="home-h" id="quickTitle">Quick add</h2>
+      <h2 class="home-h sr-only" id="quickTitle">Quick add</h2>
       <nav class="quick-grid" aria-label="Quick add">
-        <a class="quick" href="/daily/?add=personal&amp;from=home"><span>💸</span><b>Expense</b></a>
-        <a class="quick" href="/daily/?add=shared&amp;from=home"><span>🤝</span><b>Shared expense</b></a>
-        <a class="quick" href="/fitness/?add=food&amp;from=home"><span>🍽️</span><b>Food</b></a>
-        <a class="quick" href="https://claude.ai/new" target="_blank" rel="noopener"><span>📷</span><b>Food photo</b><small>in Claude</small></a>
-        <a class="quick" href="/fitness/?add=weight&amp;from=home"><span>⚖️</span><b>Weight</b></a>
-        <a class="quick" href="/fitness/?add=exercise&amp;from=home"><span>🏃</span><b>Exercise</b></a>
-        <a class="quick" href="/daily/?add=income&amp;from=home"><span>💰</span><b>Income</b></a>
-        <a class="quick" href="/daily/?add=payment&amp;from=home"><span>🔁</span><b>Record a payment</b></a>
-        <a class="quick" href="/toilet/?add=1&amp;from=home"><span>🚽</span><b>Poop</b></a>
+        <a class="quick q-expense" href="/daily/?add=personal&amp;from=home"><span>🧾</span><b>Expense</b></a>
+        <a class="quick q-food" href="/fitness/?add=food&amp;from=home"><span>🍔</span><b>Food</b></a>
+        <a class="quick q-weight" href="/fitness/?add=weight&amp;from=home"><span>⚖️</span><b>Weight</b></a>
+        <a class="quick q-poop" href="/toilet/?add=1&amp;from=home"><span>🚽</span><b>Poop</b></a>
       </nav>
+    </section>
+
+    <section class="panel home-cal habits" aria-labelledby="habitsTitle">
+      <div class="hab-top">
+        <button type="button" class="icon-btn round-btn hab-back" id="calBack" aria-label="Back to all habits" hidden>‹</button>
+        <span class="hab-icon" id="habIcon" aria-hidden="true">📅</span>
+        <div class="hab-name"><h2 id="habitsTitle">Habits</h2><p id="habSub">Calories met &amp; pooped, every day</p></div>
+        <div class="seg pill-seg" id="calWho" role="radiogroup" aria-label="Whose habits"></div>
+      </div>
+      <div class="hab-bar">
+        <div class="cal-head">
+          <button type="button" class="icon-btn round-btn" id="calPrev" aria-label="Earlier">‹</button>
+          <h3 id="calTitle">Calendar</h3>
+          <button type="button" class="icon-btn round-btn" id="calNext" aria-label="Later">›</button>
+        </div>
+        <div class="seg pill-seg" id="calMode" role="radiogroup" aria-label="Week or month">
+          <label><input type="radio" name="calMode" value="week" /><span>Week</span></label>
+          <label><input type="radio" name="calMode" value="month" checked /><span>Month</span></label>
+        </div>
+      </div>
+      <div class="cal-grid" id="calGrid"><p class="muted small">Loading…</p></div>
+      <p class="hab-key" id="habKey"></p>
+      <div class="hab-progress">
+        <div class="hp-head"><b id="progTitle">Monthly progress</b><span id="progRange"></span></div>
+        <ul class="hp-list" id="progList"></ul>
+        <div class="hp-stats" id="catStats" hidden></div>
+      </div>
     </section>
 
   </main>
 
+  <dialog id="calDayDlg" class="cal-day-dlg" aria-label="Day details">
+    <div class="hc-day" id="calDay"></div>
+    <div class="dlg-actions"><button class="btn ghost" type="button" id="calDayClose">Close</button></div>
+  </dialog>
+
   <nav class="bottom-nav app-nav" aria-label="Our apps">
+    <a href="/" class="active" aria-current="page"><span aria-hidden="true">🏠</span>Home</a>
     <a href="/daily/"><span aria-hidden="true">💸</span>Expenses</a>
-    <a href="/fitness/"><span aria-hidden="true">🥗</span>Food</a>
+    <a href="/fitness/"><span aria-hidden="true">🍔</span>Food</a>
     <a href="/toilet/"><span aria-hidden="true">🚽</span>Toilet</a>
     <a href="/insurance/"><span aria-hidden="true">🛡️</span>Insurance</a>
     <a href="/japan/"><span aria-hidden="true">🗾</span>Japan</a>
     <a href="/settings/"><span aria-hidden="true">⚙️</span>Settings</a>
   </nav>
-
-  <dialog id="calDlg" class="wide-dlg cal-dlg">
-    <div class="cal-top">
-      <div class="seg" id="calWho" role="radiogroup" aria-label="Whose calendar"></div>
-      <button type="button" class="icon-btn" id="calClose" aria-label="Close">✕</button>
-    </div>
-    <div class="cal-head">
-      <button type="button" class="icon-btn" id="calPrev" aria-label="Previous month">‹</button>
-      <h2 id="calTitle">Calendar</h2>
-      <button type="button" class="icon-btn" id="calNext" aria-label="Next month">›</button>
-    </div>
-    <p class="muted small" id="calSummary"></p>
-    <div class="cal-grid hc-grid" id="calGrid"></div>
-    <p class="muted small cal-key"><span class="cal-mark ok"><img class="cal-icon" src="/icons/cal-tick.png" alt="✓" /></span> calories met · <span class="cal-mark over"><img class="cal-icon" src="/icons/cal-x.png" alt="✕" /></span> over · 💩 toilet visits · tap a day for details</p>
-    <div class="hc-day" id="calDay" hidden></div>
-  </dialog>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
@@ -103,5 +114,7 @@
   </dialog>
   <script src="/home.js" type="module"></script>
   <script src="/notify.js" type="module"></script>
+  <script src="/tour/tour.js" defer></script>
+  <script src="/tour/tours.js" defer></script>
 </body>
 </html>

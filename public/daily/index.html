@@ -11,6 +11,7 @@
   <link rel="icon" type="image/png" href="/icons/favicon-64.png?v=4" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=4" />
   <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/tour/tour.css" />
   <script src="/theme.js"></script>
 </head>
 <body class="daily">
@@ -63,11 +64,45 @@
     <div class="tx-days" id="txList" data-view="home" aria-live="polite"></div>
 
     <!-- 📊 Overview: cards, the summary and the daily table -->
-    <div class="month-bar" data-view="overview cards">
+    <div class="month-bar" data-view="overview cards income">
       <button type="button" class="icon-btn" id="prevMonth" aria-label="Previous month">‹</button>
       <h2 id="monthTitle">This month</h2>
       <button type="button" class="icon-btn" id="nextMonth" aria-label="Next month">›</button>
     </div>
+
+    <!-- 💰 Income: what came in, fixed expenses, savings and the surplus left over -->
+    <section class="panel surplus" data-view="income" aria-labelledby="surplusTotal">
+      <h2 class="surplus-h">Surplus</h2>
+      <p class="flow-total" id="surplusTotal"></p>
+      <p class="muted" id="surplusLabel"></p>
+      <div class="surplus-bar" id="surplusBar" role="img"></div>
+      <ol class="surplus-steps" id="surplusSteps"></ol>
+      <p class="surplus-note" id="surplusNote"></p>
+    </section>
+
+    <section class="panel" data-view="income">
+      <div class="panel-head">
+        <div><h2>💰 Income</h2><p class="muted small">Money that came in this month.</p></div>
+        <div class="head-actions"><button class="btn" type="button" id="addIncomeBtn">＋ Add income</button></div>
+      </div>
+      <ul class="tx-card" id="incomeList"></ul>
+    </section>
+
+    <section class="panel" data-view="income">
+      <div class="panel-head">
+        <div><h2>🏠 Fixed expenses</h2><p class="muted small">Bills that come every month, like rent, phone or insurance, or a one-off for this month. Don't also add them as expenses, or they'll count twice.</p></div>
+        <div class="head-actions"><button class="btn" type="button" data-add-budget="fixed">＋ Add fixed expense</button></div>
+      </div>
+      <ul class="tx-card" id="fixedList"></ul>
+    </section>
+
+    <section class="panel" data-view="income">
+      <div class="panel-head">
+        <div><h2>🐷 Savings</h2><p class="muted small">What you set aside each month. Savings come out before anything goes to the surplus.</p></div>
+        <div class="head-actions"><button class="btn" type="button" data-add-budget="saving">＋ Add savings</button></div>
+      </div>
+      <ul class="tx-card" id="savingList"></ul>
+    </section>
 
     <section class="cards" aria-label="Summary" data-view="overview">
       <article class="card"><h2 id="c1Label">Spent this month</h2><p class="big" id="c1"></p><p class="muted" id="c1Sub"></p></article>
@@ -144,6 +179,7 @@
 
   <nav class="bottom-nav" aria-label="Views">
     <button type="button" data-view-btn="home"><span aria-hidden="true">🧾</span>Spending</button>
+    <button type="button" data-view-btn="income"><span aria-hidden="true">💰</span>Income</button>
     <button type="button" data-view-btn="overview"><span aria-hidden="true">📊</span>Overview</button>
     <button type="button" data-view-btn="cards"><span aria-hidden="true">💳</span>Cards</button>
     <button type="button" id="settingsBtn"><span aria-hidden="true">⚙️</span>Settings</button>
@@ -170,6 +206,13 @@
         <legend>Paid with</legend>
         <div class="cat-choices" id="cardChoices" role="radiogroup" aria-label="Paid with"></div>
         <p class="convert" id="cardNote"></p>
+      </fieldset>
+      <fieldset class="cat-pick">
+        <legend>Shared?</legend>
+        <div class="seg shared-switch" id="sharedSwitch" role="radiogroup" aria-label="Is this expense shared">
+          <label><input type="radio" name="entryShared" value="personal" checked /><span>🙋 Personal</span></label>
+          <label><input type="radio" name="entryShared" value="shared" /><span>🤝 Shared</span></label>
+        </div>
       </fieldset>
       <fieldset class="cat-pick" data-kind="personal">
         <legend>Whose expense</legend>
@@ -219,6 +262,39 @@
         <button class="btn ghost danger" type="button" id="incomeDelete" hidden>🗑 Delete</button>
         <button class="btn ghost" type="button" id="incomeCancel">Cancel</button>
         <button class="btn" type="submit" id="incomeSubmit">Add income</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="budgetDlg">
+    <form id="budgetForm">
+      <h2 id="budgetTitle">Add fixed expense</h2>
+      <fieldset class="cat-pick">
+        <legend>What is it</legend>
+        <div class="seg" role="radiogroup" aria-label="Fixed expense or savings">
+          <label><input type="radio" name="budgetKind" value="fixed" checked /><span>🏠 Fixed expense</span></label>
+          <label><input type="radio" name="budgetKind" value="saving" /><span>🐷 Savings</span></label>
+        </div>
+      </fieldset>
+      <label>Name <input name="name" maxlength="40" required autocomplete="off" placeholder="e.g. Rent, Phone bill, Emergency fund" /></label>
+      <label>Amount (S$) <input name="amount" inputmode="decimal" autocomplete="off" placeholder="0.00" required /></label>
+      <fieldset class="cat-pick">
+        <legend>How often</legend>
+        <div class="seg" role="radiogroup" aria-label="How often">
+          <label><input type="radio" name="budgetOnce" value="monthly" checked /><span>Every month</span></label>
+          <label><input type="radio" name="budgetOnce" value="once" /><span id="budgetOnceLabel">Only this month</span></label>
+        </div>
+        <p class="muted small" id="budgetFromNote"></p>
+      </fieldset>
+      <fieldset class="cat-pick">
+        <legend>Whose</legend>
+        <div class="cat-choices" id="budgetOwners" role="radiogroup" aria-label="Whose"></div>
+      </fieldset>
+      <div class="dlg-actions">
+        <button class="btn ghost danger" type="button" id="budgetDelete" hidden>🗑 Delete</button>
+        <button class="btn ghost" type="button" id="budgetStop" hidden>🛑 Stop</button>
+        <button class="btn ghost" type="button" id="budgetCancel">Cancel</button>
+        <button class="btn" type="submit" id="budgetSubmit">Add</button>
       </div>
     </form>
   </dialog>
@@ -330,5 +406,7 @@
 
   <script src="/daily/daily.js" type="module"></script>
   <script src="/notify.js" type="module"></script>
+  <script src="/tour/tour.js" defer></script>
+  <script src="/tour/tours.js" defer></script>
 </body>
 </html>
