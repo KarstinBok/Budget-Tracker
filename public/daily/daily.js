@@ -1045,8 +1045,17 @@ function suggestCard(cat, person) {
   return fits.find((c) => c.owner === person) ?? fits[0] ?? null;
 }
 
+// Personal or shared, as picked with the "Shared?" switch in the add form.
+const formKind = () => radioValue("entryShared") === "shared" ? "shared" : "personal";
+
+function showFormKind() {
+  const kind = formKind();
+  for (const el of form.querySelectorAll("[data-kind]")) el.hidden = el.dataset.kind !== kind;
+  $("#addTitle").textContent = `${editing ? "Edit" : "Add"} ${kind === "shared" ? "shared " : ""}expense`;
+}
+
 function updateCardUI() {
-  const kind = editing?.kind ?? screen;
+  const kind = formKind();
   if (!cardTouched) {
     const person = kind === "personal" ? radioValue("owner") : me();
     const id = suggestCard(radioValue("cat"), person)?.id ?? "";
@@ -1301,10 +1310,10 @@ function openAdd(prefill = {}, item = null) {
   if (!doc) return;
   editing = item;
   $("#addDelete").hidden = !item;
-  $("#kindSwitch").hidden = !!item || (item?.kind ?? screen) !== "personal";
+  $("#kindSwitch").hidden = !!item;
   form.querySelector('input[name="entryKind"][value="expense"]').checked = true;
   const kind = item?.kind ?? screen;
-  for (const el of form.querySelectorAll("[data-kind]")) el.hidden = el.dataset.kind !== kind;
+  form.querySelector(`input[name="entryShared"][value="${kind}"]`).checked = true;
   const f = form.elements;
   // New expenses always start on Food (or the first category if Food was removed).
   const cat = item?.cat ?? prefill.cat ?? "food";
@@ -1324,7 +1333,7 @@ function openAdd(prefill = {}, item = null) {
   f.date.max = localToday();
   f.amount.value = item ? (item.a / 100).toFixed(2) : "";
   f.note.value = item?.note ?? "";
-  $("#addTitle").textContent = `${item ? "Edit" : "Add"} ${kind === "shared" ? "shared " : ""}expense`;
+  showFormKind();
   $("#addSubmit").textContent = item ? "Save changes" : "Add";
   updateSplitUI();
   updateCardUI();
@@ -1334,6 +1343,7 @@ function openAdd(prefill = {}, item = null) {
 
 form.addEventListener("input", (e) => {
   if (e.target.name === "card") cardTouched = true;
+  if (e.target.name === "entryShared") showFormKind();
   updateSplitUI();
   updateCardUI();
 });
@@ -1347,7 +1357,7 @@ form.addEventListener("submit", async (e) => {
   e.preventDefault();
   const a = parseCents(form.elements.amount.value);
   if (!(a > 0)) return toast("Enter an amount, e.g. 12.50");
-  const kind = editing?.kind ?? screen;
+  const kind = formKind();
   const body = {
     kind, date: form.elements.date.value, cat: radioValue("cat"), a, note: form.elements.note.value, card: radioValue("card") || "",
     ...(kind === "personal" ? { owner: radioValue("owner") } : { paidBy: cardOf(radioValue("card"))?.owner ?? radioValue("payer"), shares: splitShares() }),
@@ -1355,7 +1365,7 @@ form.addEventListener("submit", async (e) => {
   const submit = $("#addSubmit");
   submit.disabled = true;
   const ok = await sync.runOp(editing ? { op: "updateItem", id: editing.id, ...body } : { op: "addItem", ...body },
-    `${editing ? "Saved" : "Added"} ${money(a)}`);
+    `${editing ? "Saved" : "Added"} ${money(a)}${kind !== screen ? ` to ${kind === "shared" ? "Shared" : "Daily"} spending` : ""}`);
   submit.disabled = false;
   if (!ok) return;
   if (body.date.slice(0, 7) !== month) month = body.date.slice(0, 7);

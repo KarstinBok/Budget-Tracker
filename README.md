@@ -2,7 +2,7 @@
 
 Shared, live-updating apps hosted on Netlify. The home page (https://japan-trip-budget.netlify.app/) is for everyday use:
 
-- **Quick add:** 💸 Expense, 🤝 Shared expense, 🍽️ Food, ⚖️ Weight and 🏃 Exercise each open the right app straight into its dialog, then come back to the home page with a confirmation. 📷 Food photo opens Claude, which logs it through the Food diary connector.
+- **Quick add:** 💸 Expense (with a Shared switch inside), 🍽️ Food, ⚖️ Weight and 🏃 Exercise each open the right app straight into its dialog, then come back to the home page with a confirmation. 📷 Food photo opens Claude, which logs it through the Food diary connector.
 - **📅 Calendar:** a month calendar on the home page for Karstin or Lilin (toggle at the top). 🍔 marks a day when calories stayed within the goal and 💩 a day with a toilet visit. ‹ › changes month, and tapping a day shows its calories, toilet visits and spending.
 - **Our apps:** a tab per app, opened with a tap. 💸 Expenses shows each person's spending this month and today, shared spending and who owes whom. 🥗 Food & fitness shows each person's calories left today and weight. 🗾 Japan trip links to the budget and journal. Each tab has links into its app.
 
