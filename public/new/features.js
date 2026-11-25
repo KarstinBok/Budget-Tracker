@@ -34,27 +34,27 @@ export const FEATURES = [
   {
     id: "calorie-overview",
     shot: "/new/img/calorie-overview.jpg", // a screenshot is enough for this one
-    where: "🥗 Food → 📈 Progress → Calorie overview",
+    where: "🍔 Food → 📈 Progress → Calorie overview",
     date: "2026-11-23",
-    app: "🥗 Food & fitness",
+    app: "🍔 Food & fitness",
     title: "Calorie overview by day, week or month",
     why: "See what you ate and burned over a whole week or month against your goal.",
   },
   {
     id: "make-up-week",
     shot: "/new/img/make-up-week.jpg", // a screenshot is enough for this one
-    where: "🥗 Food → 🎯 Goals",
+    where: "🍔 Food → 🎯 Goals",
     date: "2026-11-23",
-    app: "🥗 Food & fitness",
+    app: "🍔 Food & fitness",
     title: "Make up for a big day within the week",
     why: "Going over lowers the rest of the week's goal a little, and every Monday starts fresh.",
   },
   {
     id: "exercise-and-alerts",
     shot: "/new/img/exercise-and-alerts.jpg", // a screenshot is enough for this one
-    where: "🥗 Food → 🎯 Goals. For the alert, also tap 🔔 → Turn on notifications",
+    where: "🍔 Food → 🎯 Goals. For the alert, also tap 🔔 → Turn on notifications",
     date: "2026-11-16",
-    app: "🥗 Food & fitness",
+    app: "🍔 Food & fitness",
     title: "Exercise calories and over-the-limit alerts",
     why: "Choose whether exercise earns extra calories, and get a nudge on your phone when you go over.",
   },
@@ -70,7 +70,7 @@ export const FEATURES = [
     id: "favourites-recipes",
     page: "/fitness/",
     date: "2026-11-15",
-    app: "🥗 Food & fitness",
+    app: "🍔 Food & fitness",
     title: "Favourites first, and recipes in their own tab",
     why: "Log the things you eat every day in one tap.",
   },

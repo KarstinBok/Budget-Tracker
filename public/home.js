@@ -118,7 +118,7 @@ let calMode = store.get("home.calMode") === "week" ? "week" : "month";
 let calCat = "all";
 const CATS = {
   all: { icon: "📅", name: "Habits", sub: "Calories met & pooped, every day" },
-  cals: { icon: "🥗", name: "Calories", sub: "Within your calorie goal", href: "/fitness/#progress", open: "Open the food diary" },
+  cals: { icon: "🍔", name: "Calories", sub: "Within your calorie goal", href: "/fitness/#progress", open: "Open the food diary" },
   poop: { icon: "💩", name: "Poop", sub: "A poop logged that day", href: "/toilet/", open: "Open the toilet log" },
 };
 // One day for the chosen habit: "met", "miss" (not met) or "none" (nothing logged yet).
@@ -195,7 +195,7 @@ function renderCal() {
   };
   $("#progList").hidden = calCat !== "all";
   $("#catStats").hidden = calCat === "all";
-  $("#progList").innerHTML = prog("🥗", "Calories", "cals", "cals") + prog("💩", "Poop", "pooped", "poop") + prog("✅", "All habits", "all", "");
+  $("#progList").innerHTML = prog("🍔", "Calories", "cals", "cals") + prog("💩", "Poop", "pooped", "poop") + prog("✅", "All habits", "all", "");
   if (calCat !== "all") {
     const rate = n ? Math.round((counts.met / n) * 100) : 0;
     const stat = (cls, mark, v, label) => `<div class="hs"><b>${mark ? `<i class="hk ${cls}">${mark}</i>` : ""}${v}</b><span>${label}</span></div>`;
@@ -210,7 +210,7 @@ function renderCalDay() {
   const r = dayInfo(calWho, calPick);
   const label = fmtD(calPick, { weekday: "long", day: "numeric", month: "short" });
   $("#calDay").innerHTML = `<h3>${label} · ${r.status === "all" ? "✓ all habits met" : r.status === "some" ? "○ some met" : "not met"}</h3>
-    <div class="g-row"><span class="g-who">🥗 Calories</span><b class="${r.over > 0 ? "over" : ""}">${r.eaten ? `${fmt(r.eaten)} / ${fmt(r.goal)}` : "nothing logged"}</b>${r.eaten ? `<small>${r.over > 0 ? `${fmt(r.over)} over` : `${fmt(-r.over)} under`}</small>` : ""}</div>
+    <div class="g-row"><span class="g-who">🍔 Calories</span><b class="${r.over > 0 ? "over" : ""}">${r.eaten ? `${fmt(r.eaten)} / ${fmt(r.goal)}` : "nothing logged"}</b>${r.eaten ? `<small>${r.over > 0 ? `${fmt(r.over)} over` : `${fmt(-r.over)} under`}</small>` : ""}</div>
     <div class="g-row"><span class="g-who">💩 Poop</span><b>${r.poops.length || "none"}</b>${r.poops.length ? `<small>${r.poops.map((x) => `${x.time || "?"} · type ${x.type}`).join(", ")}</small>` : ""}</div>
     ${dailyDoc ? `<div class="g-row"><span class="g-who">💸 Spent</span><b>${money(r.spent)}</b><small>own expenses plus share of shared</small></div>` : ""}
     <a class="btn ghost small-btn" href="/fitness/#diary">Open the food diary</a>`;

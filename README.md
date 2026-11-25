@@ -2,10 +2,10 @@
 
 Shared, live-updating apps hosted on Netlify. The home page (https://japan-trip-budget.netlify.app/) is for everyday use:
 
-- **Quick add:** 💸 Expense (with a Shared switch inside), 🍽️ Food, ⚖️ Weight and 🚽 Poop each open the right app straight into its dialog, then come back to the home page with a confirmation. Exercise, income and payments are added from inside their apps.
+- **Quick add:** 💸 Expense (with a Shared switch inside), 🍔 Food, ⚖️ Weight and 🚽 Poop each open the right app straight into its dialog, then come back to the home page with a confirmation. Exercise, income and payments are added from inside their apps.
 - **📅 Habits:** a calendar on the home page for Karstin or Lilin (toggle at the top), by week or month. A day gets ✓ when both habits were kept (calories within the goal and a poop logged), ○ when one was, and stays grey otherwise. Underneath, Monthly (or Weekly) progress shows how many days so far each habit was kept, and both together. Tap a habit there to see it on its own (‹ goes back): ✓ met, ✕ not met, grey not logged, with Met / Not met / Not logged / Success rate totals. ‹ › changes the period, and tapping a day shows its calories, toilet visits and spending.
 - **✨ What's new:** the ✨ button at the top right of the home page lists the latest features, newest first. Features you can understand from a picture show a screenshot (tap to enlarge) with where to find it; the rest have a ▶ Watch walkthrough that opens the real pages and spotlights each button in turn, with Play/Pause, Back, Next and 1x/2x (the player in `public/tour/tour.js` is adapted from the portfolio demos' product tour). Walkthroughs only open forms and switch tabs, never save. A feature stays marked New, and the ✨ button keeps a red dot, until its screenshot or walkthrough is opened or you tap **✓ Mark all as read**. To add a feature, put it at the top of `public/new/features.js` with either a `shot` (in `public/new/img/`) or a walkthrough in `public/tour/tours.js` under the same id.
-- **Our apps:** a tab per app, opened with a tap. 💸 Expenses shows each person's spending this month and today, shared spending and who owes whom. 🥗 Food & fitness shows each person's calories left today and weight. 🗾 Japan trip links to the budget and journal. Each tab has links into its app.
+- **Our apps:** a tab per app, opened with a tap. 💸 Expenses shows each person's spending this month and today, shared spending and who owes whom. 🍔 Food & fitness shows each person's calories left today and weight. 🗾 Japan trip links to the budget and journal. Each tab has links into its app.
 
 - **🔔 Notifications:** whenever either of you adds an expense, shared expense, payment, food, exercise or weight (in the app or through Claude), a one-line summary like "Lilin added 500 kcal of Chicken rice for lunch" goes into the 🔔 list at the top of every page. It also pops up if the app is open, with a red count of what's new to you. In 🔔, **Turn on notifications** sends these to your phone even when the app is closed. Each person gets the other's additions, not their own. On iPhone, add the app to your Home Screen first and turn notifications on from there. This doesn't need setting up on Netlify: the keys are made and kept in Netlify Blobs on first use (`netlify/lib/notify.mjs`).
 
@@ -14,7 +14,7 @@ The apps themselves:
 | App | Address |
 |---|---|
 | 💸 Everyday expenses | `/daily/` |
-| 🥗 Food & fitness | `/fitness/` |
+| 🍔 Food & fitness | `/fitness/` |
 | 🗾 Japan trip budget and journal | `/japan/` (journal at `/journal.html`) |
 
 Each app has a 🏠 button back to the home page. Installed on a phone from the home page, it's called **Our Apps**; installed from `/daily/` it's **Our Expenses**, and from `/japan/` it's **Japan Trip Budget**. The Android APK opens the home page.
@@ -92,7 +92,7 @@ A separate tracker for Karstin and Lilin's day-to-day spending in Singapore doll
 
 ## Food & fitness (`/fitness/`)
 
-A calorie and macro diary for Karstin and Lilin, in the same app as the everyday expenses (🥗 Food & fitness tab), built like the big calorie-counting apps. Each person has their own diary; you can switch to see the other's.
+A calorie and macro diary for Karstin and Lilin, in the same app as the everyday expenses (🍔 Food & fitness tab), built like the big calorie-counting apps. Each person has their own diary; you can switch to see the other's.
 
 - **📒 Diary:** each day in four meals (🌅 Breakfast, 🍱 Lunch, 🍎 Snacks, 🍲 Dinner), plus 🏃 Exercise and ⚖️ Weight. The top shows **Goal − Food + Exercise = Remaining** calories, and protein, carbs and fat against their goals. Tap a food to edit, move or delete it.
 - **Adding food in the app:** pick the meal, then
