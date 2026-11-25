@@ -36,8 +36,8 @@
   ], { title: "Income & surplus", cleanup: function () { closeDialogs(); var b = $('[data-view-btn="home"]'); if (b) b.click(); } });
 
   T.define("record-income", [
-    { page: "/", sel: '.quick[href^="/daily/?add=income"]', title: "Quick add income", text: "Straight into the income form." },
-    { page: "/daily/", sel: "#kindSwitch", title: "Or from ＋", text: "Switch the expense form to 💰 Income.", before: openExpense },
+    { page: "/daily/", sel: ".fab[data-add]", title: "Tap ＋", text: "In Expenses, the round ＋ button.", before: function () { closeDialogs(); return wait(100); } },
+    { page: "/daily/", sel: "#kindSwitch", title: "Switch to 💰 Income", text: "At the top of the form.", before: openExpense },
     { page: "/daily/", sel: "#incomeSources", title: "What it is", text: "Transfer, winnings, pay, gift, refund.", before: function () { return openExpense().then(function () { return click('#kindSwitch input[value="income"]'); }); } },
     { page: "/daily/", sel: '#incomeForm input[name="from"]', title: "Who it's from", text: "Optional, like a friend paying you back." },
     { page: "/daily/", sel: "#incomeAccounts", title: "Received into", text: "Which account the money landed in." },
