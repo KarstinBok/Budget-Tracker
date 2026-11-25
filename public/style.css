@@ -1474,9 +1474,8 @@ dialog.shot-dlg p { margin: 8px 0 0; }
 .home-page .app-nav a.active span { background: var(--hp-pink-soft); }
 
 /* Habits: one habit at a time (✓ met, ✕ not met, grey not logged) and its totals */
-.home-page .hab-cats { align-self: start; }
-.home-page .hab-cats label span { padding: 2px 10px; font-size: 0.75rem; }
-.home-page .hab-cats input:checked + span { background: var(--hp-pink-soft); color: var(--hp-pink); font-weight: 600; }
+.home-page .hab-back { width: 26px; height: 26px; min-width: 26px; font-size: 1.1rem; }
+.home-page .hab-back[hidden] { display: none; }
 .home-page .cal-day.st-met { background: var(--hp-green-soft); border-color: color-mix(in srgb, var(--hp-green) 25%, transparent); }
 .home-page .cal-day.st-met .cal-tick { color: var(--hp-green); }
 .home-page .cal-day.st-miss { background: color-mix(in srgb, #e05a5a 14%, var(--surface)); border-color: color-mix(in srgb, #e05a5a 30%, transparent); }

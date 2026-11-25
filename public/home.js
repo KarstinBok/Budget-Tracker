@@ -112,7 +112,8 @@ const mondayOf = (iso) => shift(iso, -((new Date(`${iso}T00:00:00Z`).getUTCDay()
 const fmtD = (iso, o) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { ...o, timeZone: "UTC" });
 let calWho = null, calMonth = localToday().slice(0, 7), calWeek = mondayOf(localToday()), calPick = null;
 let calMode = store.get("home.calMode") === "week" ? "week" : "month";
-// Which habit the calendar shows: "all" (✓ both kept, ○ one), or one habit on its own
+// Which habit the calendar shows: "all" (✓ both kept, ○ one), or one habit on its own, picked
+// by tapping it in the progress list (‹ goes back)
 // (✓ met, ✕ not met, grey not logged) with its own totals underneath.
 let calCat = "all";
 const CATS = {
@@ -159,7 +160,7 @@ function renderCal() {
   $("#habitsTitle").closest(".habits").dataset.mode = calMode;
 
   const cat = CATS[calCat];
-  for (const r of document.querySelectorAll('input[name="calCat"]')) r.checked = r.value === calCat;
+  $("#calBack").hidden = calCat === "all";
   $("#habIcon").textContent = cat.icon;
   $("#habitsTitle").textContent = cat.name;
   $("#habSub").textContent = cat.sub;
@@ -216,7 +217,7 @@ function renderCalDay() {
 }
 
 $("#calWho").addEventListener("change", (e) => { calWho = e.target.value; renderCal(); });
-$("#calCat").addEventListener("change", (e) => { calCat = e.target.value; renderCal(); });
+$("#calBack").addEventListener("click", () => { calCat = "all"; renderCal(); });
 $("#progList").addEventListener("click", (e) => { const b = e.target.closest("[data-cat]"); if (b) { calCat = b.dataset.cat; renderCal(); } });
 $("#calMode").addEventListener("change", (e) => {
   calMode = e.target.value; store.set("home.calMode", calMode);
