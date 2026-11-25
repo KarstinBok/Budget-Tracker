@@ -41,14 +41,10 @@
 
     <section class="panel home-cal habits" aria-labelledby="habitsTitle">
       <div class="hab-top">
+        <button type="button" class="icon-btn round-btn hab-back" id="calBack" aria-label="Back to all habits" hidden>‹</button>
         <span class="hab-icon" id="habIcon" aria-hidden="true">📅</span>
         <div class="hab-name"><h2 id="habitsTitle">Habits</h2><p id="habSub">Calories met &amp; pooped, every day</p></div>
         <div class="seg pill-seg" id="calWho" role="radiogroup" aria-label="Whose habits"></div>
-      </div>
-      <div class="seg pill-seg hab-cats" id="calCat" role="radiogroup" aria-label="Which habit">
-        <label><input type="radio" name="calCat" value="all" checked /><span>✅ All habits</span></label>
-        <label><input type="radio" name="calCat" value="cals" /><span>🥗 Calories</span></label>
-        <label><input type="radio" name="calCat" value="poop" /><span>💩 Poop</span></label>
       </div>
       <div class="hab-bar">
         <div class="cal-head">
