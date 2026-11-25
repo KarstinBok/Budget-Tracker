@@ -167,7 +167,7 @@ export async function notifyChange(key, body, by, doc) {
     if (!d && !alert) return;
     const store = notifyStore();
     const app = key === "daily-v1" ? "expenses" : "fitness";
-    const title = app === "expenses" ? "💸 Our expenses" : "🥗 Food & fitness";
+    const title = app === "expenses" ? "💸 Our expenses" : "🍔 Food & fitness";
     const sends = []; // [subscription, payload]
     const { subs } = (await store.get("subs", { type: "json" })) ?? { subs: [] };
 

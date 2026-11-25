@@ -54,7 +54,7 @@
     { page: "/daily/", sel: "#cardGuide", title: "Which card for what", text: "A readable list for each person.", before: dailyView("cards") },
   ], { title: "Cards & accounts", cleanup: function () { closeDialogs(); var b = $('[data-view-btn="home"]'); if (b) b.click(); } });
 
-  // ---------------------------------------------------------------- 🥗 Food & fitness
+  // ---------------------------------------------------------------- 🍔 Food & fitness
 
   function openFood() { return $("#foodDlg").open ? wait(0) : click(".fab[data-add-food]"); }
   T.define("favourites-recipes", [
