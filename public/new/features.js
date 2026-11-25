@@ -1,5 +1,6 @@
-// ✨ What's new: the latest features, newest first. Each has a walkthrough with the same id in
-// /tour/tours.js that spotlights the real buttons on the real pages. Add new ones at the top.
+// ✨ What's new: the latest features, newest first. Add new ones at the top. Each has either
+// `shot` (a screenshot in /new/img/ and `where` to find it) when a picture is enough, or `page`
+// and a walkthrough with the same id in /tour/tours.js that spotlights the real buttons.
 // `id` must be unique and never change: the ✨ button at the top right of the home page shows a dot until the newest
 // id has been seen on this phone.
 
@@ -14,7 +15,8 @@ export const FEATURES = [
   },
   {
     id: "calorie-overview",
-    page: "/fitness/",
+    shot: "/new/img/calorie-overview.jpg", // a screenshot is enough for this one
+    where: "🥗 Food → 📈 Progress → Calorie overview",
     date: "2026-11-23",
     app: "🥗 Food & fitness",
     title: "Calorie overview by day, week or month",
@@ -22,7 +24,8 @@ export const FEATURES = [
   },
   {
     id: "make-up-week",
-    page: "/fitness/",
+    shot: "/new/img/make-up-week.jpg", // a screenshot is enough for this one
+    where: "🥗 Food → 🎯 Goals",
     date: "2026-11-23",
     app: "🥗 Food & fitness",
     title: "Make up for a big day within the week",
@@ -30,7 +33,8 @@ export const FEATURES = [
   },
   {
     id: "home-calendar",
-    page: "/",
+    shot: "/new/img/home-calendar.jpg", // a screenshot is enough for this one
+    where: "🏠 Home, under Today",
     date: "2026-11-17",
     app: "🏠 Home",
     title: "Month calendar with 🍔 and 💩",
@@ -38,7 +42,8 @@ export const FEATURES = [
   },
   {
     id: "exercise-and-alerts",
-    page: "/fitness/",
+    shot: "/new/img/exercise-and-alerts.jpg", // a screenshot is enough for this one
+    where: "🥗 Food → 🎯 Goals. For the alert, also tap 🔔 → Turn on notifications",
     date: "2026-11-16",
     app: "🥗 Food & fitness",
     title: "Exercise calories and over-the-limit alerts",
@@ -62,7 +67,8 @@ export const FEATURES = [
   },
   {
     id: "feedback-screenshots",
-    page: "/settings/",
+    shot: "/new/img/feedback-screenshots.jpg", // a screenshot is enough for this one
+    where: "⚙️ Settings → 💬 Feedback",
     date: "2026-11-14",
     app: "⚙️ Settings",
     title: "Feedback with screenshots you can mark up",
@@ -70,11 +76,12 @@ export const FEATURES = [
   },
   {
     id: "today-glance",
-    page: "/",
+    shot: "/new/img/today-glance.jpg", // a screenshot is enough for this one
+    where: "🏠 Home, at the top",
     date: "2026-11-14",
     app: "🏠 Home",
     title: "Today at a glance",
-    why: "The home page opens on today's numbers for both of you.",
+    why: "The home page opens on today's calories and spending for both of you, and the next insurance payment.",
   },
   {
     id: "record-income",
@@ -86,7 +93,8 @@ export const FEATURES = [
   },
   {
     id: "who-and-map",
-    page: "/",
+    shot: "/new/img/who-and-map.jpg", // a screenshot is enough for this one
+    where: "⚙️ Settings. You can also tap 👤 at the top of any page",
     date: "2026-11-10",
     app: "⚙️ Settings",
     title: "Who's using this phone, light or dark, and the app map",

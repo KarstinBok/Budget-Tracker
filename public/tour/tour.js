@@ -162,13 +162,13 @@
         var a = document.activeElement; if (a && /INPUT|TEXTAREA|SELECT/.test(a.tagName)) a.blur();
         idx = n; delay = left = stepMs(s) / speed; render();
         var el = target();
-        if (el && el.scrollIntoView) {
+        if (el && el.scrollIntoView && getComputedStyle(el).position !== "fixed") { // fixed buttons are always on screen
           var r = el.getBoundingClientRect();
           if (r.top < 70 || r.bottom > window.innerHeight * 0.6) el.scrollIntoView({ block: "center", behavior: reduce ? "auto" : "smooth" });
         }
         return wait(reduce ? 30 : 380);
       })
-      .then(function () { busy = false; place(); try { playBtn.focus({ preventScroll: true }); } catch (e) { /* ignore */ } if (playing) startTimer(); });
+      .then(function () { busy = false; place(); setTimeout(place, 450); try { playBtn.focus({ preventScroll: true }); } catch (e) { /* ignore */ } if (playing) startTimer(); });
   }
   function start(id, at, play) {
     cfg = tours[id]; if (!cfg) return;

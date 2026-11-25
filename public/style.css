@@ -1005,7 +1005,7 @@ dialog.bell-dlg { width: min(480px, calc(100vw - 24px)); padding: 16px; }
 .burn-note { margin: 8px 0 0; padding: 8px 12px; border-radius: 10px; background: color-mix(in srgb, var(--good) 12%, var(--surface)); font-size: 0.88rem; }
 .burn-note[hidden] { display: none; }
 .check-row { display: flex !important; align-items: center; gap: 8px; color: var(--text) !important; }
-.check-row input { width: 18px; height: 18px; accent-color: var(--accent); }
+.check-row input { flex: none; width: 18px; height: 18px; accent-color: var(--accent); }
 .week-note { margin: 8px 0 0; padding: 8px 12px; border-radius: 10px; background: color-mix(in srgb, var(--warn) 12%, var(--surface)); font-size: 0.88rem; }
 .week-note[hidden] { display: none; }
 .recent-list .list-head { cursor: default; background: none !important; font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); padding-top: 10px; }
@@ -1356,3 +1356,12 @@ button.glance-card { font: inherit; text-align: left; cursor: pointer; }
 .new-title { font-size: 1.02rem; }
 .new-badge { display: inline-block; margin-left: 4px; padding: 0 7px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 0.7rem; font-weight: 600; vertical-align: 1px; }
 .new-try { justify-self: start; margin-top: 8px; text-decoration: none; }
+.new-clear { margin: 0 0 12px; }
+.new-clear[hidden] { display: none; }
+.new-item.unseen { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.new-shot { display: block; margin-top: 8px; padding: 0; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--bg); cursor: zoom-in; max-height: 340px; }
+.new-shot img { display: block; width: 100%; height: auto; }
+.new-where { font-size: 0.85rem; color: var(--text); }
+dialog.shot-dlg { width: min(460px, calc(100vw - 24px)); padding: 10px; text-align: center; cursor: zoom-out; }
+dialog.shot-dlg img { display: block; width: 100%; height: auto; border-radius: 10px; }
+dialog.shot-dlg p { margin: 8px 0 0; }

@@ -56,29 +56,6 @@
 
   // ---------------------------------------------------------------- 🥗 Food & fitness
 
-  function openGoals() { return $("#goalsDlg").open ? wait(0) : click("#goalsBtn"); }
-  T.define("calorie-overview", [
-    { page: "/fitness/", sel: '.screen-tabs a[data-screen="progress"]', title: "📈 Progress tab", text: "Charts and the calorie overview." },
-    { page: "/fitness/", sel: "#ovMode", title: "Day, week or month", text: "Pick the period to total up.", before: fitnessScreen("progress") },
-    { page: "/fitness/", sel: "#ovStats", title: "The totals", text: "Eaten, burned, goal, over or under.", before: fitnessScreen("progress") },
-    { page: "/fitness/", sel: '.cal-head:has(#ovPrev)', title: "Other periods", text: "‹ › steps back or forward." },
-    { page: "/fitness/", sel: "#ovRows", title: "Open a day", text: "Tap a row to open its diary." },
-  ], { title: "Calorie overview" });
-
-  T.define("make-up-week", [
-    { page: "/fitness/", sel: "#goalsBtn", title: "🎯 Goals", text: "Your calorie settings live here.", before: fitnessScreen("diary") },
-    { page: "/fitness/", sel: 'label:has([name="makeUp"])', title: "Make up for big days", text: "Going over trims the rest of the week.", before: openGoals },
-    { page: "/fitness/", sel: 'label:has([name="makeUp"])', title: "Mondays start fresh", text: "Never below 1,500 / 1,200 kcal a day." },
-    { page: "/fitness/", sel: '#goalsForm button[type="submit"]', title: "Save", text: "Tick it, then save." },
-  ], { title: "Make up within the week", cleanup: closeDialogs });
-
-  T.define("exercise-and-alerts", [
-    { page: "/fitness/", sel: "#goalsBtn", title: "🎯 Goals", text: "Both options are in your goals.", before: fitnessScreen("diary") },
-    { page: "/fitness/", sel: 'label:has([name="addExercise"])', title: "Exercise calories", text: "Untick so exercise doesn't add calories.", before: openGoals },
-    { page: "/fitness/", sel: 'label:has([name="overAlert"])', title: "Over-limit alert", text: "A nudge on your phone when you go over.", before: openGoals },
-    { page: "/fitness/", sel: ".bell", title: "Turn on notifications", text: "Tap 🔔, then Turn on notifications.", before: function () { closeDialogs(); return wait(100); } },
-  ], { title: "Exercise & alerts", cleanup: closeDialogs });
-
   function openFood() { return $("#foodDlg").open ? wait(0) : click(".fab[data-add-food]"); }
   T.define("favourites-recipes", [
     { page: "/fitness/", sel: ".fab[data-add-food]", title: "Add food", text: "The round ＋, or ＋ under a meal.", before: fitnessScreen("diary") },
@@ -87,41 +64,6 @@
     { page: "/fitness/", sel: ".src-tabs", title: "📖 Recipes tab", text: "Recipes and saved foods you share.", before: function () { return openFood().then(function () { return pick('.src-tabs input[value="recipes"]'); }); } },
     { page: "/fitness/", sel: "#recipeList", title: "Log a serving", text: "Open Recipe to see what's in it." },
   ], { title: "Favourites & recipes", cleanup: closeDialogs });
-
-  // ---------------------------------------------------------------- 🏠 Home
-
-  T.define("home-calendar", [
-    { page: "/", sel: ".home-cal", title: "📅 Calendar", text: "A month at a glance, on the home page." },
-    { page: "/", sel: "#calWho", title: "Whose month", text: "Switch between Karstin and Lilin." },
-    { page: "/", sel: "#calGrid", title: "🍔 and 💩", text: "🍔 within calories, 💩 pooped." },
-    { page: "/", sel: '.home-cal .cal-head', title: "Change month", text: "‹ › for earlier months." },
-    { page: "/", sel: "#calDay", title: "Tap a day", text: "Its calories, toilet visits and spending.", before: function () { return click("#calGrid [data-day].today"); } },
-  ], { title: "Home calendar" });
-
-  T.define("today-glance", [
-    { page: "/", sel: "#glance", title: "Today", text: "Today's numbers for both of you." },
-    { page: "/", sel: "#gFood", title: "Calories", text: "Left or over for each of you." },
-    { page: "/", sel: "#gSpend", title: "Spending", text: "This month, and who owes whom." },
-    { page: "/", sel: "#gToilet", title: "Toilet", text: "Today's log at a glance." },
-    { page: "/", sel: "#glance", title: "Tap to open", text: "Each card opens its app." },
-  ], { title: "Today at a glance" });
-
-  // ---------------------------------------------------------------- ⚙️ Settings
-
-  T.define("feedback-screenshots", [
-    { page: "/settings/", sel: '#feedbackForm .seg', title: "What kind", text: "A problem, an idea or anything else." },
-    { page: "/settings/", sel: '#feedbackForm textarea[name="text"]', title: "Say what to change", text: "Which part, and what you'd like." },
-    { page: "/settings/", sel: ".fb-photos-field", title: "Add screenshots", text: "Up to 4. Tap one to circle the problem." },
-    { page: "/settings/", sel: '#feedbackForm button[type="submit"]', title: "Send it", text: "It's gone through and fixed." },
-    { page: "/settings/", sel: "#feedbackList", title: "Sent so far", text: "Each one's status and any reply." },
-  ], { title: "Feedback" });
-
-  T.define("who-and-map", [
-    { page: "/", sel: "#whoBtn", title: "Who's using this phone", text: "Everything you add goes under this name." },
-    { page: "/settings/", sel: "#whoPick", title: "Change it here too", text: "In ⚙️ Settings, at the top." },
-    { page: "/settings/", sel: "#themePick", title: "Light or dark", text: "Auto follows your phone." },
-    { page: "/settings/", sel: ".flow-map", title: "App map", text: "Every page and how to get there." },
-  ], { title: "Settings" });
 
   // ---------------------------------------------------------------- 🚽 Toilet · 🛡️ Insurance
 
