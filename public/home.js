@@ -124,7 +124,7 @@ function renderMiniCal() {
   $("#gCalMini").innerHTML = Array.from({ length: 7 }, (_, i) => shift(today, i - 6)).map((d) => {
     const r = dayInfo(p, d);
     const cls = !r.eaten ? "" : d === today && r.over <= 0 ? "now" : r.over <= 0 ? "ok" : "over";
-    return `<i class="${cls}" title="${d}">${cls === "ok" ? "✓" : cls === "over" ? "✕" : cls === "now" ? "•" : ""}</i>`;
+    return `<i class="${cls}" title="${d}">${cls === "ok" ? `<img class="cal-icon" src="/icons/cal-tick.png" alt="✓" />` : cls === "over" ? `<img class="cal-icon" src="/icons/cal-x.png" alt="✕" />` : cls === "now" ? "•" : ""}</i>`;
   }).join("");
 }
 
@@ -148,8 +148,8 @@ function renderCal() {
     let cls = "", mark = "";
     if (r?.eaten) {
       if (d === today && r.over <= 0) { cls = "now"; mark = "•"; }
-      else if (r.over <= 0) { cls = "ok"; mark = "✓"; ok++; }
-      else { cls = "over"; mark = "✕"; over++; }
+      else if (r.over <= 0) { cls = "ok"; mark = `<img class="cal-icon" src="/icons/cal-tick.png" alt="✓" />`; ok++; }
+      else { cls = "over"; mark = `<img class="cal-icon" src="/icons/cal-x.png" alt="✕" />`; over++; }
     }
     if (r?.poops.length) poopDays++;
     if (r) spent += r.spent;

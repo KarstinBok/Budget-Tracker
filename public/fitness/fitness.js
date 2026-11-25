@@ -206,8 +206,8 @@ function renderCalendar() {
     const r = d <= today ? dayResult(d) : null;
     let cls = "", mark = "", sub = "";
     if (r && d === today && r.diff <= 0) { cls = "now"; mark = "•"; sub = `${fmt(r.goal - r.eaten)} left`; }
-    else if (r && r.diff <= 0) { cls = "ok"; mark = "✓"; sub = fmt(r.eaten); under++; }
-    else if (r) { cls = "over"; mark = "✕"; sub = `+${fmt(r.diff)}`; over++; }
+    else if (r && r.diff <= 0) { cls = "ok"; mark = `<img class="cal-icon" src="/icons/cal-tick.png" alt="✓" />`; sub = fmt(r.eaten); under++; }
+    else if (r) { cls = "over"; mark = `<img class="cal-icon" src="/icons/cal-x.png" alt="✕" />`; sub = `+${fmt(r.diff)}`; over++; }
     cells.push(`<button type="button" class="cal-day ${cls}${d === today ? " today" : ""}" data-day="${d}" ${d > today ? "disabled" : ""}
       title="${r ? `${fmt(r.eaten)} of ${fmt(r.goal)} kcal` : "Nothing logged"}"><b>${n}</b><span class="cal-mark ${cls}">${mark}</span><small>${sub}</small></button>`);
   }

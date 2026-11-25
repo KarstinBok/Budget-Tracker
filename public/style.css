@@ -1218,6 +1218,9 @@ fieldset.plain legend { padding: 0; margin-bottom: 6px; font-size: 0.85rem; colo
 .cal-mark.now { color: var(--accent); }
 .cal-key { margin-top: 8px; }
 .cal-key .cal-mark { font-size: 0.95rem; }
+.cal-icon { display: block; width: 1.6em; height: 1.6em; object-fit: contain; }
+.cal-key .cal-mark .cal-icon { display: inline-block; width: 1.4em; height: 1.4em; vertical-align: -0.35em; }
+.g-cal-mini .cal-icon { width: 22px; height: 22px; }
 
 /* No zooming: no double-tap zoom, and 16px fields so phones don't zoom in when you type. */
 html { touch-action: manipulation; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
