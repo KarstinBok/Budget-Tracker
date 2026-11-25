@@ -1345,21 +1345,13 @@ button.glance-card { font: inherit; text-align: left; cursor: pointer; }
 .hc-day h3 { margin: 0; font-size: 0.95rem; }
 .hc-day .btn { justify-self: start; }
 
-/* ✨ What's new: the latest features with a walkthrough each */
+/* ✨ What's new: the latest features, each with a walkthrough */
 .new-intro { margin: 0 0 12px; }
 .new-filter { flex-wrap: wrap; width: fit-content; max-width: 100%; margin-bottom: 14px; }
 .new-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
-.new-item details { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow); }
-.new-item details[open] { border-color: var(--accent); }
-.new-item summary { display: grid; gap: 4px; padding: 14px 44px 14px 16px; cursor: pointer; list-style: none; position: relative; }
-.new-item summary::-webkit-details-marker { display: none; }
-.new-item summary::after { content: "›"; position: absolute; right: 18px; top: 50%; transform: translateY(-50%); font-size: 1.4rem; color: var(--muted); transition: transform 0.15s; }
-.new-item details[open] summary::after { transform: translateY(-50%) rotate(90deg); }
+.new-item { display: grid; gap: 4px; padding: 14px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow); }
+.new-item:target { border-color: var(--accent); }
 .new-meta { font-size: 0.8rem; color: var(--muted); }
 .new-title { font-size: 1.02rem; }
 .new-badge { display: inline-block; margin-left: 4px; padding: 0 7px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 0.7rem; font-weight: 600; vertical-align: 1px; }
-.new-steps { counter-reset: step; list-style: none; margin: 0; padding: 4px 16px 4px; display: grid; gap: 10px; border-top: 1px solid var(--border); padding-top: 14px; }
-.new-steps li { counter-increment: step; display: grid; grid-template-columns: 26px 1fr; gap: 10px; align-items: start; line-height: 1.45; }
-.new-steps li::before { content: counter(step); display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-weight: 700; font-size: 0.85rem; }
-.new-steps b { font-weight: 600; padding: 0 5px; border-radius: 6px; background: var(--accent-soft); -webkit-box-decoration-break: clone; box-decoration-break: clone; }
-.new-try { display: inline-block; margin: 12px 16px 16px; text-decoration: none; }
+.new-try { justify-self: start; margin-top: 8px; text-decoration: none; }
