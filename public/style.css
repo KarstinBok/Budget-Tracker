@@ -1287,10 +1287,11 @@ input, select, textarea { font-size: 16px !important; }
 
 /* Home: our apps as a bottom bar (like Expenses' bottom bar) */
 body.home main { padding-bottom: 96px; }
-.app-nav { grid-template-columns: repeat(7, 1fr); }
+.app-nav { grid-template-columns: repeat(6, 1fr); }
 .app-nav a { display: grid; justify-items: center; gap: 2px; padding: 6px 2px; font-size: 0.72rem; color: var(--muted); text-decoration: none; border-radius: 14px; }
-.app-nav a span { position: relative; font-size: 1.3rem; line-height: 1.2; padding: 2px 8px; border-radius: 999px; }
-.app-nav a.has-new span::after { content: ""; position: absolute; top: 0; right: 2px; width: 9px; height: 9px; border-radius: 50%; background: var(--accent); border: 2px solid var(--surface); }
+.app-nav a span { font-size: 1.3rem; line-height: 1.2; padding: 2px 10px; border-radius: 999px; }
+.new-btn { position: relative; text-decoration: none; }
+.new-btn.has-new::after { content: ""; position: absolute; top: 4px; right: 4px; width: 9px; height: 9px; border-radius: 50%; background: var(--accent); border: 2px solid var(--surface); }
 .app-nav a:hover span, .app-nav a:focus-visible span { background: var(--accent-soft); }
 .app-nav a:active span { background: var(--accent-soft); }
 

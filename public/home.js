@@ -9,14 +9,14 @@ const money = (c) => `S$${(c / 100).toLocaleString("en-US", { minimumFractionDig
 const fmt = (v) => Math.round(v).toLocaleString("en-US");
 const sum = (list, k) => list.reduce((s, x) => s + (Number(x[k]) || 0), 0);
 
-// ✨ New tab: a dot until the latest features have been seen on this phone.
+// ✨ What's new button (top right): a dot until the latest features have been seen on this phone.
 {
   let seen = [];
   try { seen = JSON.parse(store.get("new.seen") || "[]"); } catch { /* ignore */ }
   const unseen = FEATURES.filter((f) => !seen.includes(f.id)).length;
   if (unseen) {
     $("#newTab").classList.add("has-new");
-    $("#newTab").setAttribute("aria-label", `New, ${unseen} feature${unseen === 1 ? "" : "s"} you haven't seen`);
+    $("#newTab").setAttribute("aria-label", `What's new, ${unseen} feature${unseen === 1 ? "" : "s"} you haven't seen`);
   }
 }
 

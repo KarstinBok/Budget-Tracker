@@ -1,6 +1,6 @@
 // ✨ What's new: the latest features, newest first. Each has a walkthrough with the same id in
 // /tour/tours.js that spotlights the real buttons on the real pages. Add new ones at the top.
-// `id` must be unique and never change: the home page's ✨ New tab shows a dot until the newest
+// `id` must be unique and never change: the ✨ button at the top right of the home page shows a dot until the newest
 // id has been seen on this phone.
 
 export const FEATURES = [
