@@ -6,6 +6,24 @@
 
 export const FEATURES = [
   {
+    id: "habits-calendar",
+    shot: "/new/img/habits-calendar.jpg", // a screenshot is enough for this one
+    where: "🏠 Home, under Today. Tap a day for its details",
+    date: "2026-11-25",
+    app: "🏠 Home",
+    title: "Habits: a ✓ when both are done",
+    why: "The home calendar ticks a day when calories stayed within the goal and you pooped (○ when only one), switches between week and month, and shows how many days each habit was kept.",
+  },
+  {
+    id: "home-redesign",
+    shot: "/new/img/home-redesign.jpg",
+    where: "🏠 Home",
+    date: "2026-11-25",
+    app: "🏠 Home",
+    title: "A brighter home page on one screen",
+    why: "Coloured cards and buttons, everything on one screen, a Home tab in the bottom bar, and the next insurance payment as a line in Spending.",
+  },
+  {
     id: "shared-switch",
     page: "/", // where its walkthrough (/tour/tours.js) starts
     date: "2026-11-25",
@@ -30,15 +48,6 @@ export const FEATURES = [
     app: "🥗 Food & fitness",
     title: "Make up for a big day within the week",
     why: "Going over lowers the rest of the week's goal a little, and every Monday starts fresh.",
-  },
-  {
-    id: "home-calendar",
-    shot: "/new/img/home-calendar.jpg", // a screenshot is enough for this one
-    where: "🏠 Home, under Today",
-    date: "2026-11-17",
-    app: "🏠 Home",
-    title: "Month calendar with 🍔 and 💩",
-    why: "A month at a glance on the home page: good calorie days and toilet days.",
   },
   {
     id: "exercise-and-alerts",
@@ -81,7 +90,7 @@ export const FEATURES = [
     date: "2026-11-14",
     app: "🏠 Home",
     title: "Today at a glance",
-    why: "The home page opens on today's calories and spending for both of you, and the next insurance payment.",
+    why: "The home page opens on today's calories and spending for both of you.",
   },
   {
     id: "record-income",

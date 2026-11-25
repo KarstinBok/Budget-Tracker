@@ -21,7 +21,7 @@
       <span class="sun" aria-hidden="true"></span>
       <div>
         <h1>Life Kalicc</h1>
-        <p class="muted">Karstin &amp; Lilin</p>
+        <p class="tagline">Track · Plan · Stay Consistent</p>
       </div>
     </div>
     <div class="top-actions">
@@ -34,32 +34,43 @@
     <section aria-labelledby="todayTitle">
       <h2 class="home-h sr-only" id="todayTitle">Today</h2>
       <div class="glance" id="glance">
-        <a class="glance-card" href="/fitness/" id="gFood"><h3>🥗 Calories</h3><div class="g-body"><p class="muted small">Loading…</p></div></a>
-        <a class="glance-card" href="/daily/" id="gSpend"><h3>💸 Spending</h3><div class="g-body"><p class="muted small">Loading…</p></div></a>
-        <a class="glance-card" href="/insurance/" id="gIns" hidden><h3>🛡️ Insurance</h3><div class="g-body"></div></a>
+        <a class="glance-card tint-food" href="/fitness/" id="gFood"><h3>🥗 Calories</h3><div class="g-body"><p class="muted small">Loading…</p></div></a>
+        <a class="glance-card tint-spend" href="/daily/" id="gSpend"><h3>💸 Spending</h3><div class="g-body"><p class="muted small">Loading…</p></div><p class="g-note g-ins" id="gInsLine" hidden></p></a>
       </div>
     </section>
 
-    <section class="panel home-cal" aria-labelledby="calTitle">
-      <div class="cal-top">
+    <section class="panel home-cal habits" aria-labelledby="habitsTitle">
+      <div class="hab-top">
+        <span class="hab-icon" aria-hidden="true">📅</span>
+        <div class="hab-name"><h2 id="habitsTitle">Habits</h2><p>Calories met &amp; pooped, every day</p></div>
+        <div class="seg pill-seg" id="calWho" role="radiogroup" aria-label="Whose habits"></div>
+      </div>
+      <div class="hab-bar">
         <div class="cal-head">
-          <button type="button" class="icon-btn" id="calPrev" aria-label="Previous month">‹</button>
-          <h2 id="calTitle">Calendar</h2>
-          <button type="button" class="icon-btn" id="calNext" aria-label="Next month">›</button>
+          <button type="button" class="icon-btn round-btn" id="calPrev" aria-label="Earlier">‹</button>
+          <h3 id="calTitle">Calendar</h3>
+          <button type="button" class="icon-btn round-btn" id="calNext" aria-label="Later">›</button>
         </div>
-        <div class="seg" id="calWho" role="radiogroup" aria-label="Whose calendar"></div>
+        <div class="seg pill-seg" id="calMode" role="radiogroup" aria-label="Week or month">
+          <label><input type="radio" name="calMode" value="week" /><span>Week</span></label>
+          <label><input type="radio" name="calMode" value="month" checked /><span>Month</span></label>
+        </div>
       </div>
       <div class="cal-grid" id="calGrid"><p class="muted small">Loading…</p></div>
-      <p class="muted small cal-sum" id="calSummary"></p>
+      <p class="hab-key"><span><i class="hk all">✓</i> All habits met</span><span><i class="hk some">○</i> Some met</span><span><i class="hk none"></i> Not met</span></p>
+      <div class="hab-progress">
+        <div class="hp-head"><b id="progTitle">Monthly progress</b><span id="progRange"></span></div>
+        <ul class="hp-list" id="progList"></ul>
+      </div>
     </section>
 
     <section aria-labelledby="quickTitle">
       <h2 class="home-h sr-only" id="quickTitle">Quick add</h2>
       <nav class="quick-grid" aria-label="Quick add">
-        <a class="quick" href="/daily/?add=personal&amp;from=home"><span>💸</span><b>Expense</b></a>
-        <a class="quick" href="/fitness/?add=food&amp;from=home"><span>🍽️</span><b>Food</b></a>
-        <a class="quick" href="/fitness/?add=weight&amp;from=home"><span>⚖️</span><b>Weight</b></a>
-        <a class="quick" href="/toilet/?add=1&amp;from=home"><span>🚽</span><b>Poop</b></a>
+        <a class="quick q-expense" href="/daily/?add=personal&amp;from=home"><span>🧾</span><b>Expense</b></a>
+        <a class="quick q-food" href="/fitness/?add=food&amp;from=home"><span>🍽️</span><b>Food</b></a>
+        <a class="quick q-weight" href="/fitness/?add=weight&amp;from=home"><span>⚖️</span><b>Weight</b></a>
+        <a class="quick q-poop" href="/toilet/?add=1&amp;from=home"><span>🚽</span><b>Poop</b></a>
       </nav>
     </section>
 
@@ -71,6 +82,7 @@
   </dialog>
 
   <nav class="bottom-nav app-nav" aria-label="Our apps">
+    <a href="/" class="active" aria-current="page"><span aria-hidden="true">🏠</span>Home</a>
     <a href="/daily/"><span aria-hidden="true">💸</span>Expenses</a>
     <a href="/fitness/"><span aria-hidden="true">🥗</span>Food</a>
     <a href="/toilet/"><span aria-hidden="true">🚽</span>Toilet</a>
