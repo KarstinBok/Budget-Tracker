@@ -253,7 +253,7 @@ function applyOp(doc, body, by) {
     case "updateItem": {
       const old = doc.items.find((i) => i.id === body.id);
       if (!old) fail("This expense was deleted by someone else", 409);
-      const { item, cat } = readItem(doc, { ...body, kind: old.kind });
+      const { item, cat } = readItem(doc, { ...body, kind: body.kind ?? old.kind });
       for (const k of ["owner", "paidBy", "shares", "card"]) delete old[k];
       Object.assign(old, item, { editedBy: by, editedAt: Date.now() });
       return `edited ${describe(doc, old, cat)}`;

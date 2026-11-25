@@ -171,6 +171,13 @@
         <div class="cat-choices" id="cardChoices" role="radiogroup" aria-label="Paid with"></div>
         <p class="convert" id="cardNote"></p>
       </fieldset>
+      <fieldset class="cat-pick">
+        <legend>Shared?</legend>
+        <div class="seg shared-switch" id="sharedSwitch" role="radiogroup" aria-label="Is this expense shared">
+          <label><input type="radio" name="entryShared" value="personal" checked /><span>🙋 Personal</span></label>
+          <label><input type="radio" name="entryShared" value="shared" /><span>🤝 Shared</span></label>
+        </div>
+      </fieldset>
       <fieldset class="cat-pick" data-kind="personal">
         <legend>Whose expense</legend>
         <div class="cat-choices" id="ownerChoices" role="radiogroup" aria-label="Whose expense"></div>
