@@ -164,6 +164,7 @@ function render() {
   renderSummary(items);
   renderLog();
   renderPayments();
+  renderIncomeTab();
   if ($("#settingsDlg").open) renderSettings();
 }
 
@@ -385,6 +386,11 @@ $("#txList").addEventListener("click", (e) => {
 
 function setView(next, fold) {
   view = next;
+  // 💰 Income is about each person's own money, so it shows the 👤 Personal screen.
+  if (next === "income" && screen !== "personal") {
+    screen = "personal";
+    history.replaceState(null, "", `${location.pathname}#personal`);
+  }
   if (fold !== undefined) openFold(fold);
   render();
   if (fold) $(`#${fold}`)?.scrollIntoView({ block: "start" });
@@ -1071,6 +1077,177 @@ function updateCardUI() {
   $("#payerPick").hidden = kind !== "shared" || !!card;
 }
 
+// ---------------------------------------------------------------- 💰 income tab and surplus
+
+const BUDGET_KINDS = { fixed: ["🏠", "fixed expense", "Fixed expenses"], saving: ["🐷", "savings", "Savings"] };
+// A fixed expense or savings line counts every month from `from` (until `to`, if stopped),
+// or only in its own month when `once`.
+const budgetApplies = (b, ym) => (b.once ? b.from === ym : b.from <= ym && (!b.to || ym <= b.to));
+function budgetFor(ym, kind, who = filter) {
+  return (doc.budget ?? []).filter((b) => b.kind === kind && budgetApplies(b, ym) && (who === "all" || b.owner === who))
+    .sort((a, b) => b.a - a.a || a.name.localeCompare(b.name));
+}
+
+// Everyday spending for the surplus: someone's personal expenses plus their share of shared ones.
+function spentFor(ym, who = filter) {
+  let total = 0;
+  for (const i of doc.items) {
+    if (!i.date.startsWith(ym)) continue;
+    if (i.kind === "personal") { if (who === "all" || i.owner === who) total += i.a; }
+    else total += who === "all" ? i.a : i.a * (i.shares?.[who] ?? 0);
+  }
+  return Math.round(total);
+}
+
+// Income pays for fixed expenses first, then savings, then everyday spending. Whatever is
+// left is the surplus, never below zero. If there isn't enough, savings still come before
+// the surplus: savingShort says how much of them the income couldn't cover.
+function surplusOf({ income, fixed, saving, spent }) {
+  const afterFixed = income - fixed;
+  const saved = Math.min(saving, Math.max(0, afterFixed));
+  const left = afterFixed - saving - spent;
+  return { saved, savingShort: saving - saved, surplus: Math.max(0, left), over: Math.max(0, -left) };
+}
+
+function renderIncomeTab() {
+  if (view !== "income") return;
+  const now = thisMonth();
+  const who = filter;
+  const incomes = incomesFor(month, who).sort((a, b) => b.date.localeCompare(a.date) || b.t - a.t);
+  const fixedL = budgetFor(month, "fixed", who);
+  const savingL = budgetFor(month, "saving", who);
+  const income = sum(incomes), fixed = sum(fixedL), saving = sum(savingL), spent = spentFor(month, who);
+  const r = surplusOf({ income, fixed, saving, spent });
+  const whose = who === "all" ? "Both of you" : who;
+  const when = month === now ? "This month so far" : monthName(month);
+
+  $("#surplusTotal").textContent = money(r.surplus);
+  $("#surplusLabel").textContent = `${whose} · ${when}`;
+
+  const steps = [
+    ["income", "💰 Income", income, "+"],
+    ["fixed", "🏠 Fixed expenses", fixed, "−"],
+    ["saving", "🐷 Savings", saving, "−", r.savingShort ? `S$${twoDp.format(r.saved / 100)} covered, ${money(r.savingShort)} short` : ""],
+    ["spent", "🧾 Everyday spending", spent, "−", who === "all" ? "Personal and shared expenses" : "Personal expenses and your share of shared ones"],
+  ];
+  $("#surplusSteps").innerHTML = steps.map(([k, label, v, sign, sub]) => `<li class="ss-${k}"><span><i aria-hidden="true"></i>${label}${sub ? `<small>${esc(sub)}</small>` : ""}</span>
+      <b>${v ? sign : ""}${money(v)}</b></li>`).join("") +
+    `<li class="ss-total"><span><i aria-hidden="true"></i>= Surplus</span><b>${money(r.surplus)}</b></li>`;
+
+  // Where the income went: fixed, savings, spending, then the surplus.
+  const parts = [["fixed", fixed], ["saving", r.saved], ["spent", spent], ["surplus", r.surplus]].filter(([, v]) => v > 0);
+  const scale = Math.max(income, fixed + saving + spent, 1);
+  $("#surplusBar").innerHTML = parts.map(([k, v]) => `<span class="sb-${k}" style="width:${(v / scale) * 100}%"></span>`).join("");
+  $("#surplusBar").setAttribute("aria-label", parts.length ? `Where the income goes: ${parts.map(([k, v]) => `${k === "spent" ? "spending" : k} ${money(v)}`).join(", ")}` : "Nothing yet");
+  $("#surplusBar").hidden = !parts.length;
+
+  let note;
+  if (!income && !fixed && !saving) note = `Add ${month === now ? "this month's" : "the month's"} income, fixed expenses and savings below to work out the surplus.`;
+  else if (!income) note = "No income recorded for this month yet, so there's no surplus.";
+  else if (r.savingShort) note = `⚠️ The income doesn't cover the fixed expenses and savings: savings are ${money(r.savingShort)} short, so there's no surplus.`;
+  else if (r.over) note = `⚠️ Spending is ${money(r.over)} more than what was left after fixed expenses and savings, so there's no surplus. The ${money(saving)} of savings still comes first.`;
+  else if (month === now) note = `All ${money(saving)} of savings is covered. Anything else spent this month comes out of the surplus.`;
+  else note = `All ${money(saving)} of savings was covered, with ${money(r.surplus)} left over.`;
+  $("#surplusNote").textContent = note;
+  $("#surplusNote").classList.toggle("warn", !!(income && (r.savingShort || r.over)));
+
+  const empty = (text) => `<li class="tx-none muted small">${text}</li>`;
+  $("#incomeList").innerHTML = incomes.map(incomeRow).join("") || empty(`No income ${month === now ? "this month" : `in ${monthName(month)}`} yet.`);
+  $("#fixedList").innerHTML = fixedL.map(budgetRow).join("") || empty("No fixed expenses yet.");
+  $("#savingList").innerHTML = savingL.map(budgetRow).join("") || empty("No savings yet.");
+}
+
+function budgetRow(b) {
+  const [emoji] = BUDGET_KINDS[b.kind];
+  const short = (ym) => monthName(ym, { month: "short", year: "numeric" });
+  const chips = [];
+  if (filter === "all") chips.push(esc(b.owner));
+  chips.push(b.once ? `Only ${short(b.from)}` : `Monthly since ${short(b.from)}${b.to ? `, until ${short(b.to)}` : ""}`);
+  return `<li><button type="button" class="tx" data-budget="${esc(b.id)}" aria-label="Edit ${esc(b.name)} ${money(b.a)}">
+    <span class="tx-icon ${b.kind}"><span>${emoji}</span></span>
+    <span class="tx-main"><b>${esc(b.name)}</b><span class="tx-chips">${chips.map((x) => `<span class="tx-chip">${x}</span>`).join("")}</span></span>
+    <span class="tx-amt"><b>−${money(b.a)}</b></span>
+  </button></li>`;
+}
+
+let editingBudget = null;
+const budgetForm = $("#budgetForm");
+const budgetKind = () => budgetForm.querySelector('input[name="budgetKind"]:checked')?.value ?? "fixed";
+const budgetOnce = () => budgetForm.querySelector('input[name="budgetOnce"]:checked')?.value === "once";
+const budgetFrom = () => editingBudget?.from ?? month;
+
+function updateBudgetDlg() {
+  const [, noun] = BUDGET_KINDS[budgetKind()];
+  const from = budgetFrom();
+  const name = (ym) => monthName(ym);
+  $("#budgetTitle").textContent = `${editingBudget ? "Edit" : "Add"} ${noun}`;
+  $("#budgetSubmit").textContent = editingBudget ? "Save" : "Add";
+  $("#budgetOnceLabel").textContent = `Only ${monthName(from, { month: "short", year: "numeric" })}`;
+  const to = editingBudget?.to;
+  $("#budgetFromNote").textContent = budgetOnce() ? `Counts in ${name(from)} only.`
+    : `Counts every month from ${name(from)}${to && !budgetOnce() ? ` until ${name(to)}` : " onwards"}.`;
+}
+
+function openBudget(kind, item = null) {
+  if (!doc) return;
+  editingBudget = item;
+  budgetForm.reset();
+  const f = budgetForm.elements;
+  budgetForm.querySelector(`input[name="budgetKind"][value="${item?.kind ?? kind}"]`).checked = true;
+  budgetForm.querySelector(`input[name="budgetOnce"][value="${item?.once ? "once" : "monthly"}"]`).checked = true;
+  f.name.value = item?.name ?? "";
+  f.amount.value = item ? (item.a / 100).toFixed(2) : "";
+  chips("#budgetOwners", "budgetOwner", doc.people.map((p) => ({ value: p, label: esc(p) })),
+    item?.owner ?? (filter !== "all" ? filter : me() ?? doc.people[0]));
+  $("#budgetDelete").hidden = !item;
+  // Stopping keeps a monthly line in the months before this one.
+  const canStop = item && !item.once && item.from < month && (!item.to || item.to >= month);
+  $("#budgetStop").hidden = !canStop;
+  $("#budgetStop").textContent = `🛑 Stop from ${monthName(month, { month: "short" })}`;
+  updateBudgetDlg();
+  $("#budgetDlg").showModal();
+  if (!item) setTimeout(() => f.name.focus(), 50);
+}
+
+budgetForm.addEventListener("change", updateBudgetDlg);
+budgetForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const f = budgetForm.elements;
+  const a = parseCents(f.amount.value);
+  if (!(a > 0)) return toast("Enter an amount, e.g. 50");
+  const body = { kind: budgetKind(), name: f.name.value, a, once: budgetOnce(), from: budgetFrom(),
+    owner: budgetForm.querySelector('input[name="budgetOwner"]:checked')?.value ?? "" };
+  const ok = editingBudget
+    ? await sync.runOp({ op: "updateBudget", id: editingBudget.id, ...body }, `Saved ${body.name}`)
+    : await sync.runOp({ op: "addBudget", ...body }, `Added ${body.name}`);
+  if (ok) $("#budgetDlg").close();
+});
+$("#budgetCancel").addEventListener("click", () => $("#budgetDlg").close());
+$("#budgetStop").addEventListener("click", async () => {
+  const b = editingBudget;
+  if (!b || !confirm(`Stop ${b.name} from ${monthName(month)}? It still counts in the months before.`)) return;
+  if (await sync.runOp({ op: "stopBudget", id: b.id, to: shiftMonth(month, -1) }, `Stopped ${b.name}`)) $("#budgetDlg").close();
+});
+$("#budgetDelete").addEventListener("click", async () => {
+  const b = editingBudget;
+  if (!b) return;
+  const past = !b.once && b.from < month;
+  if (!confirm(past ? `Delete ${b.name} from every month, including past ones? To keep it in past months, use Stop instead.` : `Delete ${b.name}?`)) return;
+  if (await sync.runOp({ op: "deleteBudget", id: b.id }, "Removed")) $("#budgetDlg").close();
+});
+
+document.addEventListener("click", (e) => {
+  const add = e.target.closest("[data-add-budget]");
+  if (add) return openBudget(add.dataset.addBudget);
+  const row = e.target.closest("[data-budget]");
+  if (row) return openBudget(null, (doc.budget ?? []).find((b) => b.id === row.dataset.budget));
+});
+$("#addIncomeBtn").addEventListener("click", () => openIncome(null, month === thisMonth() ? {} : { date: `${month}-01` }));
+$("#incomeList").addEventListener("click", (e) => {
+  const inc = e.target.closest("[data-income]");
+  if (inc) openIncome(doc.incomes.find((i) => i.id === inc.dataset.income));
+});
+
 // ---------------------------------------------------------------- add or edit income
 
 let editingIncome = null;
@@ -1138,8 +1315,8 @@ function openAdd(prefill = {}, item = null) {
   const kind = item?.kind ?? screen;
   form.querySelector(`input[name="entryShared"][value="${kind}"]`).checked = true;
   const f = form.elements;
-  const lastCat = store.get(`daily.lastCat.${kind}`);
-  const cat = item?.cat ?? prefill.cat ?? lastCat ?? doc.categories[0].id;
+  // New expenses always start on Food (or the first category if Food was removed).
+  const cat = item?.cat ?? prefill.cat ?? "food";
   chips("#catChoices", "cat", doc.categories.map((c) => ({ value: c.id, label: `<span class="emoji">${esc(c.emoji)}</span>${esc(c.name)}` })),
     doc.categories.some((c) => c.id === cat) ? cat : doc.categories[0].id);
   const people = doc.people.map((p) => ({ value: p, label: esc(p) }));
@@ -1191,7 +1368,6 @@ form.addEventListener("submit", async (e) => {
     `${editing ? "Saved" : "Added"} ${money(a)}${kind !== screen ? ` to ${kind === "shared" ? "Shared" : "Daily"} spending` : ""}`);
   submit.disabled = false;
   if (!ok) return;
-  store.set(`daily.lastCat.${kind}`, body.cat);
   if (body.date.slice(0, 7) !== month) month = body.date.slice(0, 7);
   $("#addDlg").close();
   render();
@@ -1302,6 +1478,7 @@ $("#nextMonth").addEventListener("click", () => { month = shiftMonth(month, 1); 
 
 function readScreen() {
   screen = location.hash === "#shared" ? "shared" : "personal";
+  if (screen === "shared" && view === "income") view = "home";
   openCell = null;
   gridToTop = true;
   render();
