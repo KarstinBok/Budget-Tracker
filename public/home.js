@@ -103,9 +103,11 @@ async function loadInsurance() {
 }
 
 // ---------------------------------------------------------------- 📅 habits calendar
-// The calendar's ✓ and ✕, drawn as cute blue icons (alt text keeps the symbol for screen readers).
+// The calendar's marks, drawn as cute icons (alt text keeps the symbol for screen readers):
+// blue tick = met, worried red tick = some met, angry red cross = not met.
 const TICK = `<img class="cal-icon" src="/icons/cal-tick.png" alt="✓" />`;
-const CROSS = `<img class="cal-icon" src="/icons/cal-x.png" alt="✕" />`;
+const SOME = `<img class="cal-icon" src="/icons/cal-tick-red.png" alt="○" />`;
+const CROSS = `<img class="cal-icon" src="/icons/cal-x-red.png" alt="✕" />`;
 
 // A week or month for one of us. A day gets ✓ when both habits were kept (calories within the
 // goal and a poop logged), ○ when one was, and stays grey otherwise. Below it, how many days
@@ -170,7 +172,7 @@ function renderCal() {
   $("#habitsTitle").textContent = cat.name;
   $("#habSub").textContent = cat.sub;
   $("#habKey").innerHTML = calCat === "all"
-    ? `<span><i class="hk all ic">${TICK}</i> All habits met</span><span><i class="hk some">○</i> Some met</span><span><i class="hk none"></i> Not met</span>`
+    ? `<span><i class="hk all ic">${TICK}</i> All habits met</span><span><i class="hk some ic">${SOME}</i> Some met</span><span><i class="hk miss ic">${CROSS}</i> Not met</span>`
     : `<span><i class="hk all ic">${TICK}</i> Met</span><span><i class="hk miss ic">${CROSS}</i> Not met</span><span><i class="hk none"></i> Not logged</span>`;
   const counts = { days: 0, cals: 0, pooped: 0, all: 0, met: 0, miss: 0, none: 0 };
   const lead = (new Date(`${from}T00:00:00Z`).getUTCDay() + 6) % 7;
@@ -181,7 +183,7 @@ function renderCal() {
     if (r) { counts.days++; if (r.cals) counts.cals++; if (r.pooped) counts.pooped++; if (r.status === "all") counts.all++; }
     const status = r ? catStatus(r, d, today) : "future";
     if (r && calCat !== "all") counts[status]++;
-    const mark = status === "all" || status === "met" ? TICK : status === "some" ? "○" : status === "miss" ? CROSS : "";
+    const mark = status === "all" || status === "met" ? TICK : status === "some" ? SOME : status === "miss" || (status === "none" && calCat === "all" && d !== today) ? CROSS : "";
     const label = `${fmtD(d, { month: "short", day: "numeric" })}${r ? `: ${r.cals ? "calories met" : "calories not met"}, ${r.pooped ? "pooped" : "no poop logged"}` : ""}`;
     cells.push(`<button type="button" class="cal-day st-${status}${d === today ? " today" : ""}${d === calPick ? " picked" : ""}" data-day="${d}" ${future ? "disabled" : ""} aria-label="${label}">
       <b>${Number(d.slice(8))}</b><span class="cal-tick" aria-hidden="true">${mark}</span></button>`);
