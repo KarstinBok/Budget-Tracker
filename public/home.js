@@ -1,4 +1,5 @@
-// Home page (/): today at a glance (each card opens its app), quick-add buttons that open an
+// Home page (/): today at a glance (each card opens its app), quick-add buttons (above the habits
+// calendar) that open an
 // app straight into its dialog (it comes back here afterwards), and the apps in the bottom bar.
 
 import { $, esc, store, localToday, toast, fetchJson, setupIdentity, checkIdentity } from "/common.js";
