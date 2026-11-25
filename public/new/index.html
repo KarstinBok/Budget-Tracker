@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, interactive-widget=resizes-content" />
+  <title>What's new · Life Kalicc</title>
+  <meta name="description" content="The latest features in Life Kalicc, each with a step-by-step walkthrough." />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="theme-color" content="#bc002d" />
+  <meta name="apple-mobile-web-app-title" content="Life Kalicc" />
+  <link rel="icon" type="image/png" href="/icons/favicon-64.png?v=4" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=4" />
+  <link rel="stylesheet" href="/style.css" />
+  <script src="/theme.js"></script>
+</head>
+<body class="home new-page">
+  <header class="topbar">
+    <div class="brand">
+      <span class="sun" aria-hidden="true"></span>
+      <div>
+        <h1>What's new</h1>
+        <p class="muted">Life Kalicc</p>
+      </div>
+    </div>
+    <div class="top-actions">
+      <a class="btn ghost" href="/" title="Back to all apps" aria-label="Home">🏠</a>
+    </div>
+  </header>
+
+  <main>
+    <p class="muted small new-intro">The latest features, newest first. Tap one for a step-by-step walkthrough, then <b>Try it</b> to jump straight there.</p>
+    <div class="seg new-filter" id="newFilter" role="radiogroup" aria-label="Which app"></div>
+    <ol class="new-list" id="newList"></ol>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="/new/new.js" type="module"></script>
+  <script src="/notify.js" type="module"></script>
+</body>
+</html>

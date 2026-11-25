@@ -1,12 +1,24 @@
 // Home page (/): today at a glance (each card opens its app), quick-add buttons that open an
 // app straight into its dialog (it comes back here afterwards), and the apps in the bottom bar.
 
-import { $, esc, localToday, toast, fetchJson, setupIdentity, checkIdentity } from "/common.js";
+import { $, esc, store, localToday, toast, fetchJson, setupIdentity, checkIdentity } from "/common.js";
+import { FEATURES } from "/new/features.js";
 import { dayTargets, exerciseAddsBack, settleUp } from "/calc.js";
 
 const money = (c) => `S$${(c / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmt = (v) => Math.round(v).toLocaleString("en-US");
 const sum = (list, k) => list.reduce((s, x) => s + (Number(x[k]) || 0), 0);
+
+// ✨ New tab: a dot until the latest features have been seen on this phone.
+{
+  let seen = [];
+  try { seen = JSON.parse(store.get("new.seen") || "[]"); } catch { /* ignore */ }
+  const unseen = FEATURES.filter((f) => !seen.includes(f.id)).length;
+  if (unseen) {
+    $("#newTab").classList.add("has-new");
+    $("#newTab").setAttribute("aria-label", `New, ${unseen} feature${unseen === 1 ? "" : "s"} you haven't seen`);
+  }
+}
 
 // Who uses this phone: asked once, with a button for each of us.
 setupIdentity();
