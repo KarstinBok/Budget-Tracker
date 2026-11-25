@@ -1488,3 +1488,4 @@ dialog.shot-dlg p { margin: 8px 0 0; }
 .home-page .hs b { display: inline-flex; align-items: center; gap: 4px; font-size: 1.05rem; font-variant-numeric: tabular-nums; }
 .home-page .hs span { display: block; font-size: 0.66rem; color: var(--muted); }
 .home-page .hs-open { display: block; margin-top: 3px; text-align: right; font-size: 0.72rem; color: var(--hp-pink); text-decoration: none; font-weight: 600; }
+.home-page .q-scale { display: block; width: 1.25rem; height: 1.2rem; }
