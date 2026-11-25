@@ -41,9 +41,14 @@
 
     <section class="panel home-cal habits" aria-labelledby="habitsTitle">
       <div class="hab-top">
-        <span class="hab-icon" aria-hidden="true">📅</span>
-        <div class="hab-name"><h2 id="habitsTitle">Habits</h2><p>Calories met &amp; pooped, every day</p></div>
+        <span class="hab-icon" id="habIcon" aria-hidden="true">📅</span>
+        <div class="hab-name"><h2 id="habitsTitle">Habits</h2><p id="habSub">Calories met &amp; pooped, every day</p></div>
         <div class="seg pill-seg" id="calWho" role="radiogroup" aria-label="Whose habits"></div>
+      </div>
+      <div class="seg pill-seg hab-cats" id="calCat" role="radiogroup" aria-label="Which habit">
+        <label><input type="radio" name="calCat" value="all" checked /><span>✅ All habits</span></label>
+        <label><input type="radio" name="calCat" value="cals" /><span>🥗 Calories</span></label>
+        <label><input type="radio" name="calCat" value="poop" /><span>💩 Poop</span></label>
       </div>
       <div class="hab-bar">
         <div class="cal-head">
@@ -57,10 +62,11 @@
         </div>
       </div>
       <div class="cal-grid" id="calGrid"><p class="muted small">Loading…</p></div>
-      <p class="hab-key"><span><i class="hk all">✓</i> All habits met</span><span><i class="hk some">○</i> Some met</span><span><i class="hk none"></i> Not met</span></p>
+      <p class="hab-key" id="habKey"></p>
       <div class="hab-progress">
         <div class="hp-head"><b id="progTitle">Monthly progress</b><span id="progRange"></span></div>
         <ul class="hp-list" id="progList"></ul>
+        <div class="hp-stats" id="catStats" hidden></div>
       </div>
     </section>
 

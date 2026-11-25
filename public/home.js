@@ -112,6 +112,20 @@ const mondayOf = (iso) => shift(iso, -((new Date(`${iso}T00:00:00Z`).getUTCDay()
 const fmtD = (iso, o) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { ...o, timeZone: "UTC" });
 let calWho = null, calMonth = localToday().slice(0, 7), calWeek = mondayOf(localToday()), calPick = null;
 let calMode = store.get("home.calMode") === "week" ? "week" : "month";
+// Which habit the calendar shows: "all" (✓ both kept, ○ one), or one habit on its own
+// (✓ met, ✕ not met, grey not logged) with its own totals underneath.
+let calCat = "all";
+const CATS = {
+  all: { icon: "📅", name: "Habits", sub: "Calories met & pooped, every day" },
+  cals: { icon: "🥗", name: "Calories", sub: "Within your calorie goal", href: "/fitness/#progress", open: "Open the food diary" },
+  poop: { icon: "💩", name: "Poop", sub: "A poop logged that day", href: "/toilet/", open: "Open the toilet log" },
+};
+// One day for the chosen habit: "met", "miss" (not met) or "none" (nothing logged yet).
+function catStatus(r, d, today) {
+  if (calCat === "cals") return r.eaten === 0 ? "none" : r.cals ? "met" : "miss";
+  if (calCat === "poop") return r.pooped ? "met" : d === today ? "none" : "miss";
+  return r.status;
+}
 
 function dayInfo(p, d) {
   const eaten = sum(fitDoc.foods.filter((f) => f.person === p && f.date === d), "kcal");
@@ -144,15 +158,24 @@ function renderCal() {
   $("#calNext").disabled = shift(to, 1) > today;
   $("#habitsTitle").closest(".habits").dataset.mode = calMode;
 
-  const counts = { days: 0, cals: 0, pooped: 0, all: 0 };
+  const cat = CATS[calCat];
+  for (const r of document.querySelectorAll('input[name="calCat"]')) r.checked = r.value === calCat;
+  $("#habIcon").textContent = cat.icon;
+  $("#habitsTitle").textContent = cat.name;
+  $("#habSub").textContent = cat.sub;
+  $("#habKey").innerHTML = calCat === "all"
+    ? `<span><i class="hk all">✓</i> All habits met</span><span><i class="hk some">○</i> Some met</span><span><i class="hk none"></i> Not met</span>`
+    : `<span><i class="hk all">✓</i> Met</span><span><i class="hk miss">✕</i> Not met</span><span><i class="hk none"></i> Not logged</span>`;
+  const counts = { days: 0, cals: 0, pooped: 0, all: 0, met: 0, miss: 0, none: 0 };
   const lead = (new Date(`${from}T00:00:00Z`).getUTCDay() + 6) % 7;
   const cells = Array.from({ length: lead }, () => `<span class="cal-day blank"></span>`);
   for (let d = from; d <= to; d = shift(d, 1)) {
     const future = d > today;
     const r = future ? null : dayInfo(calWho, d);
     if (r) { counts.days++; if (r.cals) counts.cals++; if (r.pooped) counts.pooped++; if (r.status === "all") counts.all++; }
-    const status = r ? r.status : "future";
-    const mark = status === "all" ? "✓" : status === "some" ? "○" : "";
+    const status = r ? catStatus(r, d, today) : "future";
+    if (r && calCat !== "all") counts[status]++;
+    const mark = status === "all" || status === "met" ? "✓" : status === "some" ? "○" : status === "miss" ? "✕" : "";
     const label = `${fmtD(d, { month: "short", day: "numeric" })}${r ? `: ${r.cals ? "calories met" : "calories not met"}, ${r.pooped ? "pooped" : "no poop logged"}` : ""}`;
     cells.push(`<button type="button" class="cal-day st-${status}${d === today ? " today" : ""}${d === calPick ? " picked" : ""}" data-day="${d}" ${future ? "disabled" : ""} aria-label="${label}">
       <b>${Number(d.slice(8))}</b><span class="cal-tick" aria-hidden="true">${mark}</span></button>`);
@@ -163,13 +186,21 @@ function renderCal() {
   $("#progTitle").textContent = calMode === "week" ? "Weekly progress" : "Monthly progress";
   $("#progRange").textContent = `(${fmtD(from, { month: "short", day: "numeric" })} – ${fmtD(to, { month: "short", day: "numeric" })})`;
   const n = counts.days;
-  const prog = (icon, name, k, href) => {
+  const prog = (icon, name, k, href) => { // href: the habit to show when tapped
     const pct = n ? Math.round((counts[k] / n) * 100) : 0;
     const inner = `<span class="hp-ic" aria-hidden="true">${icon}</span><b class="hp-name">${name}</b><span class="hp-days">${counts[k]} / ${n} day${n === 1 ? "" : "s"}</span>
       <span class="hp-bar"><i style="width:${pct}%"></i></span><span class="hp-pct">${pct}%</span><span class="hp-go" aria-hidden="true">${href ? "›" : ""}</span>`;
-    return `<li>${href ? `<a href="${href}">${inner}</a>` : `<div>${inner}</div>`}</li>`;
+    return `<li>${href ? `<button type="button" data-cat="${href}" aria-label="Show ${name} on the calendar">${inner}</button>` : `<div>${inner}</div>`}</li>`;
   };
-  $("#progList").innerHTML = prog("🥗", "Calories", "cals", "/fitness/#progress") + prog("💩", "Poop", "pooped", "/toilet/") + prog("✅", "All habits", "all", "");
+  $("#progList").hidden = calCat !== "all";
+  $("#catStats").hidden = calCat === "all";
+  $("#progList").innerHTML = prog("🥗", "Calories", "cals", "cals") + prog("💩", "Poop", "pooped", "poop") + prog("✅", "All habits", "all", "");
+  if (calCat !== "all") {
+    const rate = n ? Math.round((counts.met / n) * 100) : 0;
+    const stat = (cls, mark, v, label) => `<div class="hs"><b>${mark ? `<i class="hk ${cls}">${mark}</i>` : ""}${v}</b><span>${label}</span></div>`;
+    $("#catStats").innerHTML = `<div class="hs-row">${stat("all", "✓", counts.met, "Met")}${stat("miss", "✕", counts.miss, "Not met")}${stat("none", " ", counts.none, "Not logged")}${stat("", "", `${rate}%`, "Success rate")}</div>
+      <a class="hs-open" href="${cat.href}">${cat.open} ›</a>`;
+  }
   renderCalDay();
 }
 
@@ -185,6 +216,8 @@ function renderCalDay() {
 }
 
 $("#calWho").addEventListener("change", (e) => { calWho = e.target.value; renderCal(); });
+$("#calCat").addEventListener("change", (e) => { calCat = e.target.value; renderCal(); });
+$("#progList").addEventListener("click", (e) => { const b = e.target.closest("[data-cat]"); if (b) { calCat = b.dataset.cat; renderCal(); } });
 $("#calMode").addEventListener("change", (e) => {
   calMode = e.target.value; store.set("home.calMode", calMode);
   // Keep looking at roughly the same time: the week of the month's last day shown, or the week's month.
