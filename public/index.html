@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="/tour/tour.css" />
   <script src="/theme.js"></script>
 </head>
-<body class="home">
+<body class="home home-page">
   <header class="topbar">
     <div class="brand">
       <span class="sun" aria-hidden="true"></span>
@@ -32,7 +32,7 @@
 
   <main>
     <section aria-labelledby="todayTitle">
-      <h2 class="home-h" id="todayTitle">Today</h2>
+      <h2 class="home-h sr-only" id="todayTitle">Today</h2>
       <div class="glance" id="glance">
         <a class="glance-card" href="/fitness/" id="gFood"><h3>🥗 Calories</h3><div class="g-body"><p class="muted small">Loading…</p></div></a>
         <a class="glance-card" href="/daily/" id="gSpend"><h3>💸 Spending</h3><div class="g-body"><p class="muted small">Loading…</p></div></a>
@@ -42,34 +42,36 @@
 
     <section class="panel home-cal" aria-labelledby="calTitle">
       <div class="cal-top">
-        <h2 class="home-h">📅 Calendar</h2>
+        <div class="cal-head">
+          <button type="button" class="icon-btn" id="calPrev" aria-label="Previous month">‹</button>
+          <h2 id="calTitle">Calendar</h2>
+          <button type="button" class="icon-btn" id="calNext" aria-label="Next month">›</button>
+        </div>
         <div class="seg" id="calWho" role="radiogroup" aria-label="Whose calendar"></div>
       </div>
-      <div class="cal-head">
-        <button type="button" class="icon-btn" id="calPrev" aria-label="Previous month">‹</button>
-        <h3 id="calTitle">Calendar</h3>
-        <button type="button" class="icon-btn" id="calNext" aria-label="Next month">›</button>
-      </div>
       <div class="cal-grid" id="calGrid"><p class="muted small">Loading…</p></div>
-      <p class="muted small cal-key">🍔 calories within the goal · 💩 pooped · tap a day for details</p>
-      <p class="muted small" id="calSummary"></p>
-      <div class="hc-day" id="calDay" hidden></div>
+      <p class="muted small cal-sum" id="calSummary"></p>
     </section>
 
     <section aria-labelledby="quickTitle">
-      <h2 class="home-h" id="quickTitle">Quick add</h2>
+      <h2 class="home-h sr-only" id="quickTitle">Quick add</h2>
       <nav class="quick-grid" aria-label="Quick add">
         <a class="quick" href="/daily/?add=personal&amp;from=home"><span>💸</span><b>Expense</b></a>
         <a class="quick" href="/fitness/?add=food&amp;from=home"><span>🍽️</span><b>Food</b></a>
         <a class="quick" href="/fitness/?add=weight&amp;from=home"><span>⚖️</span><b>Weight</b></a>
         <a class="quick" href="/fitness/?add=exercise&amp;from=home"><span>🏃</span><b>Exercise</b></a>
         <a class="quick" href="/daily/?add=income&amp;from=home"><span>💰</span><b>Income</b></a>
-        <a class="quick" href="/daily/?add=payment&amp;from=home"><span>🔁</span><b>Record a payment</b></a>
+        <a class="quick" href="/daily/?add=payment&amp;from=home"><span>🔁</span><b>Payment</b></a>
         <a class="quick" href="/toilet/?add=1&amp;from=home"><span>🚽</span><b>Poop</b></a>
       </nav>
     </section>
 
   </main>
+
+  <dialog id="calDayDlg" class="cal-day-dlg" aria-label="Day details">
+    <div class="hc-day" id="calDay"></div>
+    <div class="dlg-actions"><button class="btn ghost" type="button" id="calDayClose">Close</button></div>
+  </dialog>
 
   <nav class="bottom-nav app-nav" aria-label="Our apps">
     <a href="/daily/"><span aria-hidden="true">💸</span>Expenses</a>

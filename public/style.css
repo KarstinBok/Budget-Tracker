@@ -1365,3 +1365,44 @@ button.glance-card { font: inherit; text-align: left; cursor: pointer; }
 dialog.shot-dlg { width: min(460px, calc(100vw - 24px)); padding: 10px; text-align: center; cursor: zoom-out; }
 dialog.shot-dlg img { display: block; width: 100%; height: auto; border-radius: 10px; }
 dialog.shot-dlg p { margin: 8px 0 0; }
+
+/* Home fits on one phone screen: one-row header, compact Today cards and calendar, Quick add in one row */
+.home-page .topbar { flex-wrap: nowrap; gap: 8px; padding: 8px 12px; }
+.home-page .brand { gap: 8px; min-width: 0; }
+.home-page .brand h1 { font-size: 1.05rem; white-space: nowrap; }
+.home-page .brand p { display: none; }
+.home-page .sun { width: 32px; height: 32px; border-radius: 9px; }
+.home-page .top-actions { flex-wrap: nowrap; gap: 4px; }
+.home-page .top-actions .btn, .home-page .top-actions .chip { min-height: 34px; height: 34px; padding: 0 8px; font-size: 0.85rem; }
+.home-page main { gap: 8px; padding: 8px 12px; padding-bottom: 76px; }
+.home-page .glance { gap: 8px; margin: 0; }
+.home-page .glance-card { gap: 4px; padding: 8px 10px; border-radius: 12px; }
+.home-page .glance-card h3 { font-size: 0.78rem; }
+.home-page .g-body { gap: 4px; }
+.home-page .glance .g-row small { display: none; }
+.home-page .g-row b { font-size: 0.95rem; }
+.home-page .g-meter { height: 4px; margin-top: 1px; }
+.home-page .g-note { font-size: 0.72rem; line-height: 1.25; }
+.home-page #gIns { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 10px; padding: 6px 10px; }
+.home-page #gIns[hidden] { display: none; }
+.home-page #gIns .g-body { flex: 1; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; min-width: 0; }
+.home-page #gIns .g-row { display: flex; gap: 8px; align-items: baseline; flex: 1; justify-content: space-between; min-width: 0; }
+.home-page #gIns .g-row b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.home-page .home-cal { padding: 8px 10px; gap: 2px; }
+.home-page .cal-top { margin: 0; flex-wrap: nowrap; }
+.home-page .cal-head { gap: 2px; }
+.home-page .cal-head h2 { margin: 0; font-size: 0.95rem; white-space: nowrap; }
+.home-page .cal-head .icon-btn { width: 28px; height: 28px; min-width: 28px; }
+.home-page #calWho label span { padding: 4px 10px; font-size: 0.8rem; }
+.home-page .cal-grid { gap: 3px; margin-top: 2px; }
+.home-page .cal-wd { font-size: 0.65rem; padding: 0; }
+.home-page .cal-day { min-height: 0; height: 30px; padding: 1px; border-radius: 7px; grid-template-rows: auto 1fr; gap: 0; }
+.home-page .cal-day b { font-size: 0.68rem; line-height: 1.2; }
+.home-page .cal-emoji { font-size: 0.72rem; line-height: 1; }
+.home-page .cal-sum { margin: 2px 0 0; font-size: 0.72rem; line-height: 1.3; }
+.home-page .quick-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.home-page .quick { min-height: 0; padding: 6px 2px; gap: 2px; border-radius: 10px; }
+.home-page .quick span { font-size: 1.25rem; }
+.home-page .quick b { font-size: 0.62rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.cal-day-dlg { width: min(380px, calc(100vw - 32px)); }
+.cal-day-dlg .hc-day { margin: 0; }

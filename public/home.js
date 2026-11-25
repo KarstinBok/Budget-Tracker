@@ -146,15 +146,14 @@ function renderCal() {
       <b>${n}</b><span class="cal-emoji" aria-hidden="true">${marks}</span></button>`);
   }
   $("#calGrid").innerHTML = ["M", "T", "W", "T", "F", "S", "S"].map((w) => `<span class="cal-wd">${w}</span>`).join("") + cells.join("");
-  $("#calSummary").textContent = `${calWho}: 🍔 on ${within} of ${logged} day${logged === 1 ? "" : "s"} with food logged · 💩 on ${poopDays} day${poopDays === 1 ? "" : "s"}${dailyDoc ? ` · ${money(spent)} spent` : ""}`;
+  $("#calSummary").textContent = `🍔 within calories ${within}/${logged} day${logged === 1 ? "" : "s"} · 💩 pooped ${poopDays} day${poopDays === 1 ? "" : "s"}${dailyDoc ? ` · ${money(spent)} spent` : ""} · tap a day`;
   renderCalDay();
 }
 
 function renderCalDay() {
-  if (!calPick || !calPick.startsWith(calMonth)) { $("#calDay").hidden = true; return; }
+  if (!calPick || !calPick.startsWith(calMonth)) { if ($("#calDayDlg").open) $("#calDayDlg").close(); return; }
   const r = dayInfo(calWho, calPick);
   const label = new Date(`${calPick}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "long", day: "numeric", month: "short", timeZone: "UTC" });
-  $("#calDay").hidden = false;
   $("#calDay").innerHTML = `<h3>${label}</h3>
     <div class="g-row"><span class="g-who">🥗 Calories</span><b class="${r.over > 0 ? "over" : ""}">${r.eaten ? `${fmt(r.eaten)} / ${fmt(r.goal)}` : "nothing logged"}</b>${r.eaten ? `<small>${r.over > 0 ? `${fmt(r.over)} over` : `${fmt(-r.over)} under`}</small>` : ""}</div>
     <div class="g-row"><span class="g-who">🚽 Toilet</span><b>${r.poops.length || "none"}</b>${r.poops.length ? `<small>${r.poops.map((x) => `${x.time || "?"} · type ${x.type}`).join(", ")}</small>` : ""}</div>
@@ -170,7 +169,11 @@ $("#calGrid").addEventListener("click", (e) => {
   if (!b || b.disabled) return;
   calPick = b.dataset.day;
   renderCal();
+  $("#calDayDlg").showModal();
 });
+// The day's details open on top, so the home page stays one screen tall.
+$("#calDayClose").addEventListener("click", () => $("#calDayDlg").close());
+$("#calDayDlg").addEventListener("close", () => { calPick = null; renderCal(); });
 
 loadFitnessCards();
 loadSpending();
