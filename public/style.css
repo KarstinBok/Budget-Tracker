@@ -733,8 +733,9 @@ dialog.wide-dlg { width: min(560px, calc(100vw - 24px)); }
 .chart-axis { fill: var(--muted); font-size: 17px; font-variant-numeric: tabular-nums; }
 .chart-line { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linejoin: round; }
 .chart-dot { fill: var(--surface); stroke: var(--accent); stroke-width: 2; }
-.chart-goal { stroke: var(--good); stroke-dasharray: 6 5; stroke-width: 1.5; }
-.chart-goal-label { fill: var(--good); font-size: 17px; font-weight: 600; }
+.chart-goal { stroke: var(--good); stroke-width: 2.5; stroke-linecap: round; }
+.chart-legend text { fill: var(--text); font-size: 16px; font-weight: 600; }
+.chart-last { fill: var(--accent); font-size: 15px; font-weight: 700; }
 .chart-empty { fill: var(--muted); font-size: 18px; }
 .db-goal { position: absolute; left: 10%; right: 10%; height: 0; border-top: 2px dashed var(--good); pointer-events: none; }
 .fitness .db-bar { background: var(--series-2); }
@@ -1384,10 +1385,24 @@ dialog.shot-dlg p { margin: 8px 0 0; }
 .home-page .topbar { flex-wrap: nowrap; gap: 8px; padding: 6px 12px; background: color-mix(in srgb, var(--surface) 70%, transparent); backdrop-filter: blur(8px); }
 .home-page .brand { gap: 8px; min-width: 0; }
 .home-page .brand h1 { font-size: 1.05rem; white-space: nowrap; }
-.home-page .tagline { margin: 0; font-size: 0.6rem; line-height: 1.15; color: var(--hp-purple); white-space: nowrap; }
+.home-page .tagline { margin: 0; font-size: 0.6rem; line-height: 1.15; color: var(--hp-purple); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .home-page .sun { width: 34px; height: 34px; border-radius: 10px; }
-.home-page .top-actions { flex-wrap: nowrap; gap: 4px; }
-.home-page .top-actions .btn, .home-page .top-actions .chip { min-height: 34px; height: 34px; padding: 0 7px; font-size: 0.85rem; border-radius: 12px; box-shadow: 0 1px 3px rgb(0 0 0 / 0.08); }
+.home-page .brand > div { min-width: 0; }
+.home-page .brand h1 { overflow: hidden; text-overflow: ellipsis; }
+.home-page .top-actions { flex-wrap: nowrap; gap: 7px; flex: none; }
+.home-page .top-actions .btn, .home-page .top-actions .chip { display: inline-flex; align-items: center; justify-content: center; min-height: 34px; height: 34px; padding: 0 10px; font-size: 0.85rem; line-height: 1; border-radius: 12px; border-color: transparent; box-shadow: 0 1px 3px rgb(0 0 0 / 0.08); }
+/* The three icon buttons are equal squares so the row reads evenly. */
+.home-page .top-actions .theme-btn, .home-page .top-actions .bell, .home-page .top-actions .new-btn { width: 32px; min-width: 32px; padding: 0; font-size: 0.95rem; }
+/* Badges sit on the corner, outside the icon, so they never cover it. */
+.home-page .bell-count { top: -5px; right: -5px; min-width: 16px; height: 16px; line-height: 16px; padding: 0 4px; font-size: 0.62rem; box-shadow: 0 0 0 2px var(--surface); }
+.home-page .new-btn.has-new::after { top: -3px; right: -3px; width: 8px; height: 8px; }
+.home-page #whoBtn { gap: 4px; }
+.home-page #whoName { display: inline-block; max-width: 7ch; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
+@media (max-width: 380px) {
+  .home-page .tagline { display: none; }
+  .home-page .top-actions { gap: 5px; }
+  .home-page #whoBtn { padding: 0 8px; }
+}
 .home-page .theme-btn { background: var(--hp-amber-soft); }
 .home-page .bell { background: color-mix(in srgb, var(--hp-amber-soft) 60%, var(--hp-pink-soft)); }
 .home-page .new-btn { background: var(--hp-lilac-soft); }
