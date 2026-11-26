@@ -18,7 +18,7 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_CENTS = 100_000_000; // S$1,000,000
 const MAX_ITEMS = 20000;
 
-function defaultDoc() {
+export function defaultDoc() {
   return {
     version: 0,
     schema: 1,
@@ -65,7 +65,7 @@ const DEFAULT_GUIDE = [
   { what: "💎 Big-ticket items", picks: pick("UOB PRVI (TBC)") },
 ];
 
-function normalize(doc) {
+export function normalize(doc) {
   doc.cards ??= [];
   doc.cardGuide ??= structuredClone(DEFAULT_GUIDE);
   // Money coming in: { id, owner, date, a (cents), source, from, account (card id), note, by, t }
@@ -195,7 +195,7 @@ function readCard(doc, body) {
   return { name, kind, emoji: str(body.emoji, 8) || (kind === "account" ? "🏦" : "💳"), owner: person(doc, body.owner, "whose card this is"), cats };
 }
 
-function applyOp(doc, body, by) {
+export function applyOp(doc, body, by) {
   switch (body.op) {
     case "updateCardGuide": {
       const rows = (Array.isArray(body.rows) ? body.rows : []).slice(0, 30).map((r) => ({
