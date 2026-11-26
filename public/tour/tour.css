@@ -1,0 +1,29 @@
+/* Walkthrough player (tour.js), in the app's colours */
+.at-spot { position: fixed; z-index: 2147483001; border-radius: 12px; pointer-events: none;
+  box-shadow: 0 0 0 3px var(--accent), 0 0 0 9999px rgb(10 12 16 / 0.55); transition: left 0.35s ease, top 0.35s ease, width 0.35s ease, height 0.35s ease; }
+.at-spot.at-none { box-shadow: 0 0 0 0 transparent, 0 0 0 9999px rgb(10 12 16 / 0.55); width: 0 !important; height: 0 !important; left: 50% !important; top: 50% !important; }
+.at-spot[hidden], .at-card[hidden] { display: none; }
+.at-card { position: fixed; z-index: 2147483002; width: min(340px, calc(100vw - 24px)); background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 16px 48px rgb(0 0 0 / 0.35); font-size: 15px; line-height: 1.4; overflow: hidden;
+  transition: left 0.35s ease, top 0.35s ease; text-align: left; }
+.at-bar { height: 3px; background: var(--border); }
+.at-bar i { display: block; height: 100%; width: 0; background: var(--accent); }
+.at-body { padding: 14px 16px 10px; }
+.at-step { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+.at-title { font-size: 17px; font-weight: 700; margin: 0 0 4px; color: var(--text); }
+.at-text { margin: 0; color: var(--muted); }
+.at-ctrl { display: flex; align-items: center; gap: 6px; padding: 8px 10px 10px 12px; border-top: 1px solid var(--border); }
+.at-ctrl button { border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 10px; height: 36px; min-width: 36px; padding: 0 10px;
+  font: 600 14px/1 inherit; font-family: inherit; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.at-ctrl button:disabled { opacity: 0.4; cursor: default; }
+.at-ctrl .at-play { background: var(--accent); border-color: var(--accent); color: #fff; }
+.at-ctrl .at-speed { min-width: 42px; font-variant-numeric: tabular-nums; color: var(--muted); }
+.at-ctrl .at-speed[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.at-ctrl .at-sp { flex: 1; }
+.at-dots { display: flex; gap: 4px; }
+.at-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--border); }
+.at-dots i.on { background: var(--accent); }
+.at-ctrl .at-x { border: 0; color: var(--muted); min-width: 30px; padding: 0; }
+@media (max-width: 640px) { .at-card { width: calc(100vw - 24px); } }
+@media (max-width: 420px) { .at-dots { display: none; } }
+@media (prefers-reduced-motion: reduce) { .at-spot, .at-card { transition: none; } }

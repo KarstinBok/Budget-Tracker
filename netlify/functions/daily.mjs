@@ -45,6 +45,8 @@ export function defaultDoc() {
     settlements: [],
     // Money coming in (friends paying you back, winnings, pay, …)
     incomes: [],
+    // Fixed expenses and savings for the 💰 Income tab's surplus calculator
+    budget: [],
     log: [],
   };
 }
@@ -68,6 +70,10 @@ export function normalize(doc) {
   doc.cardGuide ??= structuredClone(DEFAULT_GUIDE);
   // Money coming in: { id, owner, date, a (cents), source, from, account (card id), note, by, t }
   doc.incomes ??= [];
+  // 💰 Income tab: fixed expenses and savings set aside each month, per person:
+  // { id, kind: "fixed" | "saving", owner, name, a (cents), from ("YYYY-MM"), to? ("YYYY-MM"),
+  //   once (only in the month `from`), by, t }
+  doc.budget ??= [];
   // Imports from other apps (e.g. Spendee): { id, source, by, t, count, total }, so one can be undone.
   doc.imports ??= [];
   return doc;
@@ -150,6 +156,26 @@ function readIncome(doc, body) {
   }
   return inc;
 }
+const YM_RE = /^\d{4}-\d{2}$/;
+const BUDGET_KINDS = { fixed: "fixed expense", saving: "savings" };
+const MAX_BUDGET = 300;
+
+function month(value) {
+  const m = str(value, 7);
+  if (!YM_RE.test(m)) fail("Pick a month");
+  return m;
+}
+
+// A fixed expense or savings line: every month from `from`, or only that month (`once`).
+function readBudget(doc, body) {
+  const name = str(body.name, 40);
+  if (!name) fail("Give it a name, e.g. Rent");
+  if (!BUDGET_KINDS[body.kind]) fail("Pick fixed expense or savings");
+  return { kind: body.kind, owner: person(doc, body.owner, "whose this is"), name, a: cents(body.a), from: month(body.from), once: !!body.once };
+}
+
+const describeBudget = (b) => `${b.owner}'s ${BUDGET_KINDS[b.kind]} ${b.name} (${money(b.a)}${b.once ? "" : " a month"})`;
+
 const describeIncome = (i) => `${i.owner}'s ${INCOME_NAMES[i.source]} of S$${(i.a / 100).toFixed(2)}${i.from ? ` from ${i.from}` : ""}`;
 
 function describe(doc, item, cat) {
@@ -220,6 +246,38 @@ export function applyOp(doc, body, by) {
       return `undid the ${entry.source} import (${before - doc.items.length} expenses removed)`;
     }
 
+    case "addBudget": {
+      if (doc.budget.length >= MAX_BUDGET) fail("Too many fixed expenses and savings");
+      const b = readBudget(doc, body);
+      doc.budget.push({ id: randomUUID(), ...b, by, t: Date.now() });
+      return `added ${describeBudget(b)}`;
+    }
+
+    case "updateBudget": {
+      const old = doc.budget.find((b) => b.id === body.id);
+      if (!old) fail("This was deleted by someone else", 409);
+      Object.assign(old, readBudget(doc, body), { editedBy: by, editedAt: Date.now() });
+      if (old.once || (old.to && old.to < old.from)) delete old.to;
+      return `edited ${describeBudget(old)}`;
+    }
+
+    // A monthly line that ends: it still counts up to and including `to`, not after.
+    case "stopBudget": {
+      const old = doc.budget.find((b) => b.id === body.id);
+      if (!old) return null;
+      const to = month(body.to);
+      if (to < old.from) fail("It starts after that month, so delete it instead");
+      old.to = to;
+      return `stopped ${describeBudget(old)} after ${new Date(`${to}-01T00:00:00Z`).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" })}`;
+    }
+
+    case "deleteBudget": {
+      const old = doc.budget.find((b) => b.id === body.id);
+      if (!old) return null;
+      doc.budget = doc.budget.filter((b) => b !== old);
+      return `removed ${describeBudget(old)}`;
+    }
+
     case "addIncome": {
       if (doc.incomes.length >= MAX_ITEMS) fail("Too many entries");
       const inc = readIncome(doc, body);
@@ -253,7 +311,7 @@ export function applyOp(doc, body, by) {
     case "updateItem": {
       const old = doc.items.find((i) => i.id === body.id);
       if (!old) fail("This expense was deleted by someone else", 409);
-      const { item, cat } = readItem(doc, { ...body, kind: old.kind });
+      const { item, cat } = readItem(doc, { ...body, kind: body.kind ?? old.kind });
       for (const k of ["owner", "paidBy", "shares", "card"]) delete old[k];
       Object.assign(old, item, { editedBy: by, editedAt: Date.now() });
       return `edited ${describe(doc, old, cat)}`;
@@ -297,6 +355,7 @@ export function applyOp(doc, body, by) {
       for (const s of doc.settlements) Object.assign(s, { from: rename(s.from), to: rename(s.to) });
       for (const g of doc.cardGuide ?? []) g.picks = Object.fromEntries(Object.entries(g.picks ?? {}).map(([p, v]) => [rename(p), v]));
       for (const c of doc.cards) c.owner = rename(c.owner);
+      for (const x of [...doc.incomes, ...doc.budget]) x.owner = rename(x.owner);
       doc.people = people;
       return `updated the people to ${people.join(" and ")}`;
     }
