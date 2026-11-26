@@ -733,8 +733,9 @@ dialog.wide-dlg { width: min(560px, calc(100vw - 24px)); }
 .chart-axis { fill: var(--muted); font-size: 17px; font-variant-numeric: tabular-nums; }
 .chart-line { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linejoin: round; }
 .chart-dot { fill: var(--surface); stroke: var(--accent); stroke-width: 2; }
-.chart-goal { stroke: var(--good); stroke-dasharray: 6 5; stroke-width: 1.5; }
-.chart-goal-label { fill: var(--good); font-size: 17px; font-weight: 600; }
+.chart-goal { stroke: var(--good); stroke-width: 2.5; stroke-linecap: round; }
+.chart-legend text { fill: var(--text); font-size: 16px; font-weight: 600; }
+.chart-last { fill: var(--accent); font-size: 15px; font-weight: 700; }
 .chart-empty { fill: var(--muted); font-size: 18px; }
 .db-goal { position: absolute; left: 10%; right: 10%; height: 0; border-top: 2px dashed var(--good); pointer-events: none; }
 .fitness .db-bar { background: var(--series-2); }

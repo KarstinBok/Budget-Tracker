@@ -418,18 +418,29 @@ function renderWeightChart(ws, goal) {
     return;
   }
   const vals = pts.map((w) => w.kg).concat(goal ? [goal] : []);
-  let lo = Math.floor(Math.min(...vals) - 1), hi = Math.ceil(Math.max(...vals) + 1);
-  const W = 600, H = 240, L = 52, R = 12, T = 16, B = 30;
+  // Whole-kilo axis with 3–5 ticks, padded so the lines never touch the edges.
+  const span = Math.max(...vals) - Math.min(...vals);
+  const step = span > 12 ? 5 : span > 5 ? 2 : 1;
+  const lo = Math.floor((Math.min(...vals) - 0.5) / step) * step, hi = Math.ceil((Math.max(...vals) + 0.5) / step) * step;
+  const W = 600, H = 260, L = 44, R = 14, T = 40, B = 30;
   const t0 = Date.parse(from), t1 = Date.parse(localToday());
   const x = (d) => L + ((Date.parse(d) - t0) / (t1 - t0 || 1)) * (W - L - R);
   const y = (v) => T + ((hi - v) / (hi - lo || 1)) * (H - T - B);
-  const ticks = [hi, (hi + lo) / 2, lo];
+  const ticks = []; for (let v = lo; v <= hi + 1e-9; v += step) ticks.push(v);
   const line = pts.map((w, n) => `${n ? "L" : "M"}${x(w.date).toFixed(1)},${y(w.kg).toFixed(1)}`).join("");
-  svg.innerHTML = title +
-    ticks.map((v) => `<line class="chart-grid" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" /><text class="chart-axis" x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${r1(v)}</text>`).join("") +
-    (goal ? `<line class="chart-goal" x1="${L}" x2="${W - R}" y1="${y(goal)}" y2="${y(goal)}" /><text class="chart-goal-label" x="${W - R}" y="${y(goal) - 5}" text-anchor="end">Goal ${goal} kg</text>` : "") +
+  const last = pts.at(-1);
+  // Legend: the two lines, weight and goal.
+  const legend = `<g class="chart-legend">
+      <line class="chart-line" x1="${L}" x2="${L + 22}" y1="14" y2="14" /><circle class="chart-dot" cx="${L + 11}" cy="14" r="3.5" />
+      <text x="${L + 30}" y="19">Weight</text>
+      ${goal ? `<line class="chart-goal" x1="${L + 104}" x2="${L + 126}" y1="14" y2="14" /><text x="${L + 134}" y="19">Goal ${goal} kg</text>` : ""}
+    </g>`;
+  svg.innerHTML = title + legend +
+    ticks.map((v) => `<line class="chart-grid" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" /><text class="chart-axis" x="${L - 8}" y="${y(v) + 5}" text-anchor="end">${v}</text>`).join("") +
+    (goal ? `<line class="chart-goal" x1="${L}" x2="${W - R}" y1="${y(goal)}" y2="${y(goal)}"><title>Goal: ${goal} kg</title></line>` : "") +
     `<path class="chart-line" d="${line}" />` +
     pts.map((w) => `<circle class="chart-dot" cx="${x(w.date)}" cy="${y(w.kg)}" r="3.5"><title>${fmtDay(w.date)}: ${w.kg} kg</title></circle>`).join("") +
+    `<text class="chart-last" x="${Math.min(x(last.date), W - R)}" y="${y(last.kg) - 10}" text-anchor="end">${last.kg}</text>` +
     `<text class="chart-axis" x="${L}" y="${H - 6}">${fmtDay(from, { month: "short", day: "numeric" })}</text><text class="chart-axis" x="${W - R}" y="${H - 6}" text-anchor="end">Today</text>`;
 }
 
