@@ -8,7 +8,7 @@
 
 import {
   $, esc, store, localToday, fmtDay, timeAgo, toast, myName, setupIdentity, createSync,
-  launchAction, returnHomeAfter, checkIdentity
+  launchAction, returnHomeAfter, checkIdentity, postJson
 } from "/common.js";
 import { dayTargets, exerciseAddsBack, fitnessTargets, latestWeightOf, weekBalance, weekNote, weighInsOf } from "/calc.js";
 
@@ -30,6 +30,7 @@ let day = localToday();
 let who = store.get("fitness.person") || "";
 let review = []; // foods waiting to be logged in the add dialog
 let editing = null; // food being edited
+let editingEx = null; // exercise being edited
 
 const sync = createSync({
   path: "/api/fitness",
@@ -151,12 +152,14 @@ function renderDiary() {
   }
 
   $("#exerciseKcal").textContent = ex.length ? `${fmt(burned)} kcal` : "";
-  $("#exerciseList").innerHTML = ex.map((x) => `<li>
-    <div class="item-main"><span class="item-note"><b>${esc(x.name)}</b>${x.note ? ` · ${esc(x.note)}` : ""}</span>
-      <span class="item-meta">${x.minutes} min · added by ${esc(x.by)} ${timeAgo(x.t)}</span></div>
+  $("#exerciseList").innerHTML = ex.map((x) => `<li class="food-row" data-edit-ex="${esc(x.id)}" tabindex="0" role="button" aria-label="Edit ${esc(x.name)}">
+    <div class="item-main"><span class="item-note">${x.stravaId ? `<span title="Synced from Strava">⌚</span> ` : ""}<b>${esc(x.name)}</b>${x.note ? ` · ${esc(x.note)}` : ""}</span>
+      <span class="item-meta">${x.minutes} min · ${x.source === "strava" ? "from Strava" : `added by ${esc(x.by)}`} ${timeAgo(x.t)}${x.edited ? " · edited" : ""}</span></div>
     <div class="item-amt">${fmt(x.kcal)} kcal</div>
     <button type="button" class="icon-btn" data-del-ex="${esc(x.id)}" title="Delete" aria-label="Delete ${esc(x.name)}">🗑</button>
   </li>`).join("");
+
+  renderStrava();
 
   const w = latestWeight(who, day);
   const goal = doc.profiles[who]?.goalKg;
@@ -678,15 +681,67 @@ function updateExHint() {
     : est ? `About ${fmt(est)} kcal for ${who} at ${latestWeight().kg} kg. Enter your watch's number to use that instead.`
       : latestWeight() ? "" : "Log your weight to have calories burned worked out for you.";
 }
-$("#addExercise").addEventListener("click", () => {
+// ⌚ Strava: workouts from Garmin, Life Fitness etc. come in by themselves once connected.
+function renderStrava() {
+  const link = doc.strava?.[who];
+  $("#stravaLine").innerHTML = link
+    ? `⌚ Workouts from ${esc(who)}'s Strava (${esc(link.name)}) are added automatically. <button type="button" class="linkish" data-strava="sync">Sync now</button> · <button type="button" class="linkish" data-strava="disconnect">Disconnect</button>`
+    : `⌚ <button type="button" class="linkish" data-strava="connect">Connect ${esc(who)}'s Strava</button> to add workouts automatically.`;
+}
+async function stravaAction(action) {
+  try {
+    if (action === "connect") {
+      if (me() && me() !== who && !confirm(`Log in to Strava as ${who}? Their workouts will go into ${who}'s diary.`)) return;
+      location.href = (await postJson("/api/strava/connect", { person: who })).url;
+    } else if (action === "sync") {
+      toast("Checking Strava…");
+      const { added } = await postJson("/api/strava/sync", { person: who });
+      toast(added ? `Added ${added} workout${added === 1 ? "" : "s"} from Strava` : "Up to date with Strava");
+    } else if (action === "disconnect") {
+      if (!confirm(`Stop syncing ${who}'s Strava? Workouts already added stay in the diary.`)) return;
+      await postJson("/api/strava/disconnect", { person: who });
+      toast("Strava disconnected");
+    }
+  } catch (err) {
+    toast(err.message);
+  }
+}
+// Back from Strava's login page: /fitness/?strava=connected|error
+(function stravaReturn() {
+  const q = new URLSearchParams(location.search);
+  const state = q.get("strava");
+  if (!state) return;
+  if (state === "connected") {
+    const n = Number(q.get("added")) || 0;
+    toast(`⌚ ${q.get("person") ?? "Strava"} connected${n ? ` · added ${n} recent workout${n === 1 ? "" : "s"}` : ""}`);
+    if (q.get("person")) { who = q.get("person"); store.set("fitness.person", who); }
+  } else toast(q.get("msg") || "Strava wasn't connected");
+  history.replaceState(null, "", `${location.pathname}${location.hash || "#diary"}`);
+})();
+
+function openExercise(x = null) {
+  editingEx = x;
   exForm.reset();
+  $("#exTitle").textContent = x ? "Edit exercise" : "Add exercise";
+  $("#exSave").textContent = x ? "Save" : "Add";
+  $("#exChoices").hidden = !!x;
+  if (x) {
+    const f = exForm.elements;
+    f.name.value = x.name;
+    f.minutes.value = x.minutes;
+    f.kcal.value = x.kcal;
+    f.note.value = x.note ?? "";
+    $("#exHint").textContent = x.stravaId ? "From Strava. Change the calories to match Garmin if they differ; later Strava changes won't overwrite them." : "";
+    return $("#exDlg").showModal();
+  }
   $("#exChoices").innerHTML = EXERCISES.map(([e, n]) => `<label class="cat-choice"><input type="radio" name="exPick" value="${esc(n)}" /><span><span class="emoji">${e}</span>${esc(n)}</span></label>`).join("");
   updateExHint();
   $("#exDlg").showModal();
-});
+}
+$("#addExercise").addEventListener("click", () => openExercise());
 exForm.addEventListener("input", (e) => {
   if (e.target.name === "exPick") exForm.elements.name.value = e.target.value;
-  updateExHint();
+  if (!editingEx) updateExHint();
 });
 exForm.addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -695,7 +750,10 @@ exForm.addEventListener("submit", async (e) => {
   if (!(minutes > 0)) return toast("Enter the minutes");
   const kcal = f.kcal.value.trim() ? num(f.kcal.value) : exEstimate();
   if (!(kcal >= 0)) return toast("Enter the calories burned, or log your weight so they can be worked out");
-  if (await sync.runOp({ op: "addExercise", person: who, date: day, name: f.name.value, minutes, kcal, note: f.note.value }, `Added ${f.name.value}`)) $("#exDlg").close();
+  const op = editingEx
+    ? { op: "updateExercise", id: editingEx.id, name: f.name.value, minutes, kcal, note: f.note.value }
+    : { op: "addExercise", person: who, date: day, name: f.name.value, minutes, kcal, note: f.note.value };
+  if (await sync.runOp(op, editingEx ? "Exercise saved" : `Added ${f.name.value}`)) $("#exDlg").close();
 });
 $("#exCancel").addEventListener("click", () => $("#exDlg").close());
 
@@ -788,12 +846,16 @@ document.addEventListener("click", (e) => {
   if (row) return openEdit(doc.foods.find((f) => f.id === row.dataset.editFood));
   const ex = e.target.closest("[data-del-ex]");
   if (ex) return sync.runOp({ op: "deleteExercise", id: ex.dataset.delEx }, "Exercise removed");
+  const exRow = e.target.closest("[data-edit-ex]");
+  if (exRow) return openExercise(doc.exercises.find((x) => x.id === exRow.dataset.editEx));
+  const st = e.target.closest("[data-strava]");
+  if (st) return stravaAction(st.dataset.strava);
   const w = e.target.closest("[data-del-weight]");
   if (w) return sync.runOp({ op: "deleteWeight", id: w.dataset.delWeight }, "Weigh-in removed");
 });
 document.addEventListener("keydown", (e) => {
   if (e.key !== "Enter" && e.key !== " ") return;
-  const el = e.target.closest?.("[data-edit-food], [data-recent]");
+  const el = e.target.closest?.("[data-edit-food], [data-edit-ex], [data-recent]");
   if (el) { e.preventDefault(); el.click(); }
 });
 

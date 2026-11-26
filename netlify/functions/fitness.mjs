@@ -42,8 +42,13 @@ export function defaultDoc() {
     foods: [],
     // { id, person, date, kg, by, t }
     weights: [],
-    // { id, person, date, name, minutes, kcal, note, by, t }
+    // { id, person, date, name, minutes, kcal, note, by, t, edited?,
+    //   source?: "strava", stravaId? (synced from Strava, netlify/lib/strava.mjs) }
     exercises: [],
+    // Who has connected Strava: { [person]: { athlete, name, t } } (tokens are kept elsewhere)
+    strava: {},
+    // Strava workouts deleted in the diary, so syncing doesn't bring them back
+    stravaIgnored: [],
     // Toilet log: { id, person, date, time ("HH:MM"), type (Bristol stool scale 1-7), note, by, t }
     toilet: [],
     // Saved foods and recipes, shared by everyone, to add to a diary in one tap:
@@ -61,6 +66,8 @@ export function normalize(doc) {
   doc.library ??= [];
   doc.toilet ??= [];
   doc.favourites ??= [];
+  doc.strava ??= {};
+  doc.stravaIgnored ??= [];
   return doc;
 }
 
@@ -228,10 +235,27 @@ export function applyOp(doc, body, by) {
       return `logged ${who}'s ${name} (${x.minutes} min, ${x.kcal} kcal) on ${prettyDate(x.date)}`;
     }
 
+    case "updateExercise": {
+      const x = doc.exercises.find((e) => e.id === body.id);
+      if (!x) fail("This exercise was deleted by someone else", 409);
+      const name = str(body.name, 60);
+      if (!name) fail("Name the exercise");
+      Object.assign(x, {
+        name,
+        minutes: num(body.minutes ?? 0, { max: 1440, label: "minutes" }),
+        kcal: num(body.kcal, { max: 10000, label: "calories burned" }),
+        note: str(body.note, 120),
+        edited: true, // a Strava update won't change what was typed here
+        editedBy: by, editedAt: Date.now(),
+      });
+      return `edited ${x.person}'s ${name} (${x.minutes} min, ${x.kcal} kcal) on ${prettyDate(x.date)}`;
+    }
+
     case "deleteExercise": {
       const x = doc.exercises.find((e) => e.id === body.id);
       if (!x) return null;
       doc.exercises = doc.exercises.filter((e) => e !== x);
+      if (x.stravaId) doc.stravaIgnored = [...doc.stravaIgnored, x.stravaId].slice(-500);
       return `removed ${x.person}'s ${x.name} on ${prettyDate(x.date)}`;
     }
 

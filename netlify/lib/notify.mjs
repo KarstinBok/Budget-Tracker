@@ -42,6 +42,7 @@ function actorOf(doc, by, subject) {
   const p = personFor(doc.people, by);
   if (p) return { person: p, label: p };
   if (norm(by) === "claude" && subject) return { person: subject, label: subject, via: "Claude" };
+  if (norm(by) === "strava" && subject) return { person: subject, label: subject, via: "Strava" };
   return { person: null, label: by || "Someone" };
 }
 

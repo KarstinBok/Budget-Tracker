@@ -67,6 +67,7 @@
       </div>
       <ul class="items-list food-list" id="exerciseList"></ul>
       <button type="button" class="btn ghost meal-add" id="addExercise">＋ Add exercise</button>
+      <p class="muted small strava-line" id="stravaLine"></p>
     </section>
 
     <section class="panel weigh-box" data-only="diary">
@@ -218,7 +219,7 @@
 
   <dialog id="exDlg">
     <form id="exForm">
-      <h2>Add exercise</h2>
+      <h2 id="exTitle">Add exercise</h2>
       <div class="cat-choices" id="exChoices" role="radiogroup" aria-label="Exercise"></div>
       <label>Exercise <input name="name" maxlength="60" required placeholder="e.g. Running" /></label>
       <div class="row">
@@ -229,7 +230,7 @@
       <p class="convert" id="exHint"></p>
       <div class="dlg-actions">
         <button class="btn ghost" type="button" id="exCancel">Cancel</button>
-        <button class="btn" type="submit">Add</button>
+        <button class="btn" type="submit" id="exSave">Add</button>
       </div>
     </form>
   </dialog>
