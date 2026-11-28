@@ -23,7 +23,7 @@ renderWho();
 // ---------------------------------------------------------------- 💬 feedback
 
 const KIND = { problem: "🐞 Problem", idea: "💡 Idea", other: "💬 Other" };
-const AREA = { home: "🏠 Home", expenses: "💸 Expenses", fitness: "🥗 Food & fitness", toilet: "🚽 Toilet log", insurance: "🛡️ Insurance", japan: "🗾 Japan trip", settings: "⚙️ Settings", other: "Other" };
+const AREA = { home: "🏠 Home", expenses: "💸 Expenses", fitness: "🍔 Food & fitness", toilet: "🚽 Toilet log", insurance: "🛡️ Insurance", japan: "🗾 Japan trip", settings: "⚙️ Settings", other: "Other" };
 const STATUS = { open: "Open", planned: "Planned", done: "✅ Done", wontdo: "Won't do" };
 let feedback = [];
 

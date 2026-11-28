@@ -893,7 +893,6 @@ function openAdd(prefill = {}, item = null) {
   const days = tripDays();
   const today = localToday();
   const prevDate = f.date.value;
-  const prevCat = selectedCat();
   f.date.innerHTML = days.map((d) =>
     `<option value="${d}">${fmtDay(d, { weekday: "short", month: "short", day: "numeric", year: "numeric" })}${d === today ? " (today)" : ""}</option>`).join("");
   $("#catChoices").innerHTML = doc.categories.map((c, n) =>
@@ -924,8 +923,8 @@ function openAdd(prefill = {}, item = null) {
     f.note.value = item.note ?? "";
   } else {
     f.date.value = prefill.date ?? (days.includes(today) ? today : days.includes(prevDate) ? prevDate : days[0]);
-    const cat = prefill.cat ?? prevCat;
-    selectCat(cat);
+    // New expenses always start on Food (the first category stays checked if there's no Food).
+    selectCat(prefill.cat ?? "food");
     f.amount.value = "";
     f.note.value = "";
   }

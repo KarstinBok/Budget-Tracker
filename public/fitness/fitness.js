@@ -30,6 +30,8 @@ let day = localToday();
 let who = store.get("fitness.person") || "";
 let review = []; // foods waiting to be logged in the add dialog
 let editing = null; // food being edited
+let ovMode = store.get("fitness.ov") || "week"; // calorie overview: day | week | month
+let ovAt = localToday(); // a day inside the period shown
 
 const sync = createSync({
   path: "/api/fitness",
@@ -206,8 +208,8 @@ function renderCalendar() {
     const r = d <= today ? dayResult(d) : null;
     let cls = "", mark = "", sub = "";
     if (r && d === today && r.diff <= 0) { cls = "now"; mark = "•"; sub = `${fmt(r.goal - r.eaten)} left`; }
-    else if (r && r.diff <= 0) { cls = "ok"; mark = "✓"; sub = fmt(r.eaten); under++; }
-    else if (r) { cls = "over"; mark = "✕"; sub = `+${fmt(r.diff)}`; over++; }
+    else if (r && r.diff <= 0) { cls = "ok"; mark = `<img class="cal-icon" src="/icons/cal-tick.png" alt="✓" />`; sub = fmt(r.eaten); under++; }
+    else if (r) { cls = "over"; mark = `<img class="cal-icon" src="/icons/cal-x-red.png" alt="✕" />`; sub = `+${fmt(r.diff)}`; over++; }
     cells.push(`<button type="button" class="cal-day ${cls}${d === today ? " today" : ""}" data-day="${d}" ${d > today ? "disabled" : ""}
       title="${r ? `${fmt(r.eaten)} of ${fmt(r.goal)} kcal` : "Nothing logged"}"><b>${n}</b><span class="cal-mark ${cls}">${mark}</span><small>${sub}</small></button>`);
   }
@@ -235,6 +237,7 @@ $("#calGrid").addEventListener("click", (e) => {
 });
 
 function renderProgress() {
+  renderOverview();
   renderCalendar();
   const ws = weighIns();
   const pr = doc.profiles[who] ?? {};
@@ -284,6 +287,125 @@ function renderProgress() {
   }).join("") || `<li class="muted small">No weigh-ins yet.</li>`;
 }
 
+// ---------------------------------------------------------------- calorie overview
+
+const mondayOf = (d) => shiftDay(d, -((new Date(`${d}T00:00:00Z`).getUTCDay() + 6) % 7));
+const monthEnd = (d) => new Date(Date.UTC(+d.slice(0, 4), +d.slice(5, 7), 0)).toISOString().slice(0, 10);
+
+function ovPeriod(mode = ovMode, at = ovAt) {
+  if (mode === "day") return { from: at, to: at };
+  if (mode === "week") { const from = mondayOf(at); return { from, to: shiftDay(from, 6) }; }
+  return { from: `${at.slice(0, 7)}-01`, to: monthEnd(at) };
+}
+
+// One day's actual calories. `net` is food minus exercise when exercise is added back.
+function dayStats(d) {
+  const eaten = sum(foodsOn(d), "kcal");
+  const burned = sum(exercisesOn(d), "kcal");
+  const net = eaten - (exerciseAddsBack(doc, who) ? burned : 0);
+  return { d, eaten, burned, net, goal: targets(who, d).kcal, logged: eaten > 0 };
+}
+
+// Totals over [from, to], up to today. Goal and over/under count logged days only.
+function rangeStats(from, to) {
+  const days = [];
+  const last = to < localToday() ? to : localToday();
+  for (let d = from; d <= last; d = shiftDay(d, 1)) days.push(dayStats(d));
+  const logged = days.filter((x) => x.logged);
+  return {
+    days, logged: logged.length, eaten: sum(days, "eaten"), burned: sum(days, "burned"), net: sum(days, "net"),
+    goal: sum(logged, "goal"), diff: logged.reduce((s, x) => s + x.net - x.goal, 0),
+    p: doc.foods.filter((f) => f.person === who && f.date >= from && f.date <= last).reduce((a, f) => a + (f.p || 0), 0),
+  };
+}
+
+function ovTitle(from, to) {
+  if (ovMode === "day") return dayLabel(from);
+  if (ovMode === "month") return fmtDay(from, { month: "long", year: "numeric" });
+  const thisWeek = mondayOf(localToday());
+  const name = from === thisWeek ? "This week" : from === shiftDay(thisWeek, -7) ? "Last week" : "Week";
+  return `${name}, ${fmtDay(from, { month: "short", day: "numeric" })} – ${fmtDay(to, { month: "short", day: "numeric" })}`;
+}
+
+const diffText = (v) => `${fmt(Math.abs(v))} ${v > 0 ? "over" : "under"}`;
+
+function ovRow({ label, sub, net, goal, logged, diff, attrs = "" }) {
+  const pct = goal ? Math.min(100, (net / goal) * 100) : 0;
+  return `<li class="ov-row" ${attrs}><div class="item-main"><span class="item-note"><b>${label}</b>${sub ? ` <span class="muted small">${sub}</span>` : ""}</span>
+      ${logged ? `<div class="meter ${diff > 0 ? "over" : ""}"><span style="width:${Math.max(pct, 0)}%"></span></div>` : ""}</div>
+    <div class="ov-nums">${logged
+      ? `<b>${fmt(net)}</b><span class="muted small">of ${fmt(goal)}</span><span class="ov-diff ${diff > 0 ? "over" : "under"}">${diffText(diff)}</span>`
+      : `<span class="muted small">Not logged</span>`}</div></li>`;
+}
+
+function renderOverview() {
+  for (const r of document.querySelectorAll('input[name="ovMode"]')) r.checked = r.value === ovMode;
+  const { from, to } = ovPeriod();
+  const today = localToday();
+  $("#ovTitle").textContent = ovTitle(from, to);
+  $("#ovNext").disabled = to >= today;
+  const s = rangeStats(from, to);
+  const addsBack = exerciseAddsBack(doc, who);
+  const avg = s.logged ? s.eaten / s.logged : 0;
+  const tile = (name, v, cls = "") => `<div class="ov-stat ${cls}"><span>${name}</span><b>${v}</b></div>`;
+  $("#ovStats").innerHTML = [
+    tile("Food eaten", `${fmt(s.eaten)} kcal`),
+    tile("Exercise", `${fmt(s.burned)} kcal`),
+    tile(addsBack ? "Net (food − exercise)" : "Net (exercise not added back)", `${fmt(s.net)} kcal`),
+    tile(ovMode === "day" ? "Goal" : "Goal (logged days)", s.logged ? `${fmt(s.goal)} kcal` : "—"),
+    tile("Over / under goal", s.logged ? diffText(s.diff) : "—", s.logged ? (s.diff > 0 ? "over" : "under") : ""),
+    ovMode === "day" ? tile("Protein", s.logged ? `${fmt(s.p)}g` : "—") : tile("Average a logged day", s.logged ? `${fmt(avg)} kcal` : "—"),
+  ].join("");
+  const span = s.days.length;
+  $("#ovNote").textContent = from > today ? "This period hasn't started yet."
+    : ovMode === "day" ? (s.logged ? "" : "No food logged on this day.")
+    : `${s.logged} of ${span} day${span === 1 ? "" : "s"} logged${to > today ? " so far" : ""}. Days without food logged don't count towards the goal. Tap a row to open it.`;
+
+  let rows = "";
+  if (ovMode === "day") {
+    rows = MEALS.map((m) => {
+      const kcal = sum(foodsOn(from).filter((f) => f.meal === m.id), "kcal");
+      return `<li class="ov-row"><div class="item-main"><span class="item-note"><b>${m.emoji} ${m.name}</b></span></div><div class="ov-nums"><b>${fmt(kcal)}</b><span class="muted small">kcal</span></div></li>`;
+    }).join("") + `<li class="ov-row"><div class="item-main"><span class="item-note"><b>🏃 Exercise</b>${addsBack ? "" : ' <span class="muted small">not added back</span>'}</span></div><div class="ov-nums"><b>−${fmt(s.burned)}</b><span class="muted small">kcal</span></div></li>`
+      + `<li class="ov-row" data-ov-day="${from}"><div class="item-main"><span class="item-note"><b>📒 Open this day's diary</b></span></div><div class="ov-nums">›</div></li>`;
+  } else if (ovMode === "week") {
+    rows = s.days.map((x) => ovRow({
+      label: fmtDay(x.d, { weekday: "long" }), sub: fmtDay(x.d, { month: "short", day: "numeric" }) + (x.d === today ? " · today so far" : ""),
+      net: x.net, goal: x.goal, logged: x.logged, diff: x.net - x.goal, attrs: `data-ov-day="${x.d}" tabindex="0"`,
+    })).join("");
+  } else {
+    for (let w = mondayOf(from); w <= to && w <= today; w = shiftDay(w, 7)) {
+      const a = w < from ? from : w, b = shiftDay(w, 6) > to ? to : shiftDay(w, 6);
+      const ws = rangeStats(a, b);
+      rows += ovRow({
+        label: a === b ? fmtDay(a, { weekday: "short", month: "short", day: "numeric" }) : `${fmtDay(a, { month: "short", day: "numeric" })} – ${fmtDay(b, { month: "short", day: "numeric" })}`,
+        sub: ws.logged ? `${ws.logged} day${ws.logged === 1 ? "" : "s"} logged · ${fmt(ws.eaten)} eaten` : "",
+        net: ws.days.filter((x) => x.logged).reduce((t, x) => t + x.net, 0), goal: ws.goal, logged: ws.logged > 0, diff: ws.diff,
+        attrs: `data-ov-week="${a}" tabindex="0"`,
+      });
+    }
+  }
+  $("#ovRows").innerHTML = rows || `<li class="muted small">Nothing to show yet.</li>`;
+}
+
+$("#ovMode").addEventListener("change", (e) => { ovMode = e.target.value; store.set("fitness.ov", ovMode); renderOverview(); });
+$("#ovPrev").addEventListener("click", () => {
+  const { from } = ovPeriod();
+  ovAt = shiftDay(from, -1);
+  if (ovMode !== "month") ovAt = ovPeriod(ovMode, ovAt).from;
+  renderOverview();
+});
+$("#ovNext").addEventListener("click", () => { ovAt = shiftDay(ovPeriod().to, 1); renderOverview(); });
+$("#ovRows").addEventListener("click", (e) => {
+  const d = e.target.closest("[data-ov-day]");
+  if (d) { day = d.dataset.ovDay; location.hash = "#diary"; return; }
+  const w = e.target.closest("[data-ov-week]");
+  if (w) { ovMode = "week"; ovAt = w.dataset.ovWeek; renderOverview(); }
+});
+$("#ovRows").addEventListener("keydown", (e) => {
+  if ((e.key === "Enter" || e.key === " ") && e.target.closest(".ov-row[tabindex]")) { e.preventDefault(); e.target.closest(".ov-row").click(); }
+});
+
 function renderWeightChart(ws, goal) {
   const svg = $("#weightChart");
   const title = svg.querySelector("title").outerHTML;
@@ -296,18 +418,29 @@ function renderWeightChart(ws, goal) {
     return;
   }
   const vals = pts.map((w) => w.kg).concat(goal ? [goal] : []);
-  let lo = Math.floor(Math.min(...vals) - 1), hi = Math.ceil(Math.max(...vals) + 1);
-  const W = 600, H = 240, L = 52, R = 12, T = 16, B = 30;
+  // Whole-kilo axis with 3–5 ticks, padded so the lines never touch the edges.
+  const span = Math.max(...vals) - Math.min(...vals);
+  const step = span > 12 ? 5 : span > 5 ? 2 : 1;
+  const lo = Math.floor((Math.min(...vals) - 0.5) / step) * step, hi = Math.ceil((Math.max(...vals) + 0.5) / step) * step;
+  const W = 600, H = 260, L = 44, R = 14, T = 40, B = 30;
   const t0 = Date.parse(from), t1 = Date.parse(localToday());
   const x = (d) => L + ((Date.parse(d) - t0) / (t1 - t0 || 1)) * (W - L - R);
   const y = (v) => T + ((hi - v) / (hi - lo || 1)) * (H - T - B);
-  const ticks = [hi, (hi + lo) / 2, lo];
+  const ticks = []; for (let v = lo; v <= hi + 1e-9; v += step) ticks.push(v);
   const line = pts.map((w, n) => `${n ? "L" : "M"}${x(w.date).toFixed(1)},${y(w.kg).toFixed(1)}`).join("");
-  svg.innerHTML = title +
-    ticks.map((v) => `<line class="chart-grid" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" /><text class="chart-axis" x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${r1(v)}</text>`).join("") +
-    (goal ? `<line class="chart-goal" x1="${L}" x2="${W - R}" y1="${y(goal)}" y2="${y(goal)}" /><text class="chart-goal-label" x="${W - R}" y="${y(goal) - 5}" text-anchor="end">Goal ${goal} kg</text>` : "") +
+  const last = pts.at(-1);
+  // Legend: the two lines, weight and goal.
+  const legend = `<g class="chart-legend">
+      <line class="chart-line" x1="${L}" x2="${L + 22}" y1="14" y2="14" /><circle class="chart-dot" cx="${L + 11}" cy="14" r="3.5" />
+      <text x="${L + 30}" y="19">Weight</text>
+      ${goal ? `<line class="chart-goal" x1="${L + 104}" x2="${L + 126}" y1="14" y2="14" /><text x="${L + 134}" y="19">Goal ${goal} kg</text>` : ""}
+    </g>`;
+  svg.innerHTML = title + legend +
+    ticks.map((v) => `<line class="chart-grid" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" /><text class="chart-axis" x="${L - 8}" y="${y(v) + 5}" text-anchor="end">${v}</text>`).join("") +
+    (goal ? `<line class="chart-goal" x1="${L}" x2="${W - R}" y1="${y(goal)}" y2="${y(goal)}"><title>Goal: ${goal} kg</title></line>` : "") +
     `<path class="chart-line" d="${line}" />` +
     pts.map((w) => `<circle class="chart-dot" cx="${x(w.date)}" cy="${y(w.kg)}" r="3.5"><title>${fmtDay(w.date)}: ${w.kg} kg</title></circle>`).join("") +
+    `<text class="chart-last" x="${Math.min(x(last.date), W - R)}" y="${y(last.kg) - 10}" text-anchor="end">${last.kg}</text>` +
     `<text class="chart-axis" x="${L}" y="${H - 6}">${fmtDay(from, { month: "short", day: "numeric" })}</text><text class="chart-axis" x="${W - R}" y="${H - 6}" text-anchor="end">Today</text>`;
 }
 

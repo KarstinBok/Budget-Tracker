@@ -11,6 +11,7 @@
   <link rel="icon" type="image/png" href="/icons/favicon-64.png?v=4" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=4" />
   <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/tour/tour.css" />
   <script src="/theme.js"></script>
 </head>
 <body class="daily fitness">
@@ -85,6 +86,25 @@
       <article class="card"><h2>Last 7 days</h2><p class="big" id="pWeek">—</p><p class="muted" id="pWeekSub"></p></article>
     </section>
 
+    <section class="panel" data-only="progress" aria-labelledby="ovHead">
+      <div class="panel-head">
+        <div><h2 id="ovHead">Calorie overview</h2><p class="muted small">What you actually ate, burned and how it compares to your goal</p></div>
+        <div class="seg" id="ovMode" role="radiogroup" aria-label="Overview period">
+          <label><input type="radio" name="ovMode" value="day" /><span>Day</span></label>
+          <label><input type="radio" name="ovMode" value="week" checked /><span>Week</span></label>
+          <label><input type="radio" name="ovMode" value="month" /><span>Month</span></label>
+        </div>
+      </div>
+      <div class="cal-head">
+        <button type="button" class="icon-btn" id="ovPrev" aria-label="Previous period">‹</button>
+        <h3 id="ovTitle"></h3>
+        <button type="button" class="icon-btn" id="ovNext" aria-label="Next period">›</button>
+      </div>
+      <div class="ov-stats" id="ovStats"></div>
+      <p class="muted small" id="ovNote"></p>
+      <ul class="items-list ov-rows" id="ovRows"></ul>
+    </section>
+
     <section class="panel" data-only="progress" aria-labelledby="calTitle">
       <div class="cal-head">
         <button type="button" class="icon-btn" id="calPrev" aria-label="Previous month">‹</button>
@@ -93,7 +113,7 @@
       </div>
       <p class="muted small" id="calSummary"></p>
       <div class="cal-grid" id="calGrid"></div>
-      <p class="muted small cal-key"><span class="cal-mark ok">✓</span> under goal · <span class="cal-mark over">✕</span> over goal · <span class="cal-mark now">•</span> today so far · tap a day to open it</p>
+      <p class="muted small cal-key"><span class="cal-mark ok"><img class="cal-icon" src="/icons/cal-tick.png" alt="✓" /></span> under goal · <span class="cal-mark over"><img class="cal-icon" src="/icons/cal-x-red.png" alt="✕" /></span> over goal · <span class="cal-mark now">•</span> today so far · tap a day to open it</p>
     </section>
 
     <section class="panel" data-only="progress">
@@ -107,7 +127,7 @@
           </div>
         </div>
       </div>
-      <div class="chart-wrap"><svg id="weightChart" viewBox="0 0 600 240" role="img" aria-labelledby="weightChartTitle"><title id="weightChartTitle">Weight over time</title></svg></div>
+      <div class="chart-wrap"><svg id="weightChart" viewBox="0 0 600 260" role="img" aria-labelledby="weightChartTitle"><title id="weightChartTitle">Weight over time</title></svg></div>
     </section>
 
     <section class="panel" data-only="progress">
@@ -286,7 +306,7 @@
       <p class="convert" id="goalCalc"></p>
       <label class="check-row"><input type="checkbox" name="addExercise" /> Add exercise calories back to my daily goal</label>
       <label class="check-row"><input type="checkbox" name="overAlert" /> Notify me when I go over my calories for the day</label>
-      <label class="check-row"><input type="checkbox" name="makeUp" /> When I go over, lower my goal on the following days to make up for it (spread evenly over the rest of the week; from Sunday, over the next week)</label>
+      <label class="check-row"><input type="checkbox" name="makeUp" /> When I go over, lower my goal on the following days to make up for it (spread evenly over the rest of the week, Monday to Sunday; every Monday starts fresh)</label>
       <label>Calorie goal override (optional) <input name="kcalTarget" inputmode="numeric" placeholder="Leave blank to use the calculated goal" /></label>
       <fieldset class="pay-edit">
         <legend>Macros (% of calories)</legend>
@@ -324,5 +344,7 @@
 
   <script src="/fitness/fitness.js" type="module"></script>
   <script src="/notify.js" type="module"></script>
+  <script src="/tour/tour.js" defer></script>
+  <script src="/tour/tours.js" defer></script>
 </body>
 </html>

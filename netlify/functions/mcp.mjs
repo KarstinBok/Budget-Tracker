@@ -1,6 +1,7 @@
 // Connector for the Claude app: an MCP server (Streamable HTTP, stateless JSON responses)
 // at /mcp/<FITNESS_MCP_KEY>. Added to Claude as a custom connector, it lets Claude read
-// the food & fitness diary and log to it, e.g. after you send it a photo of a meal:
+// and log to the food & fitness diary (food, weight, exercise), the toilet log and the
+// everyday expenses, e.g. after you send it a photo of a meal:
 // Claude works out the ingredients and their weights, looks them up (USDA FoodData
 // Central, Open Food Facts, the web) and logs the result here, where the app shows it.
 //
@@ -13,9 +14,10 @@ import { lookupFood, lookupUsda } from "../lib/food-lookup.mjs";
 import { geminiEnabled, geminiNutrition } from "../lib/gemini.mjs";
 import { notifyChange } from "../lib/notify.mjs";
 import { FITNESS_KEY, MEALS, applyOp, defaultDoc, normalize } from "./fitness.mjs";
+import { DAILY_KEY, applyOp as applyDailyOp, defaultDoc as defaultDailyDoc, normalize as normalizeDaily } from "./daily.mjs";
 import { dayTargets, weekBalance, weekNote } from "../../public/calc.js";
 
-const SERVER = { name: "our-food-diary", version: "1.0.0" };
+const SERVER = { name: "our-food-diary", version: "1.1.0" };
 const PROTOCOLS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
 const TZ = "Asia/Singapore";
 
@@ -25,7 +27,13 @@ When someone sends a photo or description of food to log:
 1. Identify each dish and break it into ingredients. Estimate each ingredient's weight in grams from the photo's scale cues (a dinner plate is ~26 cm, a hawker plate ~23 cm, a rice bowl ~250 ml, a dessert spoon ~15 cm), counting pieces where you can, and include cooking oil and sauces.
 2. Look up nutrition per 100 g and scale it to each weight: lookup_usda for whole foods and cooked staples; lookup_open_food_facts for packaged products (by barcode if visible); web search for restaurant and chain items (the brand's published nutrition facts) and local dishes (e.g. Singapore HPB). A dish's totals are the sum of its ingredients.
 3. Show the person the breakdown (ingredients, grams, kcal, protein, carbs, fat, sources) and the totals, then log it with log_food to the right person, meal and date. If whose diary or which meal isn't clear, ask or infer from the time of day (Singapore time). Mention calories left for the day from the result.
-Use get_food_diary to answer questions about the day, goals and what's left. Use delete_food to fix a mistake. When they ask to add a food or recipe to the database (without saying they ate it), use save_food.`;
+Use get_food_diary to answer questions about the day, goals and what's left. Use delete_food to fix a mistake. When they ask to add a food or recipe to the database (without saying they ate it), use save_food.
+
+The same connector also logs the rest of their day:
+- Weight: log_weight. Exercise: log_exercise (estimate calories burned if not given); delete_exercise to fix a mistake.
+- Toilet log (https://japan-trip-budget.netlify.app/toilet/): log_poop with the Bristol stool type 1-7 (1 hard lumps, 2 lumpy sausage, 3 cracked sausage, 4 smooth soft sausage, 5 soft blobs, 6 mushy, 7 watery). If they don't say the type, ask, or use 4 for "normal". The time defaults to now. get_toilet_log and delete_poop to read and fix.
+- Everyday expenses in SGD (https://japan-trip-budget.netlify.app/daily/): call get_expenses first for the categories and cards, then log_expense. Personal expenses belong to one person; shared ones are split (equally unless told otherwise) and record who paid. Pick the category that fits; set the card only when they say which card or account paid. A receipt photo works too: read the total, shop and date from it. delete_expense to fix a mistake.
+If it isn't clear whose entry it is, ask.`;
 
 // With GEMINI_API_KEY set, Gemini (grounded in Google Search) works out the numbers instead.
 const GEMINI_INSTRUCTIONS = `
@@ -118,6 +126,84 @@ const TOOLS = [
       properties: { person: PERSON, date: DATE, name: { type: "string" }, minutes: num("Minutes."), kcal: num("Calories burned."), note: { type: "string" } },
       required: ["person", "name", "minutes", "kcal"],
     },
+  },
+  {
+    name: "delete_exercise",
+    title: "Delete logged exercise",
+    description: "Remove an exercise entry by its id (from get_food_diary or log_exercise).",
+    annotations: { destructiveHint: true },
+    inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
+  },
+  {
+    name: "log_poop",
+    title: "Log a toilet visit",
+    description: "Record a bowel movement in a person's toilet log, with its type on the Bristol stool scale.",
+    inputSchema: {
+      type: "object",
+      required: ["person", "type"],
+      properties: {
+        person: PERSON,
+        date: DATE,
+        time: { type: "string", description: "Time as HH:MM (24-hour, Singapore). Defaults to now when the date is today." },
+        type: { type: "integer", minimum: 1, maximum: 7, description: "Bristol stool scale: 1 separate hard lumps, 2 lumpy sausage, 3 sausage with cracks, 4 smooth soft sausage, 5 soft blobs, 6 mushy ragged pieces, 7 watery." },
+        note: { type: "string", description: "Optional note, e.g. \"after coffee\"." },
+      },
+    },
+  },
+  {
+    name: "get_toilet_log",
+    title: "Read the toilet log",
+    description: "A person's toilet visits (with ids) for the last few days, newest first, with a count per day.",
+    annotations: { readOnlyHint: true },
+    inputSchema: { type: "object", properties: { person: PERSON, days: num("How many days back, including today (default 7).") }, required: ["person"] },
+  },
+  {
+    name: "delete_poop",
+    title: "Delete a toilet entry",
+    description: "Remove a toilet log entry by its id (from get_toilet_log or log_poop).",
+    annotations: { destructiveHint: true },
+    inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
+  },
+  {
+    name: "get_expenses",
+    title: "Read everyday expenses",
+    description: "The everyday expense tracker (SGD): the people, expense categories and cards/accounts to log against, and the expenses between two dates (with ids), with totals per person and category.",
+    annotations: { readOnlyHint: true },
+    inputSchema: {
+      type: "object",
+      properties: {
+        from: { type: "string", description: "First day, YYYY-MM-DD. Defaults to the 1st of this month." },
+        to: { type: "string", description: "Last day, YYYY-MM-DD. Defaults to today." },
+        person: { type: "string", description: "Only this person's personal expenses and shared ones (leave out for everyone)." },
+      },
+    },
+  },
+  {
+    name: "log_expense",
+    title: "Log an expense",
+    description: "Add an expense to the everyday expense tracker. Personal: give owner. Shared: give paid_by (or a card, whose owner paid) and optionally split.",
+    inputSchema: {
+      type: "object",
+      required: ["kind", "amount", "category"],
+      properties: {
+        kind: { type: "string", enum: ["personal", "shared"] },
+        amount: num("Amount in SGD dollars, e.g. 12.5."),
+        category: { type: "string", description: "Category id or name from get_expenses, e.g. food, groceries, transport." },
+        date: DATE,
+        note: { type: "string", description: "What it was, e.g. \"Ya Kun breakfast\" (max 80 characters)." },
+        owner: { type: "string", description: "Personal: whose expense (Karstin or Lilin)." },
+        paid_by: { type: "string", description: "Shared: who paid." },
+        split: { type: "object", additionalProperties: { type: "number" }, description: "Shared: each person's share, e.g. {\"Karstin\": 0.5, \"Lilin\": 0.5}. Defaults to equal." },
+        card: { type: "string", description: "Card or account name (or id) from get_expenses that paid, if they said." },
+      },
+    },
+  },
+  {
+    name: "delete_expense",
+    title: "Delete an expense",
+    description: "Remove an expense by its id (from get_expenses or log_expense).",
+    annotations: { destructiveHint: true },
+    inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
   },
   {
     name: "find_saved_foods",
@@ -259,13 +345,102 @@ export function diary(doc, p, d) {
 
 // Applies one diary change as the page would, signed "Claude".
 async function change(body) {
-  const doc = await updateDoc({ key: FITNESS_KEY, defaultDoc, normalize, by: "Claude", mutate: (d) => applyOp(d, body, "Claude") })
+  return changeDoc({ key: FITNESS_KEY, defaultDoc, normalize, applyOp }, body);
+}
+
+const EXPENSES = { key: DAILY_KEY, defaultDoc: defaultDailyDoc, normalize: normalizeDaily, applyOp: applyDailyOp };
+
+async function changeDoc({ key, defaultDoc, normalize, applyOp }, body) {
+  const doc = await updateDoc({ key, defaultDoc, normalize, by: "Claude", mutate: (d) => applyOp(d, body, "Claude") })
     .catch((err) => {
       throw err.status ? new ToolError(err.message) : err; // fail() from applyOp: a message for Claude
     });
-  if (!doc) throw new ToolError("The diary is busy, try again.");
-  await notifyChange(FITNESS_KEY, body, "Claude", doc);
+  if (!doc) throw new ToolError("The app is busy, try again.");
+  await notifyChange(key, body, "Claude", doc);
   return doc;
+}
+
+async function readExpenses() {
+  const stored = await liveStore().get(DAILY_KEY, { type: "json" });
+  return stored ? normalizeDaily(stored) : defaultDailyDoc();
+}
+
+const nowTime = () => new Intl.DateTimeFormat("en-GB", { timeZone: TZ, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date());
+const shiftDay = (d, n) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 864e5).toISOString().slice(0, 10);
+const BRISTOL = ["", "separate hard lumps", "lumpy sausage", "sausage with cracks", "smooth soft sausage", "soft blobs", "mushy ragged pieces", "watery"];
+const dollars = (cents) => Math.round(cents) / 100;
+
+function poopOut(x) {
+  return { id: x.id, date: x.date, time: x.time || null, type: x.type, looks_like: BRISTOL[x.type], note: x.note || undefined };
+}
+
+function toiletLog(doc, p, days) {
+  const to = today();
+  const from = shiftDay(to, -(Math.min(Math.max(Math.round(Number(days) || 7), 1), 90) - 1));
+  const list = (doc.toilet ?? []).filter((x) => x.person === p && x.date >= from && x.date <= to)
+    .sort((a, b) => b.date.localeCompare(a.date) || (b.time || "").localeCompare(a.time || "") || b.t - a.t);
+  const perDay = {};
+  for (const x of list) perDay[x.date] = (perDay[x.date] ?? 0) + 1;
+  return { person: p, from, to, visits: list.length, per_day: perDay, entries: list.map(poopOut), app: "https://japan-trip-budget.netlify.app/toilet/" };
+}
+
+function categoryOf(doc, value) {
+  const v = str(value, 40).toLowerCase();
+  const cat = doc.categories.find((c) => c.id === v) ?? doc.categories.find((c) => c.name.toLowerCase() === v) ??
+    doc.categories.find((c) => v && (c.name.toLowerCase().includes(v) || c.id.includes(v)));
+  if (!cat) throw new ToolError(`Unknown category. Use one of: ${doc.categories.map((c) => `${c.id} (${c.name})`).join(", ")}`);
+  return cat;
+}
+
+function cardOf(doc, value, owner) {
+  if (!value) return null;
+  const v = str(value, 80).toLowerCase();
+  const byId = doc.cards.find((c) => c.id === value);
+  if (byId) return byId;
+  const matches = doc.cards.filter((c) => c.name.toLowerCase() === v).concat(doc.cards.filter((c) => c.name.toLowerCase().includes(v) && c.name.toLowerCase() !== v));
+  const card = matches.find((c) => c.owner === owner) ?? matches[0];
+  if (!card) throw new ToolError(`Unknown card. Use one of: ${doc.cards.map((c) => `${c.owner}'s ${c.name}`).join(", ") || "(no cards set up; leave card out)"}`);
+  return card;
+}
+
+function expenseOut(doc, i) {
+  const cat = doc.categories.find((c) => c.id === i.cat);
+  const card = i.card && doc.cards.find((c) => c.id === i.card);
+  return {
+    id: i.id, date: i.date, kind: i.kind, amount_sgd: dollars(i.a), category: cat ? `${cat.emoji} ${cat.name}` : i.cat, note: i.note || undefined,
+    ...(i.kind === "personal" ? { owner: i.owner } : { paid_by: i.paidBy, split: i.shares }),
+    ...(card ? { card: `${card.owner}'s ${card.name}` } : {}),
+  };
+}
+
+function expenses(doc, { from, to, person }) {
+  const end = to ? dayOf(to) : today();
+  const start = from ? dayOf(from) : `${end.slice(0, 8)}01`;
+  const items = doc.items.filter((i) => i.date >= start && i.date <= end &&
+    (!person || (i.kind === "shared" ? true : i.owner === person)))
+    .sort((a, b) => b.date.localeCompare(a.date) || b.t - a.t);
+  // Each person's spending: their personal expenses plus their share of shared ones.
+  const spent = Object.fromEntries(doc.people.map((p) => [p, 0]));
+  const byCat = {};
+  for (const i of items) {
+    const cat = doc.categories.find((c) => c.id === i.cat)?.name ?? i.cat;
+    byCat[cat] = (byCat[cat] ?? 0) + i.a;
+    if (i.kind === "personal") spent[i.owner] = (spent[i.owner] ?? 0) + i.a;
+    else for (const [p, f] of Object.entries(i.shares ?? {})) spent[p] = (spent[p] ?? 0) + i.a * f;
+  }
+  const round = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, dollars(v)]));
+  return {
+    from: start, to: end, currency: "SGD",
+    people: doc.people,
+    categories: doc.categories.map((c) => ({ id: c.id, name: c.name, emoji: c.emoji })),
+    cards: doc.cards.map((c) => ({ id: c.id, name: c.name, owner: c.owner, kind: c.kind ?? "card", for_categories: c.cats })),
+    total_sgd: dollars(items.reduce((s, i) => s + i.a, 0)),
+    spent_per_person_sgd: round(person ? { [person]: spent[person] ?? 0 } : spent),
+    per_category_sgd: round(byCat),
+    expenses: items.slice(0, 200).map((i) => expenseOut(doc, i)),
+    ...(items.length > 200 ? { note: `Showing the latest 200 of ${items.length}; ask for a shorter range.` } : {}),
+    app: "https://japan-trip-budget.netlify.app/daily/",
+  };
 }
 
 const foodFromTool = (f) => ({
@@ -320,6 +495,75 @@ async function callTool(name, args = {}) {
       const d = dayOf(args.date);
       const doc = await change({ op: "addExercise", person: p, date: d, name: args.name, minutes: args.minutes, kcal: Math.round(Number(args.kcal) || 0), note: args.note ?? "" });
       return { saved: true, day: diary(doc, p, d) };
+    }
+    case "delete_exercise": {
+      const pre = await readDoc();
+      const x = pre.exercises.find((e) => e.id === args.id);
+      if (!x) throw new ToolError("No exercise with that id");
+      const doc = await change({ op: "deleteExercise", id: x.id });
+      return { deleted: x.name, day: diary(doc, x.person, x.date) };
+    }
+    case "log_poop": {
+      const pre = await readDoc();
+      const p = personOf(pre, args.person);
+      const d = dayOf(args.date);
+      if (![1, 2, 3, 4, 5, 6, 7].includes(Number(args.type))) throw new ToolError("type must be 1-7 on the Bristol stool scale");
+      const time = args.time ? str(args.time, 5).padStart(5, "0") : d === today() ? nowTime() : "";
+      const before = new Set((pre.toilet ?? []).map((x) => x.id));
+      const doc = await change({ op: "addBowel", person: p, date: d, time, type: args.type, note: args.note ?? "" });
+      const added = doc.toilet.find((x) => !before.has(x.id) && x.person === p && x.date === d);
+      return { logged: added ? poopOut(added) : true, today: d === today() ? doc.toilet.filter((x) => x.person === p && x.date === d).length : undefined, recent: toiletLog(doc, p, 7).per_day };
+    }
+    case "get_toilet_log": {
+      const doc = await readDoc();
+      return toiletLog(doc, personOf(doc, args.person), args.days);
+    }
+    case "delete_poop": {
+      const pre = await readDoc();
+      const x = (pre.toilet ?? []).find((e) => e.id === args.id);
+      if (!x) throw new ToolError("No toilet entry with that id");
+      await change({ op: "deleteBowel", id: x.id });
+      return { deleted: poopOut(x), person: x.person };
+    }
+    case "get_expenses": {
+      const doc = await readExpenses();
+      return expenses(doc, { from: args.from, to: args.to, person: args.person ? personOf(doc, args.person) : null });
+    }
+    case "log_expense": {
+      const pre = await readExpenses();
+      const kind = args.kind === "shared" ? "shared" : "personal";
+      const cat = categoryOf(pre, args.category);
+      const amount = Number(args.amount);
+      if (!(amount > 0)) throw new ToolError("amount must be more than 0 (SGD dollars)");
+      const owner = kind === "personal" ? personOf(pre, args.owner) : null;
+      const paidBy = kind === "shared" && args.paid_by ? personOf(pre, args.paid_by) : null;
+      const card = cardOf(pre, args.card, owner ?? paidBy);
+      if (kind === "shared" && !paidBy && !card) throw new ToolError("For a shared expense, say who paid (paid_by) or which card.");
+      let shares;
+      if (kind === "shared" && args.split && typeof args.split === "object") {
+        shares = {};
+        for (const [name, f] of Object.entries(args.split)) shares[personOf(pre, name)] = Number(f);
+      }
+      const body = {
+        op: "addItem", kind, date: dayOf(args.date), cat: cat.id, a: Math.round(amount * 100), note: args.note ?? "",
+        ...(owner ? { owner } : {}), ...(paidBy ? { paidBy } : {}), ...(shares ? { shares } : {}), ...(card ? { card: card.id } : {}),
+      };
+      const before = new Set(pre.items.map((i) => i.id));
+      const doc = await changeDoc(EXPENSES, body);
+      const added = doc.items.find((i) => !before.has(i.id));
+      const month = expenses(doc, { from: `${body.date.slice(0, 8)}01`, to: body.date, person: owner ?? undefined });
+      return {
+        logged: added ? expenseOut(doc, added) : true,
+        ...(card && owner && card.owner !== owner ? { heads_up: `${card.owner}'s card paid, so ${owner} owes ${card.owner} for it.` } : {}),
+        month_so_far: { from: month.from, to: month.to, spent_per_person_sgd: month.spent_per_person_sgd, per_category_sgd: month.per_category_sgd },
+      };
+    }
+    case "delete_expense": {
+      const pre = await readExpenses();
+      const i = pre.items.find((x) => x.id === args.id);
+      if (!i) throw new ToolError("No expense with that id");
+      await changeDoc(EXPENSES, { op: "deleteItem", id: i.id });
+      return { deleted: expenseOut(pre, i) };
     }
     case "find_saved_foods": {
       const doc = await readDoc();
