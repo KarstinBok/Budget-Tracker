@@ -103,6 +103,7 @@ A calorie and macro diary for Karstin and Lilin, in the same app as the everyday
   1. On Netlify, add the environment variable `FITNESS_MCP_KEY`: a long random password of at least 16 characters (e.g. from a password manager). Optionally add `FDC_API_KEY`, a free USDA key from [api.data.gov](https://api.data.gov/signup/); without it the shared `DEMO_KEY` allows only a few lookups an hour. Then redeploy.
   2. In Claude (claude.ai, **Settings → Connectors → Add custom connector**), name it *Food diary* and give the URL `https://japan-trip-budget.netlify.app/mcp/<your FITNESS_MCP_KEY>`. It then works in the Claude app on your phone too.
   The key in the URL is what protects the diary, so keep the URL private. To change it, set a new `FITNESS_MCP_KEY`, redeploy and update the connector. The diary is backed up like the other data (`fitness-v1`).
+- **Nutrition from Gemini (optional):** add `GEMINI_API_KEY` on Netlify (a free key from [Google AI Studio](https://aistudio.google.com/apikey)) and redeploy. You still chat with Claude the same way: Claude looks at the photo and estimates each item's weight, then the connector's `gemini_nutrition` tool asks Gemini, which searches Google for the nutrition and scales it to those weights. Claude logs Gemini's numbers as given, with its sources (`netlify/lib/gemini.mjs`). If Gemini fails or its free limit runs out, Claude falls back to USDA, Open Food Facts and web search, and says so. `GEMINI_MODEL` is optional (default `gemini-2.5-flash`). Without the key the connector works as before.
 
 ## How it works
 

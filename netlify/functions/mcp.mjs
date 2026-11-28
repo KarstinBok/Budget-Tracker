@@ -10,6 +10,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { json, str, updateDoc, liveStore } from "../lib/shared-doc.mjs";
 import { lookupFood, lookupUsda } from "../lib/food-lookup.mjs";
+import { geminiEnabled, geminiNutrition } from "../lib/gemini.mjs";
 import { notifyChange } from "../lib/notify.mjs";
 import { FITNESS_KEY, MEALS, applyOp, defaultDoc, normalize } from "./fitness.mjs";
 import { dayTargets, weekBalance, weekNote } from "../../public/calc.js";
@@ -25,6 +26,13 @@ When someone sends a photo or description of food to log:
 2. Look up nutrition per 100 g and scale it to each weight: lookup_usda for whole foods and cooked staples; lookup_open_food_facts for packaged products (by barcode if visible); web search for restaurant and chain items (the brand's published nutrition facts) and local dishes (e.g. Singapore HPB). A dish's totals are the sum of its ingredients.
 3. Show the person the breakdown (ingredients, grams, kcal, protein, carbs, fat, sources) and the totals, then log it with log_food to the right person, meal and date. If whose diary or which meal isn't clear, ask or infer from the time of day (Singapore time). Mention calories left for the day from the result.
 Use get_food_diary to answer questions about the day, goals and what's left. Use delete_food to fix a mistake. When they ask to add a food or recipe to the database (without saying they ate it), use save_food.`;
+
+// With GEMINI_API_KEY set, Gemini (grounded in Google Search) works out the numbers instead.
+const GEMINI_INSTRUCTIONS = `
+
+Nutrition comes from Gemini: after step 1 (and unless find_saved_foods had the food), call gemini_nutrition with each item and your estimated grams, and use its numbers for step 2 instead of looking them up yourself. Log them exactly as Gemini gave them (source "Gemini (Google Search)" plus its source and link), even if they differ from what you'd expect; you can mention the difference. Only if gemini_nutrition fails, fall back to lookup_usda, lookup_open_food_facts and web search, and say so. If the person gives the weights or numbers themselves, use theirs.`;
+
+const instructions = () => INSTRUCTIONS + (geminiEnabled() ? GEMINI_INSTRUCTIONS : "");
 
 // ---------------------------------------------------------------- tools
 
@@ -150,6 +158,35 @@ const TOOLS = [
     inputSchema: { type: "object", properties: { barcode: { type: "string" }, query: { type: "string" } } },
   },
 ];
+
+const GEMINI_TOOL = {
+  name: "gemini_nutrition",
+  title: "Nutrition from Gemini (Google Search)",
+  description: "Ask Google's Gemini, grounded in Google Search, for the nutrition of foods at the weights you estimated from the photo. Returns each item's kcal, protein, carbs, fat (and fibre, sugar, sodium where found), its source, the totals and the Google results it used. Use these numbers when logging.",
+  annotations: { readOnlyHint: true, openWorldHint: true },
+  inputSchema: {
+    type: "object",
+    required: ["items"],
+    properties: {
+      items: {
+        type: "array",
+        minItems: 1,
+        items: {
+          type: "object",
+          required: ["name"],
+          properties: {
+            name: { type: "string", description: "The food or ingredient, as specific as you can, e.g. \"white rice, cooked\" or \"McDonald's McSpicy\"." },
+            grams: num("Estimated weight eaten, g (ml for drinks)."),
+            notes: { type: "string", description: "Anything that changes the numbers, e.g. \"deep-fried\", \"with skin\", \"less sugar\"." },
+          },
+        },
+      },
+      context: { type: "string", description: "Where it's from, if known: restaurant or brand, hawker dish, country." },
+    },
+  },
+};
+
+const tools = () => (geminiEnabled() ? [...TOOLS, GEMINI_TOOL] : TOOLS);
 
 // ---------------------------------------------------------------- diary helpers
 
@@ -303,6 +340,13 @@ async function callTool(name, args = {}) {
       return lookup("USDA FoodData Central", () => lookupUsda(args));
     case "lookup_open_food_facts":
       return lookup("Open Food Facts", () => lookupFood({ barcode: args.barcode ?? "", query: args.query ?? "" }));
+    case "gemini_nutrition":
+      if (!geminiEnabled()) throw new ToolError(`Unknown tool ${name}`);
+      try {
+        return await geminiNutrition(args);
+      } catch (err) {
+        throw new ToolError(`Couldn't get numbers from Gemini (${err.message}). Use lookup_usda, lookup_open_food_facts or web search instead, and tell the person.`);
+      }
     default:
       throw new ToolError(`Unknown tool ${name}`);
   }
@@ -328,12 +372,12 @@ async function handle(msg) {
         protocolVersion: PROTOCOLS.includes(params?.protocolVersion) ? params.protocolVersion : PROTOCOLS[0],
         capabilities: { tools: { listChanged: false } },
         serverInfo: SERVER,
-        instructions: INSTRUCTIONS,
+        instructions: instructions(),
       });
     case "ping":
       return rpcResult(id, {});
     case "tools/list":
-      return rpcResult(id, { tools: TOOLS });
+      return rpcResult(id, { tools: tools() });
     case "tools/call": {
       try {
         const out = await callTool(params?.name, params?.arguments);
