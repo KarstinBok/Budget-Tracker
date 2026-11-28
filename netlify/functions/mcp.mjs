@@ -224,7 +224,7 @@ function targets(doc, p, d) {
 const r1 = (v) => Math.round(v * 10) / 10;
 const total = (list, k) => r1(list.reduce((s, x) => s + (Number(x[k]) || 0), 0));
 
-function diary(doc, p, d) {
+export function diary(doc, p, d) {
   const foods = doc.foods.filter((f) => f.person === p && f.date === d);
   const ex = doc.exercises.filter((x) => x.person === p && x.date === d);
   const goal = targets(doc, p, d);
