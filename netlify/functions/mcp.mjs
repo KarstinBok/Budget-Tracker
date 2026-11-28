@@ -11,6 +11,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { json, str, updateDoc, liveStore } from "../lib/shared-doc.mjs";
 import { lookupFood, lookupUsda } from "../lib/food-lookup.mjs";
+import { geminiEnabled, geminiNutrition } from "../lib/gemini.mjs";
 import { notifyChange } from "../lib/notify.mjs";
 import { FITNESS_KEY, MEALS, applyOp, defaultDoc, normalize } from "./fitness.mjs";
 import { DAILY_KEY, applyOp as applyDailyOp, defaultDoc as defaultDailyDoc, normalize as normalizeDaily } from "./daily.mjs";
@@ -33,6 +34,13 @@ The same connector also logs the rest of their day:
 - Toilet log (https://japan-trip-budget.netlify.app/toilet/): log_poop with the Bristol stool type 1-7 (1 hard lumps, 2 lumpy sausage, 3 cracked sausage, 4 smooth soft sausage, 5 soft blobs, 6 mushy, 7 watery). If they don't say the type, ask, or use 4 for "normal". The time defaults to now. get_toilet_log and delete_poop to read and fix.
 - Everyday expenses in SGD (https://japan-trip-budget.netlify.app/daily/): call get_expenses first for the categories and cards, then log_expense. Personal expenses belong to one person; shared ones are split (equally unless told otherwise) and record who paid. Pick the category that fits; set the card only when they say which card or account paid. A receipt photo works too: read the total, shop and date from it. delete_expense to fix a mistake.
 If it isn't clear whose entry it is, ask.`;
+
+// With GEMINI_API_KEY set, Gemini (grounded in Google Search) works out the numbers instead.
+const GEMINI_INSTRUCTIONS = `
+
+Nutrition comes from Gemini: after step 1 (and unless find_saved_foods had the food), call gemini_nutrition with each item and your estimated grams, and use its numbers for step 2 instead of looking them up yourself. Log them exactly as Gemini gave them (source "Gemini (Google Search)" plus its source and link), even if they differ from what you'd expect; you can mention the difference. Only if gemini_nutrition fails, fall back to lookup_usda, lookup_open_food_facts and web search, and say so. If the person gives the weights or numbers themselves, use theirs.`;
+
+const instructions = () => INSTRUCTIONS + (geminiEnabled() ? GEMINI_INSTRUCTIONS : "");
 
 // ---------------------------------------------------------------- tools
 
@@ -237,6 +245,35 @@ const TOOLS = [
   },
 ];
 
+const GEMINI_TOOL = {
+  name: "gemini_nutrition",
+  title: "Nutrition from Gemini (Google Search)",
+  description: "Ask Google's Gemini, grounded in Google Search, for the nutrition of foods at the weights you estimated from the photo. Returns each item's kcal, protein, carbs, fat (and fibre, sugar, sodium where found), its source, the totals and the Google results it used. Use these numbers when logging.",
+  annotations: { readOnlyHint: true, openWorldHint: true },
+  inputSchema: {
+    type: "object",
+    required: ["items"],
+    properties: {
+      items: {
+        type: "array",
+        minItems: 1,
+        items: {
+          type: "object",
+          required: ["name"],
+          properties: {
+            name: { type: "string", description: "The food or ingredient, as specific as you can, e.g. \"white rice, cooked\" or \"McDonald's McSpicy\"." },
+            grams: num("Estimated weight eaten, g (ml for drinks)."),
+            notes: { type: "string", description: "Anything that changes the numbers, e.g. \"deep-fried\", \"with skin\", \"less sugar\"." },
+          },
+        },
+      },
+      context: { type: "string", description: "Where it's from, if known: restaurant or brand, hawker dish, country." },
+    },
+  },
+};
+
+const tools = () => (geminiEnabled() ? [...TOOLS, GEMINI_TOOL] : TOOLS);
+
 // ---------------------------------------------------------------- diary helpers
 
 const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date());
@@ -273,7 +310,7 @@ function targets(doc, p, d) {
 const r1 = (v) => Math.round(v * 10) / 10;
 const total = (list, k) => r1(list.reduce((s, x) => s + (Number(x[k]) || 0), 0));
 
-function diary(doc, p, d) {
+export function diary(doc, p, d) {
   const foods = doc.foods.filter((f) => f.person === p && f.date === d);
   const ex = doc.exercises.filter((x) => x.person === p && x.date === d);
   const goal = targets(doc, p, d);
@@ -547,6 +584,13 @@ async function callTool(name, args = {}) {
       return lookup("USDA FoodData Central", () => lookupUsda(args));
     case "lookup_open_food_facts":
       return lookup("Open Food Facts", () => lookupFood({ barcode: args.barcode ?? "", query: args.query ?? "" }));
+    case "gemini_nutrition":
+      if (!geminiEnabled()) throw new ToolError(`Unknown tool ${name}`);
+      try {
+        return await geminiNutrition(args);
+      } catch (err) {
+        throw new ToolError(`Couldn't get numbers from Gemini (${err.message}). Use lookup_usda, lookup_open_food_facts or web search instead, and tell the person.`);
+      }
     default:
       throw new ToolError(`Unknown tool ${name}`);
   }
@@ -572,12 +616,12 @@ async function handle(msg) {
         protocolVersion: PROTOCOLS.includes(params?.protocolVersion) ? params.protocolVersion : PROTOCOLS[0],
         capabilities: { tools: { listChanged: false } },
         serverInfo: SERVER,
-        instructions: INSTRUCTIONS,
+        instructions: instructions(),
       });
     case "ping":
       return rpcResult(id, {});
     case "tools/list":
-      return rpcResult(id, { tools: TOOLS });
+      return rpcResult(id, { tools: tools() });
     case "tools/call": {
       try {
         const out = await callTool(params?.name, params?.arguments);

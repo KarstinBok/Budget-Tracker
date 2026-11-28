@@ -106,6 +106,15 @@ A calorie and macro diary for Karstin and Lilin, in the same app as the everyday
   1. On Netlify, add the environment variable `FITNESS_MCP_KEY`: a long random password of at least 16 characters (e.g. from a password manager). Optionally add `FDC_API_KEY`, a free USDA key from [api.data.gov](https://api.data.gov/signup/); without it the shared `DEMO_KEY` allows only a few lookups an hour. Then redeploy.
   2. In Claude (claude.ai, **Settings → Connectors → Add custom connector**), name it *Food diary* and give the URL `https://japan-trip-budget.netlify.app/mcp/<your FITNESS_MCP_KEY>`. It then works in the Claude app on your phone too.
   The key in the URL is what protects the diary, so keep the URL private. To change it, set a new `FITNESS_MCP_KEY`, redeploy and update the connector. The diary is backed up like the other data (`fitness-v1`).
+- **Nutrition from Gemini (optional):** add `GEMINI_API_KEY` on Netlify (a free key from [Google AI Studio](https://aistudio.google.com/apikey)) and redeploy. You still chat with Claude the same way: Claude looks at the photo and estimates each item's weight, then the connector's `gemini_nutrition` tool asks Gemini, which searches Google for the nutrition and scales it to those weights. Claude logs Gemini's numbers as given, with its sources (`netlify/lib/gemini.mjs`). If Gemini fails or its free limit runs out, Claude falls back to USDA, Open Food Facts and web search, and says so. `GEMINI_MODEL` is optional (default `gemini-2.5-flash`). Without the key the connector works as before.
+- **📱 Telegram bot (photo → Gemini → diary):** send the bot a photo of your meal, or describe it, and Gemini looks at the photo itself, estimates each item's weight, searches Google for the nutrition and logs it to your diary. The bot replies with the breakdown and sources, the calories left today, and **↩️ Undo** / **📒 Open diary** buttons. A caption helps: a weight or portion ("200 g rice", "half"), the place ("McDonald's"), the meal ("lunch"), the day ("yesterday") or "for Lilin"; without one, the meal comes from the time of day (Singapore time). Code: `netlify/functions/telegram-webhook.mjs`, `telegram-background.mjs`, `netlify/lib/telegram.mjs`.
+- **Setting up the Telegram bot (once):**
+  1. In Telegram, message **@BotFather**, send `/newbot` and follow the steps. It gives you the bot's token.
+  2. On Netlify, add `TELEGRAM_BOT_TOKEN` (that token), `TELEGRAM_WEBHOOK_SECRET` (any long random password, letters, digits, `_` and `-` only) and `GEMINI_API_KEY` (above). Redeploy.
+  3. Point Telegram at the site: open this in a browser, with your token and secret filled in:
+     `https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://japan-trip-budget.netlify.app/api/telegram&secret_token=<SECRET>&allowed_updates=["message","callback_query"]`
+     It should answer `"ok":true`.
+  4. Each of you sends the bot any message. It replies with your Telegram id. Add `TELEGRAM_USERS` on Netlify, e.g. `123456789:Karstin,987654321:Lilin`, and redeploy. Messages from anyone else are ignored.
 
 ## How it works
 
